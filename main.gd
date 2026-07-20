@@ -1,58 +1,122 @@
 extends Node2D
-## Milestone 1 game root: generate a map, view it, drive the camera, and pick the
-## tile under the cursor. The debug coordinate overlay stays available behind F1
-## for the whole project lifetime (Milestone 1 asks for it; the plan wants it
-## kept — coordinate conversion is the first thing to suspect when visuals look
-## wrong).
+## Game controller: wires input, camera, hover, the build/demolish interaction
+## modes, and the sidebar to the Sim. Game rules live in Sim/Colony; this node
+## only translates intent.
 
 const MAP_SIZE := 64
 const DEFAULT_SEED := 1337
 
+enum Mode { NONE, PLACE, DEMOLISH }
+
 @onready var _terrain: TerrainView = $TerrainView
+@onready var _buildings: BuildingsView = $Buildings
 @onready var _camera: IsoCamera = $Camera
+@onready var _cursor: TileCursor = $TileCursor
+@onready var _ghost: BuildingSprite = $Ghost
+@onready var _sidebar := $UI/Sidebar
 @onready var _debug: CanvasLayer = $Debug
 @onready var _label: Label = $Debug/Label
 
 var _map: ColonyMap
 var _hover := Vector2i(-1, -1)
+var _mode := Mode.NONE
+var _place_type := ""
+var _over_ui := false
 
 func _ready() -> void:
-	_map = ColonyMap.new(MAP_SIZE, MAP_SIZE)
-	_map.generate(DEFAULT_SEED)
+	Sim.new_game(DEFAULT_SEED, MAP_SIZE)
+	_map = Sim.colony.map
 	_terrain.render_map(_map)
+	_buildings.bind()
 	_camera.position = IsoGrid.grid_to_screen(Vector2i(MAP_SIZE / 2, MAP_SIZE / 2))
+	_ghost.visible = false
+	_sidebar.build_requested.connect(_on_build_requested)
+	_sidebar.demolish_requested.connect(func() -> void: _set_mode(Mode.DEMOLISH))
+	_sidebar.populate(Defs.buildings)
+	# Sidebar tracks the stockpile off the event bus, so it stays correct no
+	# matter what mutates it. new_game() doesn't emit, so seed the initial value.
+	Events.stockpile_changed.connect(_sidebar.set_stockpile)
+	_sidebar.set_stockpile(Sim.colony.stockpile)
+	_set_mode(Mode.NONE)
 
 func _process(_delta: float) -> void:
+	_over_ui = get_viewport().gui_get_hovered_control() != null
 	var cell := IsoGrid.screen_to_grid(get_global_mouse_position())
 	if cell != _hover:
 		_hover = cell
-		queue_redraw()
-	_update_label()
+		_cursor.cell = cell
+	_cursor.visible = not _over_ui and _map.in_bounds(_hover)
+	_update_ghost()
+	_update_info()
+
+func _update_ghost() -> void:
+	if _mode != Mode.PLACE or _over_ui or not _map.in_bounds(_hover):
+		_ghost.visible = false
+		return
+	_ghost.visible = true
+	_ghost.set_origin(_hover)
+	_ghost.set_valid(Sim.can_place(_place_type, _hover).ok)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo \
-			and event.keycode == KEY_F1:
-		_debug.visible = not _debug.visible
-
-func _update_label() -> void:
-	if not _debug.visible:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F1:
+			_debug.visible = not _debug.visible
+		elif event.keycode == KEY_ESCAPE:
+			_set_mode(Mode.NONE)
 		return
-	var terrain := "—"
-	if _map.in_bounds(_hover):
-		terrain = ColonyMap.TERRAIN_NAMES[_map.get_terrain(_hover)]
-	_label.text = "cell (%d, %d)   %s\nzoom %dx   seed %d   FPS %d\n[WASD/MMB] pan  [wheel] zoom  [F1] debug" % [
-		_hover.x, _hover.y, terrain,
-		int(_camera.zoom.x), _map.seed, Engine.get_frames_per_second(),
-	]
+	if event is InputEventMouseButton and event.pressed and not _over_ui:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			_on_left_click()
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			_on_right_click()
 
-func _draw() -> void:
+func _on_left_click() -> void:
 	if not _map.in_bounds(_hover):
 		return
-	var c := IsoGrid.grid_to_screen(_hover)
-	var hw := IsoGrid.TILE_W / 2.0
-	var hh := IsoGrid.TILE_H / 2.0
-	var pts := PackedVector2Array([
-		c + Vector2(0, -hh), c + Vector2(hw, 0), c + Vector2(0, hh), c + Vector2(-hw, 0),
-		c + Vector2(0, -hh),
-	])
-	draw_polyline(pts, Color(1.0, 0.95, 0.4), 1.5)
+	match _mode:
+		Mode.PLACE:
+			Sim.place_building(_place_type, _hover)
+		Mode.DEMOLISH:
+			Sim.demolish_at(_hover)
+
+func _on_right_click() -> void:
+	if _mode != Mode.NONE:
+		_set_mode(Mode.NONE)
+	else:
+		Sim.demolish_at(_hover)
+
+func _on_build_requested(type_id: String) -> void:
+	_place_type = type_id
+	_set_mode(Mode.PLACE)
+	_ghost.configure(Defs.buildings[type_id], _hover, true)
+
+func _set_mode(mode: Mode) -> void:
+	_mode = mode
+	_cursor.demolish = (mode == Mode.DEMOLISH)
+	if mode != Mode.PLACE:
+		_ghost.visible = false
+	_sidebar.set_mode_label(_mode_name())
+
+func _mode_name() -> String:
+	match _mode:
+		Mode.PLACE:
+			return "PLACE  " + str(Defs.buildings[_place_type].name)
+		Mode.DEMOLISH:
+			return "DEMOLISH"
+		_:
+			return "SELECT"
+
+func _update_info() -> void:
+	var terrain := "—"
+	var occupant := ""
+	if _map.in_bounds(_hover):
+		terrain = ColonyMap.TERRAIN_NAMES[_map.get_terrain(_hover)]
+		var b := Sim.building_at(_hover)
+		if not b.is_empty():
+			occupant = str(Defs.buildings[b.type].name)
+	_sidebar.set_tile_info(_hover, terrain, occupant)
+	if _debug.visible:
+		_label.text = "cell (%d, %d)  %s\nzoom %dx  seed %d  FPS %d  [F1]" % [
+			_hover.x, _hover.y, terrain,
+			int(_camera.zoom.x), _map.seed, Engine.get_frames_per_second(),
+		]
