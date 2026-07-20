@@ -8,6 +8,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 4 — Deposits and prospecting** (2026-07-20)
+  - `sim/map.gd`: `ColonyMap` gained hidden per-cell deposit/richness
+    layers (`enum Deposit { NONE, IRON, COPPER, XENITE }`, richness
+    `0.0`–`1.0`, a fixed per-cell reading-noise field) and a revealed
+    scan-state layer (`enum Scan { UNSCANNED, COARSE, CONFIRMED }`).
+    `_generate_deposits()` places blob-shaped deposits from one
+    low-frequency noise field per type under buildable ground, richness
+    from the noise margin, deterministic per seed. New accessors
+    `get_deposit`/`get_richness`/`get_scan`/`set_scan`,
+    `coarse_richness()` (true value + deterministic jitter for imprecise
+    coarse readings), and `reading_text()` (the sidebar reading string).
+  - `sim/colony.gd`: `can_place()` gates buildings declaring
+    `requires_deposit_ids` on a CONFIRMED matching deposit. `tick()` now
+    runs `_run_prospecting()` (survey stations sweep an expanding circular
+    ring outward, one ring per `ticks_per_ring` ticks, advancing each
+    tile's scan state one step per visit — unscanned→coarse→confirmed —
+    restarting from center after the outer ring so a second sweep
+    confirms) before production. `_run_mine()`: extractors yield their
+    deposit's resource at `base_per_tick × richness` per tick via a
+    fractional accumulator, so richer tiles visibly produce faster.
+    `rates()` now includes mine output.
+  - `sim/events.gd`: new `scan_changed(cells: Array)` signal, emitted by
+    `Sim` after any tick that changed scan state.
+  - `data/buildings.json`: Survey Station gained a `scan` block
+    (`max_radius: 7, ticks_per_ring: 2`); new Mine (1×1, requires
+    confirmed Iron or Copper, `0.5 × richness`/tick) and Crystal Extractor
+    (1×1, requires confirmed Xenite, `0.25 × richness`/tick).
+  - `render/prospect_overlay.gd` (new `ProspectOverlay`): a `P`-toggleable
+    overlay tinting each tile by scan state and, once confirmed, by
+    deposit type (semi-transparent iso diamonds — unscanned veil, coarse
+    trace, confirmed iron/copper/xenite/barren). Repaints fully when shown,
+    then incrementally via `Events.scan_changed` while visible.
+  - `main.tscn`/`main.gd`: `ProspectOverlay` added between terrain and
+    buildings (`z_index = 2`); `P` toggles it; the sidebar's tile info now
+    shows the prospecting reading for the hovered cell.
+  - Tests: `tests/test_prospecting.gd` (9 tests — deterministic deposit
+    generation, fresh-map unscanned state, coarse-then-confirmed
+    revelation over two survey sweeps, outward ring expansion,
+    `scan_changes` reporting, deposit-gated mine placement, and
+    richness-scaled output).
+  - Full suite: 749 assertions across 36 tests, 0 failures (`make test`).
+
 - Overhead map (toggle on `M`) with building markers, camera-view
   rectangle, and click-to-jump. New `render/minimap.gd` (`Minimap`)
   renders `ColonyMap` top-down as a cached one-pixel-per-cell image,

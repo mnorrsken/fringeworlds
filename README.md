@@ -9,7 +9,11 @@ extracted.
 Place buildings on the isometric terrain and watch a real fixed-tick
 economy run: generators and consumers balance against a shared power
 budget, production buildings turn inputs into outputs on a per-building
-progress timer, and the whole thing runs at pause / 1× / 3× speed.
+progress timer, and the whole thing runs at pause / 1× / 3× speed. A
+Survey Station sweeps the ground in expanding rings, upgrading each tile's
+reading from unscanned to a coarse guess to a confirmed deposit type and
+richness — toggle the `P` overlay to see it happen — and mines/extractors
+can only be built on confirmed ore, producing faster on richer tiles.
 
 ## Tech stack
 
@@ -47,7 +51,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**736 assertions across 27 tests, 0 failures.**
+**749 assertions across 36 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -77,6 +81,7 @@ reads sim state and never writes game rules back. See
 | Z | Toggle zoom 1×↔2× (from 3×/4× snaps straight back to 1×) |
 | Pinch, `+`/`-` | Fine zoom (secondary controls, up to 4×) |
 | M | Toggle the overhead map (terrain, buildings, camera view; click to jump) |
+| P | Toggle the prospecting overlay (tints tiles by scan state / deposit type) |
 | Left click | Place selected building, or demolish (in demolish mode) |
 | Right click | Demolish at cursor, or cancel current mode |
 | Esc | Close the overhead map if open, otherwise cancel current mode |
@@ -91,28 +96,33 @@ selected from the right-hand scrollable sidebar, which also shows the
 current mode, the hovered tile's info, the stockpile with live per-second
 rates, power used/produced (red on deficit), and the current speed.
 
-## Buildings (current 4)
+## Buildings (current 6)
 
-| Building | Footprint | Cost | Power | Recipe | Terrain |
+| Building | Footprint | Cost | Power | Produces | Terrain / requirement |
 |---|---|---|---|---|---|
 | Solar Panel | 1×1 | 10 metal | +10 | — | Regolith, Highlands |
 | Ice Harvester | 1×1 | 15 metal | −5 | 1 water / 4 ticks (no inputs) | Ice |
 | Habitat | 2×2 | 30 metal | −2 | — | Regolith |
-| Survey Station | 2×2 | 25 metal | −3 | — | Regolith, Highlands |
+| Survey Station | 2×2 | 25 metal | −3 | scans outward, ring every 2 ticks, radius 7 | Regolith, Highlands |
+| Mine | 1×1 | 20 metal | −4 | iron/copper ore, `0.5 × richness` / tick | confirmed Iron or Copper deposit |
+| Crystal Extractor | 1×1 | 40 metal | −6 | xenite, `0.25 × richness` / tick | confirmed Xenite deposit |
 
 Defined in `data/buildings.json`. Every building has a power figure;
 generators (positive power) always run, consumers (negative power) run
 oldest-placed-first and the newest ones shut down (and dim on screen) when
-demand exceeds supply. Only Ice Harvester has a recipe so far — the rest of
-the production chain from the design plan arrives in later milestones.
+demand exceeds supply. Mine and Crystal Extractor can only be placed on a
+tile whose prospecting scan is CONFIRMED and whose hidden deposit matches;
+their output rate scales with that deposit's richness (0–100%, revealed
+exactly only once confirmed — a coarse scan gives an imprecise guess).
 
 ## Status
 
 Milestones 0 (project skeleton), 1 (isometric terrain rendering and
-camera), 2 (building placement), and 3 (simulation core: tick economy,
-stockpile, power balance, speed controls) are done. See
-[`docs/progress.md`](docs/progress.md) for what's implemented, what's
-verified by test vs. eyeballed on screen, and what's next.
+camera), 2 (building placement), 3 (simulation core: tick economy,
+stockpile, power balance, speed controls), and 4 (deposits and
+prospecting) are done. See [`docs/progress.md`](docs/progress.md) for
+what's implemented, what's verified by test vs. eyeballed on screen, and
+what's next.
 
 ## Documentation
 

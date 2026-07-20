@@ -17,7 +17,9 @@ Concretely today:
 
 - `sim/map.gd` (`ColonyMap`) holds the 64×64 terrain grid as a
   `PackedByteArray`. It has a `generate(seed)` method and `get_terrain` /
-  `set_terrain` accessors. It does not know a `TileMapLayer` exists.
+  `set_terrain` accessors. It does not know a `TileMapLayer` exists. As of
+  Milestone 4 it also owns the hidden deposit/scan layers — see "Deposits
+  and prospecting" below.
 - `render/terrain_view.gd` (`TerrainView`) is a `TileMapLayer` subclass with
   one method that matters, `render_map(map: ColonyMap)`, which walks the map
   and paints matching tiles. It reads `ColonyMap`; `ColonyMap` never touches
@@ -45,13 +47,18 @@ Registered in `project.godot` under `[autoload]`, in load order:
 
 1. **`Events`** (`sim/events.gd`) — a global signal bus. Defines
    `ticked(tick: int)`, `stockpile_changed(stockpile: Dictionary)`,
-   `building_placed(instance: Dictionary)`, and
-   `building_removed(instance: Dictionary)`. The sim emits; UI/render layers
-   connect. UI is meant to never poke `Sim` internals directly — it calls
-   `Sim` methods and listens on `Events` signals instead. The
+   `building_placed(instance: Dictionary)`,
+   `building_removed(instance: Dictionary)`, and (Milestone 4)
+   `scan_changed(cells: Array)`. The sim emits; UI/render layers connect.
+   UI is meant to never poke `Sim` internals directly — it calls `Sim`
+   methods and listens on `Events` signals instead. The
    `building_placed`/`building_removed` payload is the same instance
    dictionary `Colony.place()`/`demolish_at()` returns:
-   `{id, type, origin, cells}`.
+   `{id, type, origin, cells}`. `scan_changed`'s payload is the list of
+   grid cells whose prospecting scan state changed on the tick just
+   processed; `ProspectOverlay` is the only current listener, using it to
+   repaint incrementally instead of rebuilding the whole overlay every
+   tick.
 2. **`Defs`** (`sim/defs.gd`) — loads read-only content definitions from
    `data/*.json` at startup into two dictionaries: `resources` (id →
    definition, unchanged since Milestone 0) and `buildings` (id →
@@ -60,10 +67,13 @@ Registered in `project.godot` under `[autoload]`, in load order:
    code never re-parses raw JSON: `allowed_terrain_ids` (an
    `Array[int]`, the entry's `allowed_terrain` name strings resolved
    through `ColonyMap.Terrain`) and `color_value` (a `Color`, parsed from
-   the entry's `color` hex string via `Color.html`). Engine code is meant
-   to read `Defs.resources` / `Defs.buildings` rather than hard-code
-   content; adding a building means editing `data/buildings.json`, not this
-   script.
+   the entry's `color` hex string via `Color.html`). As of Milestone 4, a
+   building declaring `requires_deposit` (a list of deposit names, for
+   extractors) also gets `requires_deposit_ids` resolved through
+   `ColonyMap.Deposit`, the same pattern as `allowed_terrain_ids`. Engine
+   code is meant to read `Defs.resources` / `Defs.buildings` rather than
+   hard-code content; adding a building means editing
+   `data/buildings.json`, not this script.
 3. **`Sim`** (`sim/sim.gd`) — game state and the fixed tick loop, plus the
    live `Colony` (since Milestone 2). `new_game(seed, size)` generates a
    `ColonyMap`, constructs `colony := Colony.new(map, Defs.buildings,
@@ -117,18 +127,24 @@ far:
 
 - `data/resources.json` — an array of 9 objects (`id`, `name`, `category`,
   `unit`), loaded into `Defs.resources`.
-- `data/buildings.json` — an array of 4 building objects: `solar_panel` and
-  `ice_harvester` (1×1), `habitat` and `survey_station` (2×2). Fields:
-  `id`, `name`, `size`, `cost`, `allowed_terrain`, `color`, `desc`, and (as
-  of Milestone 3) `power` (int; positive = generator, negative = consumer,
-  every building declares one) and, optionally, `recipe`
-  (`{inputs: {resource: amount, ...}, outputs: {...}, ticks: int}` — only
-  `ice_harvester` has one so far: no inputs, 1 water every 4 ticks). Loaded
-  into `Defs.buildings` and augmented with `allowed_terrain_ids`/
-  `color_value` as described above. Adding a fifth building, or giving an
-  existing one a recipe, is a matter of editing JSON — no script changes
-  needed, since `Colony.tick()`, `BuildingSprite`, and the sidebar's build
-  menu all read generically off the def dictionary.
+- `data/buildings.json` — an array of 6 building objects: `solar_panel` and
+  `ice_harvester` (1×1), `habitat` and `survey_station` (2×2), and (as of
+  Milestone 4) `mine` and `crystal_extractor` (1×1). Fields: `id`, `name`,
+  `size`, `cost`, `allowed_terrain`, `color`, `desc`, `power` (int;
+  positive = generator, negative = consumer, every building declares one),
+  and optionally `recipe` (`{inputs: {resource: amount, ...}, outputs:
+  {...}, ticks: int}` — only `ice_harvester` has one: no inputs, 1 water
+  every 4 ticks). Milestone 4 added two more optional fields: `scan`
+  (`{max_radius: int, ticks_per_ring: int}` — only `survey_station`, whose
+  values are `7`/`2`) and `mine`/`requires_deposit` together
+  (`mine: {base_per_tick: float}` plus `requires_deposit: [DEPOSIT_NAME,
+  ...]` — `mine` at `0.5` requiring `[IRON, COPPER]`, `crystal_extractor`
+  at `0.25` requiring `[XENITE]`). Loaded into `Defs.buildings` and
+  augmented with `allowed_terrain_ids`/`color_value`/`requires_deposit_ids`
+  as described above. Adding a building, or a recipe/scan/mine block to an
+  existing one, is a matter of editing JSON — no script changes needed,
+  since `Colony.tick()`, `BuildingSprite`, and the sidebar's build menu all
+  read generically off the def dictionary.
 
 There is no separate `data/recipes.json` — recipes live inline on the
 building that runs them, one recipe per building, which is enough for the
@@ -139,11 +155,14 @@ buildings need to switch between multiple recipes later.
 
 As of Milestone 3, `Colony` (in `sim/colony.gd`) does more than hold
 placement state — it also owns the fixed-tick production economy, called
-once per simulation tick from `Sim._advance_tick()`. `tick()` is exactly:
+once per simulation tick from `Sim._advance_tick()`. As of Milestone 4,
+`tick()` also runs prospecting between power and production:
 
 ```gdscript
 func tick() -> void:
+    scan_changes = []
     _balance_power()
+    _run_prospecting()
     _run_production()
 ```
 
@@ -171,12 +190,91 @@ progress) until inputs become available on a later tick. Inactive
 (unpowered) buildings don't advance `progress` at all, so a power outage
 doesn't cause a burst of production the instant power returns.
 
+Since Milestone 4, `_run_production` special-cases buildings with a `mine`
+def block (extractors — see below) before the recipe branch, calling
+`_run_mine(inst, def)` and skipping the recipe logic entirely for them.
+
 **`rates()`** returns the net stockpile change **per tick** (not per
-second) summed across only currently-active buildings with a recipe —
-`{resource_id: float}`, positive for net production, negative for net
-consumption. Callers that want a per-second figure for display multiply by
-`Sim.TICKS_PER_SECOND` themselves (see `main.gd` below); `Colony` has no
-concept of real time, only ticks.
+second) summed across only currently-active buildings — `{resource_id:
+float}`, positive for net production, negative for net consumption. It
+covers both recipe-based production and (as of Milestone 4) extractor
+output (`_mine_per_tick`, the same formula `_run_mine` uses). Callers that
+want a per-second figure for display multiply by `Sim.TICKS_PER_SECOND`
+themselves (see `main.gd` below); `Colony` has no concept of real time,
+only ticks.
+
+## Deposits and prospecting (`ColonyMap` + `Colony`, Milestone 4)
+
+This is the game's signature mechanic: subsurface resources are hidden
+until surveyed, and extraction is gated on a confirmed reading.
+
+**Hidden layers on `ColonyMap`** (`sim/map.gd`), parallel to the terrain
+`PackedByteArray` and indexed the same way:
+
+- `_deposit` (`PackedByteArray`) — one of `enum Deposit { NONE, IRON,
+  COPPER, XENITE }` per cell. Hidden; `get_deposit(cell)` reads it, but
+  nothing renders it directly until a scan confirms it.
+- `_richness` (`PackedFloat32Array`) — `0.0`–`1.0` per cell, how much a
+  matching extractor produces there. Hidden the same way.
+- `_reading_noise` (`PackedFloat32Array`) — a fixed per-cell random value
+  in `-1.0..1.0`, generated once at map creation from a seeded
+  `RandomNumberGenerator`. `coarse_richness(cell)` adds
+  `noise * READING_JITTER` (`0.25`) to the true richness and clamps to
+  `0.05..1.0`, so a coarse scan reports a plausible-but-imprecise number
+  that's deterministic (not re-rolled) for a given cell and seed.
+- `_scan` (`PackedByteArray`) — one of `enum Scan { UNSCANNED, COARSE,
+  CONFIRMED }` per cell. This is the *revealed* layer — the only one that
+  changes during play, via `set_scan(cell, state)`.
+
+**Deposit generation** (`_generate_deposits`, called from `generate()`
+after terrain): one low-frequency `FastNoiseLite` field per deposit type
+(`IRON`/`COPPER`/`XENITE`, each seeded `p_seed + dep * 101` so they're
+independent), each with its own threshold. Only cells already terrain
+REGOLITH or HIGHLANDS are eligible. For each eligible cell, the winning
+deposit is whichever field's value clears its threshold by the largest
+margin (ties/no-clears → `Deposit.NONE`); richness is derived from that
+margin (`clampf(0.2 + margin * 1.6, 0.1, 1.0)`). This produces
+naturally blob-shaped deposits without an explicit blob/flood-fill
+algorithm, and is fully deterministic per seed — pinned by
+`tests/test_prospecting.gd`'s `test_generation_is_deterministic`.
+
+**Survey scanning** (`Colony._run_prospecting` / `_scan_ring`, in
+`sim/colony.gd`): a survey building (any def with a `scan` block —
+currently only `survey_station`, with `max_radius: 7, ticks_per_ring: 2`)
+sweeps an expanding ring outward from its footprint center. Each active
+survey building's `scan_progress` (a per-instance counter, alongside
+`scan_ring`, both initialized in `place()`) advances one per tick; once it
+hits `ticks_per_ring`, `_scan_ring` processes the current ring — every
+cell whose rounded distance from center equals `scan_ring` — and advances
+each such cell's scan state one step (`UNSCANNED→COARSE` or
+`COARSE→CONFIRMED`; a cell already `CONFIRMED` is left alone). Every cell
+actually advanced is appended to `Colony.scan_changes` (reset to `[]` at
+the top of every `tick()`). Once `scan_ring` exceeds `max_radius`, it
+resets to `0` and the sweep restarts from the center — so a tile visited
+by the first sweep (coarse) gets upgraded to confirmed on the second. This
+is why the acceptance criteria's "progressively reveals coarse then
+confirmed" holds: it's not two different mechanisms, just the same ring
+sweep run twice.
+
+**Extractor gating and output**: any building def with `requires_deposit_ids`
+(resolved by `Defs` from `requires_deposit`, see above) can only be placed
+where `Colony.can_place()` finds `map.get_scan(origin) ==
+ColonyMap.Scan.CONFIRMED` *and* `map.get_deposit(origin)` is one of the
+required types — all extractors are 1×1, so `origin` is the only cell to
+check. On placement, `place()` latches `deposit_type`, `richness`, and a
+`mine_accum` float onto the instance — the deposit is fixed at build time,
+not re-read every tick. `_run_mine` (called from `_run_production` for any
+`active` building with a `mine` def block) adds `base_per_tick * richness`
+to `mine_accum` every tick and pays out whole units to the stockpile
+resource (`ColonyMap.DEPOSIT_RESOURCE[deposit_type]`) once the accumulator
+crosses `1.0`, carrying the fractional remainder forward — so a richness-1.0
+deposit visibly produces roughly twice as fast as a richness-0.5 one over
+many ticks, without ever paying out a fraction of a resource unit.
+
+`Sim._advance_tick()` emits `Events.scan_changed(colony.scan_changes)`
+after `colony.tick()`, but only when the list is non-empty, so idle ticks
+(no active survey buildings, or a survey mid-ring with nothing left to
+reveal) don't spam the signal.
 
 ## Rendering and camera
 
@@ -185,6 +283,22 @@ concept of real time, only ticks.
   one shaded diamond per `ColonyMap.Terrain` enum value, drawn into an
   `ImageTexture` at runtime. No external art files are committed yet; this
   is explicitly a Milestone-8 replacement target.
+- `render/prospect_overlay.gd` (`ProspectOverlay`, extends `TileMapLayer`,
+  Milestone 4) is a toggleable overlay of semi-transparent iso diamonds
+  tinting each tile by prospecting knowledge: `enum Cat { UNSCANNED,
+  COARSE_EMPTY, COARSE_DEP, CONFIRMED_EMPTY, IRON, COPPER, XENITE }`, each
+  with its own `Color` (including alpha, so terrain shows through) in a
+  `COLORS` dict, painted into a procedurally-built tileset the same way
+  `TerrainView` builds its. `setup(map)` builds the tileset and connects
+  `Events.scan_changed`. `rebuild()` repaints every cell from current scan
+  state — called when the overlay is toggled on, since it doesn't track
+  state while hidden. While `visible`, `_on_scan_changed(cells)` repaints
+  only the cells in the signal's payload, so an active survey doesn't
+  force a full-map repaint every tick. `_category(cell)` picks the `Cat`
+  from `map.get_scan(cell)`/`map.get_deposit(cell)`: `COARSE` shows only
+  whether *something* is there (`COARSE_DEP`) or not (`COARSE_EMPTY`), not
+  which resource — matching the "coarse readings are imprecise" design;
+  only `CONFIRMED` reveals the specific ore/crystal color.
 - `render/building_sprite.gd` (`BuildingSprite`, extends `Node2D`) draws one
   placed building or the placement ghost as a flat-shaded iso block: a lit
   top face plus two darkened side walls (`WALL_H = 16.0` px tall), sized to
@@ -245,9 +359,13 @@ concept of real time, only ticks.
 
 Draw order is controlled two ways, set on the nodes in `main.tscn`:
 
+- `ProspectOverlay` sits at `z_index = 2` — above the base `TerrainView`
+  (implicit `z_index = 0`) so its tints show, but below `Buildings` so
+  building sprites remain visible over it.
 - `Buildings` (`BuildingsView`) has `y_sort_enabled = true` and
   `z_index = 5`, so buildings sort against each other by their front-tile
-  screen Y (via `BuildingSprite`'s position), and sit above the terrain.
+  screen Y (via `BuildingSprite`'s position), and sit above the terrain
+  and the prospecting overlay.
 - `Ghost` (`BuildingSprite`, the placement preview) sits at `z_index = 50`.
 - `TileCursor` sits at `z_index = 100`, the highest in the scene, so the
   hover border always draws on top of terrain and buildings. This fixed a
@@ -310,8 +428,12 @@ displays state pushed into it and emits signals for user intent:
   Buttons are single-line (`"%s  ·  %s" % [name, cost]`) with
   `clip_text = true` so a long name/cost combination truncates instead of
   wrapping or overflowing the narrower scrollable column.
-- `set_mode_label(text)` and `set_tile_info(cell, terrain, occupant)` are
-  pushed by `main.gd` every frame.
+- `set_mode_label(text)` and `set_tile_info(cell, terrain, occupant,
+  reading = "")` are pushed by `main.gd` every frame. The optional
+  `reading` parameter (Milestone 4) renders `ColonyMap.reading_text(cell)`
+  between the terrain and occupant lines when non-empty — the prospecting
+  readout ("coarse: metal traces (~40%)", "Iron Ore · richness 72%",
+  etc.).
 - `set_economy(stock, rates, power_produced, power_consumed, speed)`
   (replacing Milestone 2's `set_stockpile`) is also pushed every frame by
   `main.gd`, not event-driven — it renders the STOCKPILE section with a
@@ -330,9 +452,10 @@ sidebar's internals beyond those signals and setters.
 `main.gd` (on `main.tscn`, the project's `run/main_scene`) is the current
 top-level scene and game controller. On `_ready()` it calls
 `Sim.new_game(DEFAULT_SEED, MAP_SIZE)` (seed `1337`, 64×64), hands the
-resulting map to `TerrainView` to render, calls `BuildingsView.bind()`,
-centers the `IsoCamera`, wires up the sidebar (`populate`, `build_requested`
-→ enter place mode, `demolish_requested` → enter demolish mode), calls
+resulting map to `TerrainView` to render, calls `_prospect.setup(_map)`
+(Milestone 4), calls `BuildingsView.bind()`, centers the `IsoCamera`, wires
+up the sidebar (`populate`, `build_requested` → enter place mode,
+`demolish_requested` → enter demolish mode), calls
 `_minimap.setup(_map, _camera)`, and enters `Mode.NONE`.
 
 Each frame (`_process`) it converts the mouse position to a grid cell via
@@ -340,7 +463,10 @@ Each frame (`_process`) it converts the mouse position to a grid cell via
 the mouse is over a UI control (`get_viewport().gui_get_hovered_control()`),
 updates the placement ghost (visible + repositioned + validity-tinted only
 in `Mode.PLACE` and only over the map), and refreshes the sidebar's tile
-info. It also (as of Milestone 3) reads `Sim.colony.rates()` — per-tick —
+info — including (Milestone 4) `_map.reading_text(_hover)`, the
+prospecting reading for the hovered cell, passed as `set_tile_info`'s new
+`reading` argument. It also (as of Milestone 3) reads `Sim.colony.rates()`
+— per-tick —
 and multiplies each value by `Sim.TICKS_PER_SECOND` to get a per-second
 figure before calling `sidebar.set_economy(stockpile, per_sec,
 power_produced, power_consumed, Sim.speed)`; this conversion happens here,
@@ -352,21 +478,24 @@ Left-click places (in `PLACE` mode) or demolishes (in `DEMOLISH` mode) at
 the hovered cell via `Sim`; right-click cancels the current mode if one is
 active, otherwise demolishes at the hovered cell directly; F1 toggles the
 debug overlay (`$Debug/Label` — cell coords, terrain name, zoom level,
-seed, FPS); `M` toggles `_minimap_root.visible`; Escape closes the minimap
-first if it's open, otherwise cancels the current mode to `Mode.NONE`;
-Space calls `Sim.toggle_pause()`; `1` and `3` call `Sim.set_speed(1.0)` /
-`Sim.set_speed(3.0)` directly. Zoom (`Z`, pinch, `+`/`-`) is handled
-entirely inside `IsoCamera` itself, not here. The debug overlay is
-intentionally meant to stay available for the life of the project — the
-plan calls out coordinate conversion as the first thing to suspect when
-on-screen visuals look wrong.
+seed, FPS); `M` toggles `_minimap_root.visible`; `P` calls
+`_toggle_prospect()` (Milestone 4 — flips `_prospect.visible` and calls
+`_prospect.rebuild()` when turning it on, so the overlay reflects the
+latest scan state even if it missed incremental `scan_changed` updates
+while hidden); Escape closes the minimap first if it's open, otherwise
+cancels the current mode to `Mode.NONE`; Space calls `Sim.toggle_pause()`;
+`1` and `3` call `Sim.set_speed(1.0)` / `Sim.set_speed(3.0)` directly. Zoom
+(`Z`, pinch, `+`/`-`) is handled entirely inside `IsoCamera` itself, not
+here. The debug overlay is intentionally meant to stay available for the
+life of the project — the plan calls out coordinate conversion as the
+first thing to suspect when on-screen visuals look wrong.
 
 ## Folder layout
 
 ```
 data/       JSON content definitions: resources.json, buildings.json
 sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd
-render/     Views of sim state: terrain_view.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd
+render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd
 ui/         Screen-space UI: sidebar.gd / sidebar.tscn
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
 main.gd / main.tscn   Current game root and controller
@@ -411,7 +540,12 @@ production accrual, power-deficit shutdown, newest-first shedding, recipe
 stalling on missing inputs, active-only `rates()`), `tests/test_camera.gd`
 (`IsoCamera` zoom: `Z` toggles 1×↔2× and snaps back from higher zoom, a
 `KEY_Z` event toggles it, pinch still fine-zooms, and a trackpad
-pan-gesture no longer changes zoom) — the placement/economy/camera files
-are built with hand-rolled defs dictionaries or constructed nodes,
-independent of `Defs`/`Sim`/a running scene. 736 assertions across 27
-tests, 0 failures as of the second UI/UX refinement pass.
+pan-gesture no longer changes zoom), `tests/test_prospecting.gd`
+(deposit generation determinism/coverage, fresh-map unscanned state, a
+survey station's coarse-then-confirmed two-sweep revelation, outward ring
+expansion, `scan_changes` reporting, mine placement gating on confirmed
+matching deposits, and richness-scaled output) — the
+placement/economy/camera/prospecting files are built with hand-rolled defs
+dictionaries or constructed nodes/maps, independent of
+`Defs`/`Sim`/a running scene. 749 assertions across 36 tests, 0 failures
+as of Milestone 4.

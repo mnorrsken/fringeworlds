@@ -4,7 +4,7 @@ Status of each milestone from [`colony-game-plan.md`](../colony-game-plan.md).
 That file defines the acceptance criteria referenced below — this log tracks
 whether they've been met, not what they are.
 
-Current automated test count: **736 assertions across 27 tests, 0 failures**
+Current automated test count: **749 assertions across 36 tests, 0 failures**
 (`make test`).
 
 ---
@@ -296,10 +296,91 @@ Verified: `make import` clean, headless run clean, `make test` green.
 Screenshot confirmed the overhead map renders terrain, building markers,
 and the camera-view rectangle over a dim backdrop.
 
-## Milestone 4 — Deposits and prospecting — pending
+## Milestone 4 — Deposits and prospecting — done
 
-Not started. This is the game's signature mechanic. See plan section
-"Milestone 4".
+This is the game's signature mechanic. Deliverables:
+
+- `sim/map.gd`: `ColonyMap` gained hidden per-cell layers — deposit type
+  (`enum Deposit { NONE, IRON, COPPER, XENITE }`), richness (`0.0`–`1.0`),
+  a per-cell reading-noise field, and a revealed scan-state layer
+  (`enum Scan { UNSCANNED, COARSE, CONFIRMED }`). `_generate_deposits()`
+  places blob-shaped deposits from one low-frequency noise field per type
+  (only under buildable REGOLITH/HIGHLANDS ground; the deposit is whichever
+  field's margin above its threshold is largest, and richness scales with
+  that margin), deterministic per seed like terrain generation. New
+  accessors `get_deposit`/`get_richness`/`get_scan`/`set_scan`,
+  `coarse_richness()` (true richness + deterministic per-cell jitter, so a
+  coarse reading is close but not exact), and `reading_text()` (the
+  human-readable sidebar string, `""` if unscanned). Constants
+  `DEPOSIT_NAMES`, `DEPOSIT_RESOURCE` (deposit → stockpile resource id),
+  `DEPOSIT_CATEGORY` (coarse-reading label, e.g. "metal" for both ores).
+- `sim/colony.gd`: `can_place()` now gates any building declaring
+  `requires_deposit_ids` on a CONFIRMED matching deposit at its (1×1)
+  origin cell — rejecting with "Deposit not confirmed" or "No matching
+  deposit" as appropriate. `place()` initializes `scan_ring`/
+  `scan_progress` for survey buildings and latches `deposit_type`/
+  `richness`/`mine_accum` for extractors at placement time. `tick()` now
+  runs `_run_prospecting()` between power balance and production, and
+  resets a `scan_changes` list each tick. `_run_prospecting()`/
+  `_scan_ring()`: each active survey building sweeps an expanding circular
+  ring outward from its center, one ring every `ticks_per_ring` ticks,
+  advancing every tile in that ring's scan state one step
+  (unscanned→coarse→confirmed); once the outermost ring
+  (`scan.max_radius`) is reached the sweep restarts from the center, so a
+  second full pass upgrades coarse tiles to confirmed. `_run_mine()`:
+  extractors accumulate `base_per_tick × richness` fractional output per
+  tick and pay out whole units to the stockpile once the accumulator
+  crosses 1 — richer tiles visibly produce faster. `rates()` now includes
+  mine output alongside recipe-based production.
+- `sim/sim.gd`: `_advance_tick()` emits `Events.scan_changed(colony.
+  scan_changes)` after `colony.tick()`, only when non-empty.
+- `sim/events.gd`: new `scan_changed(cells: Array)` signal.
+- `sim/defs.gd`: `_load_buildings` now also resolves a building's
+  `requires_deposit` name list into `requires_deposit_ids` (`Deposit` enum
+  ints), mirroring how `allowed_terrain` becomes `allowed_terrain_ids`.
+- `data/buildings.json`: Survey Station gained a `scan` block
+  (`max_radius: 7, ticks_per_ring: 2`); two new extractors — Mine (1×1,
+  `requires_deposit: [IRON, COPPER]`, `mine.base_per_tick: 0.5`) and
+  Crystal Extractor (1×1, `requires_deposit: [XENITE]`,
+  `mine.base_per_tick: 0.25`).
+- `render/prospect_overlay.gd` (new `ProspectOverlay`, a `TileMapLayer`):
+  a toggleable overlay tinting each tile by scan state and, once
+  confirmed, by deposit type — semi-transparent iso diamonds for
+  unscanned (dark veil), coarse (dim trace, gold if a deposit is present),
+  confirmed-barren, and confirmed iron/copper/xenite (each its own tint).
+  `rebuild()` repaints every cell (called when the overlay is shown);
+  while visible it also listens to `Events.scan_changed` and repaints only
+  the changed cells, so it stays live without a full rebuild every tick.
+- `main.tscn`/`main.gd`: added the `ProspectOverlay` `TileMapLayer` node
+  (`z_index = 2`, hidden by default, between `TerrainView` and
+  `Buildings`); `P` toggles it (`_toggle_prospect()`, rebuilding on show);
+  the sidebar's tile info now includes the prospecting reading.
+- `ui/sidebar.gd`: `set_tile_info()` gained an optional `reading`
+  parameter, rendered between the terrain line and the occupant line;
+  controls hint now lists "P prospect".
+- `tests/test_prospecting.gd`: 9 new tests — deposit generation is
+  deterministic per seed, a generated map has at least some deposits, a
+  fresh map is entirely unscanned, a survey station reveals coarse then
+  (on a second sweep) confirmed readings on its own tile, scanning expands
+  outward ring by ring, `scan_changes` is reported on ticks that scan,
+  mine placement requires a confirmed matching deposit and is rejected on
+  a confirmed-but-barren tile, and a richer deposit yields more ore than a
+  leaner one over the same number of ticks.
+
+Acceptance criteria from the plan: a fresh map shows no deposits; building
+a Survey Station progressively reveals coarse then confirmed readings; a
+Mine can only be placed on confirmed ore and visibly produces faster on
+rich tiles.
+
+**Status: met.** `tests/test_prospecting.gd` proves every acceptance
+criterion directly against `Colony`/`ColonyMap`: fresh-map unscanned state,
+coarse-then-confirmed revelation via a real two-sweep survey simulation,
+outward ring expansion, deposit-gated mine placement (including the
+confirmed-but-barren rejection case), and richness-scaled output via a
+controlled A/B on two hand-crafted tiles. Screenshot additionally confirmed
+the visual side: the `P` overlay tints tiles by scan state/deposit type,
+the sidebar shows live readings, and a Survey Station visibly reveals its
+surroundings in two passes.
 
 ## Milestone 5 — Full production chains and colonists — pending
 
