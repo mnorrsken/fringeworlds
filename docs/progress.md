@@ -4,7 +4,7 @@ Status of each milestone from [`colony-game-plan.md`](../colony-game-plan.md).
 That file defines the acceptance criteria referenced below — this log tracks
 whether they've been met, not what they are.
 
-Current automated test count: **730 assertions across 22 tests, 0 failures**
+Current automated test count: **734 assertions across 26 tests, 0 failures**
 (`make test`).
 
 ---
@@ -222,6 +222,41 @@ Harvester ticks Water upward with power showing `5 / 10` used; removing the
 Solar Panel dims the harvester and halts Water; the sidebar's stockpile,
 rate, and power figures update live; Space/1/3 pause and change speed as
 expected.
+
+## UI/UX refinements (not a milestone)
+
+A fix pass on top of Milestone 3, addressing two usability problems found
+by hands-on play rather than any milestone's acceptance criteria:
+
+- **Zoom didn't work on macOS.** `render/iso_camera.gd` only handled
+  `InputEventMouseButton` wheel events, which a MacBook trackpad or Magic
+  Mouse never sends — those devices emit `InputEventPanGesture` (two-finger
+  scroll) and `InputEventMagnifyGesture` (pinch) instead. The camera now
+  responds to all of: mouse wheel, pan-gesture scroll (accumulated to a
+  threshold so many small gesture events step zoom once), pinch
+  (accumulated the same way), and keyboard `+`/`-`. A new `zoom_by(steps)`
+  helper centralizes the actual step-and-clamp logic that all four input
+  paths call into. Zoom stays at the same integer factors (1×–4×) as
+  before.
+- **Sidebar content was unreachable.** The build list had no scrolling, so
+  buildings past the sidebar's 450px height (the 4th building already was)
+  couldn't be clicked. `ui/sidebar.tscn` now wraps its content in a
+  `ScrollContainer` (horizontal scrolling disabled) so everything —
+  including the full build list — is reachable regardless of how many
+  buildings exist; the sidebar also widened 216→240px so the scrollbar
+  doesn't clip button text, and build buttons became single-line
+  (`Name  ·  cost`, with `clip_text`) to fit the narrower content area.
+- Tests: `tests/test_camera.gd` — 4 new tests feeding synthetic
+  `InputEventPanGesture`/`InputEventMagnifyGesture` events straight to
+  `IsoCamera._unhandled_input`: scroll up zooms in, scroll down zooms out,
+  pinch-out zooms in, and a sub-threshold gesture does nothing (proves the
+  accumulator doesn't over-trigger on noise).
+
+Verified: `make import` clean, headless run clean, `make test` green.
+Screenshots confirmed the sidebar scrolls correctly (scrollbar visible,
+full build list reachable, no text clipping); the zoom fix was verified
+via the new synthetic-event tests since headless CI can't generate real
+trackpad hardware events.
 
 ## Milestone 4 — Deposits and prospecting — pending
 

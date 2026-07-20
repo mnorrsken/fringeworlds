@@ -109,7 +109,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `Makefile`: `run`, `editor`, `build`/`import`, `test`, `clean`.
   - Headless test harness: `tests/run_tests.gd`, `tests/test_defs.gd`.
 
+### Changed
+
+- Sidebar build menu is now scrollable: content wrapped in a
+  `ScrollContainer` (horizontal scroll disabled) so every building is
+  reachable regardless of list length, not just the ones that fit in
+  450px. Sidebar widened 216→240px so the scrollbar doesn't clip button
+  text; build buttons are now single-line (`Name  ·  cost`) with
+  `clip_text` to fit.
+
 ### Fixed
+
+- Zoom now works on macOS trackpad / Magic Mouse. Those devices never emit
+  mouse-wheel events, only `InputEventPanGesture` (two-finger scroll) and
+  `InputEventMagnifyGesture` (pinch), which `render/iso_camera.gd`
+  previously ignored entirely. The camera now zooms from wheel, pan
+  gesture (accumulated to a threshold), pinch (accumulated), and keyboard
+  `+`/`-`, all through a shared `zoom_by(steps)` helper. Covered by 4 new
+  synthetic-event tests in `tests/test_camera.gd`.
 
 - Tile hover highlight now renders on top of terrain and buildings.
   Previously it was drawn via `_draw()` on the game root, which rendered

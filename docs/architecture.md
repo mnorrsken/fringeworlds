@@ -215,10 +215,30 @@ concept of real time, only ticks.
   one) so the border reads on any terrain color; the bright color switches
   amber→red when `demolish` is true.
 - `render/iso_camera.gd` (`IsoCamera`, extends `Camera2D`) handles
-  WASD/arrow-key panning in `_process`, middle-mouse-drag panning and
-  mouse-wheel zoom in `_unhandled_input`. Zoom is stepped through
-  `ZOOM_STEPS = [1.0, 2.0, 3.0, 4.0]` to keep pixel scaling crisp — no
-  free/continuous zoom. Unchanged since Milestone 1.
+  WASD/arrow-key panning in `_process` and middle-mouse-drag panning in
+  `_unhandled_input`. Zoom is stepped through `ZOOM_STEPS = [1.0, 2.0, 3.0,
+  4.0]` to keep pixel scaling crisp — no free/continuous zoom — and, as of
+  the post-Milestone-3 UI/UX pass, is driven by **four** input paths, all
+  funneling into a shared `zoom_by(steps: int)` helper that clamps
+  `_zoom_index` and reapplies `zoom`:
+  - Mouse wheel (`InputEventMouseButton`, unchanged since Milestone 1).
+  - Trackpad two-finger scroll (`InputEventPanGesture`): its `delta.y` is
+    accumulated in `_pan_accum`; every `PAN_GESTURE_PER_STEP` (14.0) px of
+    accumulated scroll steps zoom once (scroll up = zoom in, matching
+    wheel-up).
+  - Pinch (`InputEventMagnifyGesture`): `factor - 1.0` is accumulated in
+    `_magnify_accum`; every `MAGNIFY_PER_STEP` (0.18) of accumulated pinch
+    steps zoom once (fingers apart = zoom in).
+  - Keyboard `+`/`-` (`KEY_EQUAL`/`KEY_KP_ADD` and `KEY_MINUS`/
+    `KEY_KP_SUBTRACT`).
+
+  This exists because a MacBook trackpad or Magic Mouse never emits wheel
+  events — only pan and magnify gestures — so the camera was previously
+  unzoomable on macOS without a physical scroll wheel. The accumulate-
+  then-step pattern is needed because gesture devices fire many small
+  events per physical scroll/pinch motion, unlike a wheel's discrete
+  clicks. `tests/test_camera.gd` feeds synthetic gesture events straight to
+  `_unhandled_input` to verify this without needing real trackpad hardware.
 
 ### Z-order / y-sort scheme
 
@@ -240,11 +260,22 @@ Draw order is controlled two ways, set on the nodes in `main.tscn`:
 `ui/sidebar.gd` (on `ui/sidebar.tscn`, a `PanelContainer`) is a "Dune
 II"-style fixed right-hand command panel, instanced under a `CanvasLayer`
 (`UI`) in `main.tscn` so it draws in screen space above the game world. It
-holds no game logic — it only displays state pushed into it and emits
-signals for user intent:
+is 240px wide (widened from 216px in the post-Milestone-3 UI/UX pass so a
+scrollbar doesn't clip button text). It holds no game logic — it only
+displays state pushed into it and emits signals for user intent:
 
+- Its content (`VBox`) is wrapped in a `ScrollContainer`
+  (`Margin/Scroll/VBox`, horizontal scrolling disabled), added in the same
+  pass, because the build list previously had no scrolling and buildings
+  past the sidebar's ~450px visible height (already true of the 4th
+  building) were unreachable. All the `@onready` node paths in
+  `sidebar.gd` point through `Scroll` accordingly (e.g.
+  `$Margin/Scroll/VBox/Title`).
 - `populate(buildings: Dictionary)` builds one `Button` per entry in
   `Defs.buildings`, each emitting `build_requested(type_id)` when pressed.
+  Buttons are single-line (`"%s  ·  %s" % [name, cost]`) with
+  `clip_text = true` so a long name/cost combination truncates instead of
+  wrapping or overflowing the narrower scrollable column.
 - `set_mode_label(text)` and `set_tile_info(cell, terrain, occupant)` are
   pushed by `main.gd` every frame.
 - `set_economy(stock, rates, power_produced, power_consumed, speed)`
@@ -340,6 +371,9 @@ determinism, variety), `tests/test_iso_grid.gd` (`IsoGrid` vs. Godot's real
 `TileMapLayer` math), `tests/test_placement.gd` (`Colony` placement,
 occupancy, and demolish rules), `tests/test_economy.gd` (`Colony.tick()`:
 production accrual, power-deficit shutdown, newest-first shedding, recipe
-stalling on missing inputs, active-only `rates()`) — the last two built
-with hand-rolled defs dictionaries, independent of `Defs`/`Sim`. 730
-assertions across 22 tests, 0 failures as of Milestone 3.
+stalling on missing inputs, active-only `rates()`), `tests/test_camera.gd`
+(`IsoCamera` zoom from synthetic pan-gesture and magnify-gesture events,
+including a sub-threshold no-op case) — the placement/economy/camera files
+are built with hand-rolled defs dictionaries or constructed nodes,
+independent of `Defs`/`Sim`/a running scene. 734 assertions across 26
+tests, 0 failures as of the post-Milestone-3 UI/UX refinement pass.

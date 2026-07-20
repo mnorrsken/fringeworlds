@@ -47,7 +47,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**730 assertions across 22 tests, 0 failures.**
+**734 assertions across 26 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -74,7 +74,7 @@ reads sim state and never writes game rules back. See
 | Input | Action |
 |---|---|
 | WASD / arrow keys, middle-mouse drag | Pan camera |
-| Mouse wheel | Zoom (stepped, 1×–4×) |
+| Mouse wheel, trackpad scroll, pinch, `+`/`-` | Zoom (stepped, 1×–4×) |
 | Left click | Place selected building, or demolish (in demolish mode) |
 | Right click | Demolish at cursor, or cancel current mode |
 | Esc | Cancel current mode |
@@ -83,10 +83,11 @@ reads sim state and never writes game rules back. See
 | 3 | Set speed to 3× |
 | F1 | Toggle debug overlay (grid coords, terrain, zoom, seed, FPS) |
 
-Buildings and Demolish are selected from the right-hand sidebar, which also
-shows the current mode, the hovered tile's info, the stockpile with live
-per-second rates, power used/produced (red on deficit), and the current
-speed.
+Buildings and Demolish are selected from the right-hand scrollable sidebar,
+which also shows the current mode, the hovered tile's info, the stockpile
+with live per-second rates, power used/produced (red on deficit), and the
+current speed. Zoom works via a two-finger scroll or pinch on a MacBook
+trackpad / Magic Mouse, not just a physical scroll wheel.
 
 ## Buildings (current 4)
 
