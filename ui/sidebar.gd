@@ -10,19 +10,19 @@ const AMBER := Color("d9a441")
 const SAND := Color("c9b892")
 const DIM := Color("7a6f5f")
 
-@onready var _title: Label = $Margin/VBox/Title
-@onready var _mode: Label = $Margin/VBox/ModeLabel
-@onready var _speed: Label = $Margin/VBox/SpeedLabel
-@onready var _tile_header: Label = $Margin/VBox/TileHeader
-@onready var _tile_info: Label = $Margin/VBox/TileInfo
-@onready var _stock_header: Label = $Margin/VBox/StockHeader
-@onready var _stock_info: Label = $Margin/VBox/StockInfo
-@onready var _power_header: Label = $Margin/VBox/PowerHeader
-@onready var _power_info: Label = $Margin/VBox/PowerInfo
-@onready var _build_header: Label = $Margin/VBox/BuildHeader
-@onready var _build_list: VBoxContainer = $Margin/VBox/BuildList
-@onready var _demolish: Button = $Margin/VBox/DemolishBtn
-@onready var _hint: Label = $Margin/VBox/Hint
+@onready var _title: Label = $Margin/Scroll/VBox/Title
+@onready var _mode: Label = $Margin/Scroll/VBox/ModeLabel
+@onready var _speed: Label = $Margin/Scroll/VBox/SpeedLabel
+@onready var _tile_header: Label = $Margin/Scroll/VBox/TileHeader
+@onready var _tile_info: Label = $Margin/Scroll/VBox/TileInfo
+@onready var _stock_header: Label = $Margin/Scroll/VBox/StockHeader
+@onready var _stock_info: Label = $Margin/Scroll/VBox/StockInfo
+@onready var _power_header: Label = $Margin/Scroll/VBox/PowerHeader
+@onready var _power_info: Label = $Margin/Scroll/VBox/PowerInfo
+@onready var _build_header: Label = $Margin/Scroll/VBox/BuildHeader
+@onready var _build_list: VBoxContainer = $Margin/Scroll/VBox/BuildList
+@onready var _demolish: Button = $Margin/Scroll/VBox/DemolishBtn
+@onready var _hint: Label = $Margin/Scroll/VBox/Hint
 
 func _ready() -> void:
 	var sb := StyleBoxFlat.new()
@@ -41,7 +41,7 @@ func _ready() -> void:
 	_hint.add_theme_color_override("font_color", DIM)
 
 	_demolish.pressed.connect(func() -> void: demolish_requested.emit())
-	_hint.text = "LMB place / select\nRMB demolish / cancel\nWASD+MMB pan  ·  wheel zoom\nSpace pause · 1/3 speed\nEsc cancel  ·  F1 debug"
+	_hint.text = "LMB place / select\nRMB demolish / cancel\nWASD pan  ·  scroll/pinch zoom\nSpace pause · 1/3 speed\nEsc cancel  ·  F1 debug"
 
 ## Builds one button per building definition.
 func populate(buildings: Dictionary) -> void:
@@ -50,8 +50,9 @@ func populate(buildings: Dictionary) -> void:
 	for id in buildings:
 		var def: Dictionary = buildings[id]
 		var btn := Button.new()
-		btn.text = "%s\n  %s" % [def.name, _cost_text(def.cost)]
+		btn.text = "%s  ·  %s" % [def.name, _cost_text(def.cost)]
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.clip_text = true
 		btn.tooltip_text = def.get("desc", "")
 		btn.pressed.connect(_on_build_pressed.bind(id))
 		_build_list.add_child(btn)
