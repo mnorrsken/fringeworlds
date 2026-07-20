@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://b0regolithmain0"]
+[gd_scene load_steps=10 format=3 uid="uid://b0regolithmain0"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://render/terrain_view.gd" id="2_terrain"]
@@ -8,12 +8,18 @@
 [ext_resource type="Script" path="res://render/iso_camera.gd" id="6_camera"]
 [ext_resource type="PackedScene" path="res://ui/sidebar.tscn" id="7_sidebar"]
 [ext_resource type="Script" path="res://render/minimap.gd" id="8_minimap"]
+[ext_resource type="Script" path="res://render/prospect_overlay.gd" id="9_prospect"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_main")
 
 [node name="TerrainView" type="TileMapLayer" parent="."]
 script = ExtResource("2_terrain")
+
+[node name="ProspectOverlay" type="TileMapLayer" parent="."]
+visible = false
+z_index = 2
+script = ExtResource("9_prospect")
 
 [node name="Buildings" type="Node2D" parent="."]
 y_sort_enabled = true

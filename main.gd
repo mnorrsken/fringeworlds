@@ -9,6 +9,7 @@ const DEFAULT_SEED := 1337
 enum Mode { NONE, PLACE, DEMOLISH }
 
 @onready var _terrain: TerrainView = $TerrainView
+@onready var _prospect: ProspectOverlay = $ProspectOverlay
 @onready var _buildings: BuildingsView = $Buildings
 @onready var _camera: IsoCamera = $Camera
 @onready var _cursor: TileCursor = $TileCursor
@@ -29,6 +30,7 @@ func _ready() -> void:
 	Sim.new_game(DEFAULT_SEED, MAP_SIZE)
 	_map = Sim.colony.map
 	_terrain.render_map(_map)
+	_prospect.setup(_map)
 	_buildings.bind()
 	_camera.position = IsoGrid.grid_to_screen(Vector2i(MAP_SIZE / 2, MAP_SIZE / 2))
 	_ghost.visible = false
@@ -63,6 +65,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_debug.visible = not _debug.visible
 			KEY_M:
 				_minimap_root.visible = not _minimap_root.visible
+			KEY_P:
+				_toggle_prospect()
 			KEY_ESCAPE:
 				if _minimap_root.visible:
 					_minimap_root.visible = false
@@ -108,6 +112,11 @@ func _set_mode(mode: Mode) -> void:
 		_ghost.visible = false
 	_sidebar.set_mode_label(_mode_name())
 
+func _toggle_prospect() -> void:
+	_prospect.visible = not _prospect.visible
+	if _prospect.visible:
+		_prospect.rebuild()
+
 func _mode_name() -> String:
 	match _mode:
 		Mode.PLACE:
@@ -120,12 +129,14 @@ func _mode_name() -> String:
 func _update_info() -> void:
 	var terrain := "—"
 	var occupant := ""
+	var reading := ""
 	if _map.in_bounds(_hover):
 		terrain = ColonyMap.TERRAIN_NAMES[_map.get_terrain(_hover)]
+		reading = _map.reading_text(_hover)
 		var b := Sim.building_at(_hover)
 		if not b.is_empty():
 			occupant = str(Defs.buildings[b.type].name)
-	_sidebar.set_tile_info(_hover, terrain, occupant)
+	_sidebar.set_tile_info(_hover, terrain, occupant, reading)
 	var col := Sim.colony
 	# rates() is per-tick; the HUD shows per-second.
 	var per_tick := col.rates()

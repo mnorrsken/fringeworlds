@@ -41,7 +41,7 @@ func _ready() -> void:
 	_hint.add_theme_color_override("font_color", DIM)
 
 	_demolish.pressed.connect(func() -> void: demolish_requested.emit())
-	_hint.text = "LMB place / select\nRMB demolish / cancel\nWASD pan  ·  Z / pinch zoom\nM overhead map  ·  Space pause\n1/3 speed  ·  Esc  ·  F1 debug"
+	_hint.text = "LMB place / select\nRMB demolish / cancel\nWASD pan  ·  Z / pinch zoom\nP prospect  ·  M overhead map\nSpace pause · 1/3 speed · F1"
 
 ## Builds one button per building definition.
 func populate(buildings: Dictionary) -> void:
@@ -69,8 +69,11 @@ func _cost_text(cost: Dictionary) -> String:
 func set_mode_label(text: String) -> void:
 	_mode.text = "◈ %s" % text
 
-func set_tile_info(cell: Vector2i, terrain: String, occupant: String) -> void:
+func set_tile_info(cell: Vector2i, terrain: String, occupant: String,
+		reading: String = "") -> void:
 	var t := "(%d, %d)\n%s" % [cell.x, cell.y, terrain]
+	if reading != "":
+		t += "\n◇ %s" % reading
 	if occupant != "":
 		t += "\n▶ %s" % occupant
 	_tile_info.text = t
