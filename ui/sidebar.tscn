@@ -32,6 +32,9 @@ text = "◆ REGOLITH"
 [node name="ModeLabel" type="Label" parent="Margin/VBox"]
 text = "◈ SELECT"
 
+[node name="SpeedLabel" type="Label" parent="Margin/VBox"]
+text = "▶ 1x"
+
 [node name="Sep1" type="HSeparator" parent="Margin/VBox"]
 
 [node name="TileHeader" type="Label" parent="Margin/VBox"]
@@ -46,6 +49,12 @@ text = "—"
 text = "STOCKPILE"
 
 [node name="StockInfo" type="Label" parent="Margin/VBox"]
+text = "—"
+
+[node name="PowerHeader" type="Label" parent="Margin/VBox"]
+text = "POWER"
+
+[node name="PowerInfo" type="Label" parent="Margin/VBox"]
 text = "—"
 
 [node name="Sep3" type="HSeparator" parent="Margin/VBox"]

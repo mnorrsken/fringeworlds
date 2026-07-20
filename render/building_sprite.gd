@@ -34,6 +34,12 @@ func set_valid(valid: bool) -> void:
 	_valid = valid
 	_update_modulate()
 
+## Dims a placed building that's been shut down (power deficit / idle).
+func set_dimmed(dimmed: bool) -> void:
+	if _ghost:
+		return
+	modulate = Color(0.45, 0.45, 0.52) if dimmed else Color.WHITE
+
 func _reposition() -> void:
 	var front := _origin + Vector2i(_size - 1, _size - 1)
 	position = IsoGrid.grid_to_screen(front)

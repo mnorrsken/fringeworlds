@@ -33,10 +33,6 @@ func _ready() -> void:
 	_sidebar.build_requested.connect(_on_build_requested)
 	_sidebar.demolish_requested.connect(func() -> void: _set_mode(Mode.DEMOLISH))
 	_sidebar.populate(Defs.buildings)
-	# Sidebar tracks the stockpile off the event bus, so it stays correct no
-	# matter what mutates it. new_game() doesn't emit, so seed the initial value.
-	Events.stockpile_changed.connect(_sidebar.set_stockpile)
-	_sidebar.set_stockpile(Sim.colony.stockpile)
 	_set_mode(Mode.NONE)
 
 func _process(_delta: float) -> void:
@@ -59,10 +55,17 @@ func _update_ghost() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_F1:
-			_debug.visible = not _debug.visible
-		elif event.keycode == KEY_ESCAPE:
-			_set_mode(Mode.NONE)
+		match event.keycode:
+			KEY_F1:
+				_debug.visible = not _debug.visible
+			KEY_ESCAPE:
+				_set_mode(Mode.NONE)
+			KEY_SPACE:
+				Sim.toggle_pause()
+			KEY_1:
+				Sim.set_speed(1.0)
+			KEY_3:
+				Sim.set_speed(3.0)
 		return
 	if event is InputEventMouseButton and event.pressed and not _over_ui:
 		if event.button_index == MOUSE_BUTTON_LEFT:
@@ -115,6 +118,14 @@ func _update_info() -> void:
 		if not b.is_empty():
 			occupant = str(Defs.buildings[b.type].name)
 	_sidebar.set_tile_info(_hover, terrain, occupant)
+	var col := Sim.colony
+	# rates() is per-tick; the HUD shows per-second.
+	var per_tick := col.rates()
+	var per_sec := {}
+	for r in per_tick:
+		per_sec[r] = per_tick[r] * Sim.TICKS_PER_SECOND
+	_sidebar.set_economy(col.stockpile, per_sec, col.power_produced,
+		col.power_consumed, Sim.speed)
 	if _debug.visible:
 		_label.text = "cell (%d, %d)  %s\nzoom %dx  seed %d  FPS %d  [F1]" % [
 			_hover.x, _hover.y, terrain,

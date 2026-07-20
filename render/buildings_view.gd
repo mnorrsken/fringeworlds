@@ -10,8 +10,16 @@ var _sprites: Dictionary = {}  # building instance id -> BuildingSprite
 func bind() -> void:
 	Events.building_placed.connect(_on_placed)
 	Events.building_removed.connect(_on_removed)
+	Events.ticked.connect(_on_ticked)
 	for id in Sim.colony.buildings:
 		_on_placed(Sim.colony.buildings[id])
+
+# Each tick, reflect the shut-down (unpowered) state as dimming.
+func _on_ticked(_tick: int) -> void:
+	for id in _sprites:
+		var inst: Dictionary = Sim.colony.buildings.get(id, {})
+		if not inst.is_empty():
+			_sprites[id].set_dimmed(not inst.active)
 
 func _on_placed(inst: Dictionary) -> void:
 	var spr := BuildingSprite.new()
