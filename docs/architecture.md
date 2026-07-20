@@ -215,30 +215,31 @@ concept of real time, only ticks.
   one) so the border reads on any terrain color; the bright color switches
   amber→red when `demolish` is true.
 - `render/iso_camera.gd` (`IsoCamera`, extends `Camera2D`) handles
-  WASD/arrow-key panning in `_process` and middle-mouse-drag panning in
-  `_unhandled_input`. Zoom is stepped through `ZOOM_STEPS = [1.0, 2.0, 3.0,
-  4.0]` to keep pixel scaling crisp — no free/continuous zoom — and, as of
-  the post-Milestone-3 UI/UX pass, is driven by **four** input paths, all
-  funneling into a shared `zoom_by(steps: int)` helper that clamps
-  `_zoom_index` and reapplies `zoom`:
-  - Mouse wheel (`InputEventMouseButton`, unchanged since Milestone 1).
-  - Trackpad two-finger scroll (`InputEventPanGesture`): its `delta.y` is
-    accumulated in `_pan_accum`; every `PAN_GESTURE_PER_STEP` (14.0) px of
-    accumulated scroll steps zoom once (scroll up = zoom in, matching
-    wheel-up).
-  - Pinch (`InputEventMagnifyGesture`): `factor - 1.0` is accumulated in
-    `_magnify_accum`; every `MAGNIFY_PER_STEP` (0.18) of accumulated pinch
-    steps zoom once (fingers apart = zoom in).
-  - Keyboard `+`/`-` (`KEY_EQUAL`/`KEY_KP_ADD` and `KEY_MINUS`/
-    `KEY_KP_SUBTRACT`).
-
-  This exists because a MacBook trackpad or Magic Mouse never emits wheel
-  events — only pan and magnify gestures — so the camera was previously
-  unzoomable on macOS without a physical scroll wheel. The accumulate-
-  then-step pattern is needed because gesture devices fire many small
-  events per physical scroll/pinch motion, unlike a wheel's discrete
-  clicks. `tests/test_camera.gd` feeds synthetic gesture events straight to
-  `_unhandled_input` to verify this without needing real trackpad hardware.
+  WASD/arrow-key panning in `_process` (`PAN_SPEED = 420.0` world px/sec at
+  1× zoom) and middle-mouse-drag panning in `_unhandled_input`. Zoom is
+  stepped through `ZOOM_STEPS = [1.0, 2.0, 3.0, 4.0]` to keep pixel scaling
+  crisp — no free/continuous zoom. As of the second UI/UX refinement pass,
+  zoom input is:
+  - **`Z` is the primary control**: `toggle_zoom()` toggles 1×↔2×; called
+    from any *higher* zoom (3×/4×), it snaps straight back to 1× rather
+    than stepping down one level at a time.
+  - **Pinch** (`InputEventMagnifyGesture`) is secondary fine zoom:
+    `factor - 1.0` accumulates in `_magnify_accum`; every
+    `MAGNIFY_PER_STEP` (0.18) of accumulated pinch steps zoom once
+    (fingers apart = zoom in) via the shared `zoom_by(steps: int)` helper
+    (clamps `_zoom_index`, reapplies `zoom`).
+  - **Keyboard `+`/`-`** (`KEY_EQUAL`/`KEY_KP_ADD` and `KEY_MINUS`/
+    `KEY_KP_SUBTRACT`) also call `zoom_by()` directly, one step per press.
+  - **Mouse wheel and trackpad two-finger scroll (`InputEventPanGesture`)
+    do NOT zoom** — this is a deliberate reversal of an earlier pass. That
+    first pass (see `docs/progress.md`'s "UI/UX refinements" → Pass 1)
+    added wheel/pan-gesture zoom specifically to fix zoom being unusable
+    on macOS trackpads (which never emit wheel events); in practice
+    scroll-to-zoom felt twitchy on a trackpad, so it was removed entirely
+    in favor of the explicit `Z` toggle, keeping only pinch and keyboard
+    as secondary paths. `tests/test_camera.gd` was rewritten accordingly —
+    it now asserts a `InputEventPanGesture` leaves zoom unchanged, and
+    covers the `Z` toggle/snap-back behavior with synthetic key events.
 
 ### Z-order / y-sort scheme
 
@@ -254,6 +255,39 @@ Draw order is controlled two ways, set on the nodes in `main.tscn`:
   root and rendered *underneath* the `TileMapLayer`, making it invisible —
   see `docs/progress.md`'s Milestone 2 section and the class doc-comment at
   the top of `tile_cursor.gd`.
+
+## Overhead map (`Minimap`)
+
+`render/minimap.gd` (`Minimap`, extends `Control`) is a top-down view of
+`ColonyMap`, toggled with `M`. It's purely a view — no game logic — and
+follows the same one-way-read pattern as everything else in `render/`:
+
+- `setup(map, camera)` (called once, from `main.gd._ready()`) builds a
+  static `ImageTexture` with one pixel per map cell, colored from
+  `TerrainView.TERRAIN_COLORS`, and sizes the control to
+  `map.width/height * CELL_PX` (`CELL_PX = 4`). This terrain image is
+  cached — it never changes after generation — while `_process` calls
+  `queue_redraw()` every frame only while `visible`, since buildings and
+  the camera view move.
+- `_draw()` blits the cached terrain texture, then draws one colored rect
+  per building (`Sim.colony.buildings`, sized/positioned from its
+  footprint and tinted with its `Defs.buildings` `color_value` — the same
+  field `BuildingSprite` uses), then the camera's current view as a
+  polyline quad in grid space (`_draw_view_rect`, using a local unrounded
+  inverse of `IsoGrid.grid_to_screen` since `IsoGrid.screen_to_grid`
+  rounds to whole cells).
+- `_gui_input` supports click-to-jump: a left click converts the click
+  position to a grid cell (`position / CELL_PX`, floored) and sets
+  `_camera.position` via `IsoGrid.grid_to_screen`, recentering the main
+  view there.
+
+In `main.tscn` it's the `Minimap` node under
+`MinimapLayer/Root/Center/Panel/Margin/VBox`, where `MinimapLayer` is a
+`CanvasLayer` and `Root` is a `Control` (`visible = false` by default)
+containing a dim `ColorRect` backdrop plus a centered panel with a title
+label and the `Minimap` itself. `main.gd` toggles `_minimap_root.visible`
+on `M`; `Esc` closes the minimap first if it's open, only falling through
+to canceling build mode when it's already closed.
 
 ## UI layer
 
@@ -298,8 +332,8 @@ top-level scene and game controller. On `_ready()` it calls
 `Sim.new_game(DEFAULT_SEED, MAP_SIZE)` (seed `1337`, 64×64), hands the
 resulting map to `TerrainView` to render, calls `BuildingsView.bind()`,
 centers the `IsoCamera`, wires up the sidebar (`populate`, `build_requested`
-→ enter place mode, `demolish_requested` → enter demolish mode), and enters
-`Mode.NONE`.
+→ enter place mode, `demolish_requested` → enter demolish mode), calls
+`_minimap.setup(_map, _camera)`, and enters `Mode.NONE`.
 
 Each frame (`_process`) it converts the mouse position to a grid cell via
 `IsoGrid.screen_to_grid`, updates `TileCursor.cell`, hides the cursor when
@@ -316,20 +350,23 @@ about real time or the sidebar. Finally it refreshes the F1 debug label.
 Input (`_unhandled_input`) is skipped for mouse clicks that landed on UI.
 Left-click places (in `PLACE` mode) or demolishes (in `DEMOLISH` mode) at
 the hovered cell via `Sim`; right-click cancels the current mode if one is
-active, otherwise demolishes at the hovered cell directly; Escape always
-cancels to `Mode.NONE`; F1 toggles the debug overlay
-(`$Debug/Label` — cell coords, terrain name, zoom level, seed, FPS); Space
-calls `Sim.toggle_pause()`; `1` and `3` call `Sim.set_speed(1.0)` /
-`Sim.set_speed(3.0)` directly. The debug overlay is intentionally meant to
-stay available for the life of the project — the plan calls out coordinate
-conversion as the first thing to suspect when on-screen visuals look wrong.
+active, otherwise demolishes at the hovered cell directly; F1 toggles the
+debug overlay (`$Debug/Label` — cell coords, terrain name, zoom level,
+seed, FPS); `M` toggles `_minimap_root.visible`; Escape closes the minimap
+first if it's open, otherwise cancels the current mode to `Mode.NONE`;
+Space calls `Sim.toggle_pause()`; `1` and `3` call `Sim.set_speed(1.0)` /
+`Sim.set_speed(3.0)` directly. Zoom (`Z`, pinch, `+`/`-`) is handled
+entirely inside `IsoCamera` itself, not here. The debug overlay is
+intentionally meant to stay available for the life of the project — the
+plan calls out coordinate conversion as the first thing to suspect when
+on-screen visuals look wrong.
 
 ## Folder layout
 
 ```
 data/       JSON content definitions: resources.json, buildings.json
 sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd
-render/     Views of sim state: terrain_view.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd
+render/     Views of sim state: terrain_view.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd
 ui/         Screen-space UI: sidebar.gd / sidebar.tscn
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
 main.gd / main.tscn   Current game root and controller
@@ -372,8 +409,9 @@ determinism, variety), `tests/test_iso_grid.gd` (`IsoGrid` vs. Godot's real
 occupancy, and demolish rules), `tests/test_economy.gd` (`Colony.tick()`:
 production accrual, power-deficit shutdown, newest-first shedding, recipe
 stalling on missing inputs, active-only `rates()`), `tests/test_camera.gd`
-(`IsoCamera` zoom from synthetic pan-gesture and magnify-gesture events,
-including a sub-threshold no-op case) — the placement/economy/camera files
+(`IsoCamera` zoom: `Z` toggles 1×↔2× and snaps back from higher zoom, a
+`KEY_Z` event toggles it, pinch still fine-zooms, and a trackpad
+pan-gesture no longer changes zoom) — the placement/economy/camera files
 are built with hand-rolled defs dictionaries or constructed nodes,
-independent of `Defs`/`Sim`/a running scene. 734 assertions across 26
-tests, 0 failures as of the post-Milestone-3 UI/UX refinement pass.
+independent of `Defs`/`Sim`/a running scene. 736 assertions across 27
+tests, 0 failures as of the second UI/UX refinement pass.

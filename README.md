@@ -47,7 +47,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**734 assertions across 26 tests, 0 failures.**
+**736 assertions across 27 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -73,21 +73,23 @@ reads sim state and never writes game rules back. See
 
 | Input | Action |
 |---|---|
-| WASD / arrow keys, middle-mouse drag | Pan camera |
-| Mouse wheel, trackpad scroll, pinch, `+`/`-` | Zoom (stepped, 1×–4×) |
+| WASD / arrow keys, middle-mouse drag | Pan camera (faster than it used to be) |
+| Z | Toggle zoom 1×↔2× (from 3×/4× snaps straight back to 1×) |
+| Pinch, `+`/`-` | Fine zoom (secondary controls, up to 4×) |
+| M | Toggle the overhead map (terrain, buildings, camera view; click to jump) |
 | Left click | Place selected building, or demolish (in demolish mode) |
 | Right click | Demolish at cursor, or cancel current mode |
-| Esc | Cancel current mode |
+| Esc | Close the overhead map if open, otherwise cancel current mode |
 | Space | Pause / unpause (resumes at whatever speed was running) |
 | 1 | Set speed to 1× |
 | 3 | Set speed to 3× |
 | F1 | Toggle debug overlay (grid coords, terrain, zoom, seed, FPS) |
 
-Buildings and Demolish are selected from the right-hand scrollable sidebar,
-which also shows the current mode, the hovered tile's info, the stockpile
-with live per-second rates, power used/produced (red on deficit), and the
-current speed. Zoom works via a two-finger scroll or pinch on a MacBook
-trackpad / Magic Mouse, not just a physical scroll wheel.
+Mouse wheel / trackpad scroll do **not** zoom (removed — it felt twitchy on
+a trackpad); use `Z`, pinch, or `+`/`-` instead. Buildings and Demolish are
+selected from the right-hand scrollable sidebar, which also shows the
+current mode, the hovered tile's info, the stockpile with live per-second
+rates, power used/produced (red on deficit), and the current speed.
 
 ## Buildings (current 4)
 

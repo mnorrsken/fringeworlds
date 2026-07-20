@@ -4,7 +4,7 @@ Status of each milestone from [`colony-game-plan.md`](../colony-game-plan.md).
 That file defines the acceptance criteria referenced below — this log tracks
 whether they've been met, not what they are.
 
-Current automated test count: **734 assertions across 26 tests, 0 failures**
+Current automated test count: **736 assertions across 27 tests, 0 failures**
 (`make test`).
 
 ---
@@ -225,19 +225,23 @@ expected.
 
 ## UI/UX refinements (not a milestone)
 
-A fix pass on top of Milestone 3, addressing two usability problems found
-by hands-on play rather than any milestone's acceptance criteria:
+Two fix/refinement passes on top of Milestone 3, addressing usability
+problems found by hands-on play rather than any milestone's acceptance
+criteria. **The zoom behavior described in Pass 1 was subsequently changed
+again in Pass 2 below** — mouse-wheel/scroll no longer zooms at all; treat
+Pass 2 as the current behavior.
+
+### Pass 1
 
 - **Zoom didn't work on macOS.** `render/iso_camera.gd` only handled
   `InputEventMouseButton` wheel events, which a MacBook trackpad or Magic
   Mouse never sends — those devices emit `InputEventPanGesture` (two-finger
-  scroll) and `InputEventMagnifyGesture` (pinch) instead. The camera now
-  responds to all of: mouse wheel, pan-gesture scroll (accumulated to a
+  scroll) and `InputEventMagnifyGesture` (pinch) instead. The camera was
+  made to respond to mouse wheel, pan-gesture scroll (accumulated to a
   threshold so many small gesture events step zoom once), pinch
   (accumulated the same way), and keyboard `+`/`-`. A new `zoom_by(steps)`
-  helper centralizes the actual step-and-clamp logic that all four input
-  paths call into. Zoom stays at the same integer factors (1×–4×) as
-  before.
+  helper centralized the actual step-and-clamp logic that all input paths
+  called into. Zoom stayed at the same integer factors (1×–4×) as before.
 - **Sidebar content was unreachable.** The build list had no scrolling, so
   buildings past the sidebar's 450px height (the 4th building already was)
   couldn't be clicked. `ui/sidebar.tscn` now wraps its content in a
@@ -257,6 +261,40 @@ Screenshots confirmed the sidebar scrolls correctly (scrollbar visible,
 full build list reachable, no text clipping); the zoom fix was verified
 via the new synthetic-event tests since headless CI can't generate real
 trackpad hardware events.
+
+### Pass 2
+
+- **Faster map panning.** `PAN_SPEED` in `render/iso_camera.gd` raised
+  260 → 420 world px/sec at 1× zoom — panning felt sluggish at the old
+  rate.
+- **Zoom is now toggled on Z, not scroll — partially reverting Pass 1.**
+  Scroll-wheel and trackpad two-finger-scroll zoom felt twitchy in
+  practice, especially on a trackpad, so both were removed entirely. A new
+  `toggle_zoom()` toggles between 1× and 2× on the `Z` key (the primary
+  zoom control now); from any higher zoom (3×/4×, reachable only via
+  pinch/keyboard) it snaps straight back to 1×. Pinch (magnify gesture)
+  and keyboard `+`/`-` remain as secondary fine-zoom controls, unchanged
+  from Pass 1.
+- **Overhead map on `M`.** New `render/minimap.gd` (`Minimap`, a
+  `Control`): renders the terrain top-down as a cached one-pixel-per-cell
+  image scaled by `CELL_PX = 4`, overlays a colored rect per building at
+  its footprint, draws the camera's current view as a rotated quad in grid
+  space, and supports click-to-jump (clicking the minimap recenters the
+  camera on that cell). Wired into `main.tscn` as a `MinimapLayer`
+  `CanvasLayer` with a dim backdrop and a centered panel, hidden by
+  default; `M` toggles it, and `Esc` closes it first if it's open (falling
+  back to canceling build mode only when it's already closed).
+- Controls hint in the sidebar updated: "WASD pan · Z / pinch zoom · M
+  overhead map · Space pause · 1/3 speed · Esc · F1".
+- Tests: `tests/test_camera.gd` **rewritten** for the new scheme — Z
+  toggles 1×↔2×, Z from 4× snaps to 1×, a `KEY_Z` input event toggles
+  zoom, pinch still zooms in, and a trackpad scroll (pan-gesture) event no
+  longer changes zoom. The old pan-gesture-zooms tests from Pass 1 were
+  removed since that behavior is intentionally gone.
+
+Verified: `make import` clean, headless run clean, `make test` green.
+Screenshot confirmed the overhead map renders terrain, building markers,
+and the camera-view rectangle over a dim backdrop.
 
 ## Milestone 4 — Deposits and prospecting — pending
 

@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Overhead map (toggle on `M`) with building markers, camera-view
+  rectangle, and click-to-jump. New `render/minimap.gd` (`Minimap`)
+  renders `ColonyMap` top-down as a cached one-pixel-per-cell image,
+  overlays a colored rect per placed building and the camera's current
+  view as a rotated quad in grid space, and jumps the camera to a clicked
+  cell. Shown in a dim-backdrop popup (`MinimapLayer` in `main.tscn`);
+  `Esc` closes it before falling back to canceling build mode.
+
 - **Milestone 3 — Simulation core: tick, stockpile, power** (2026-07-20)
   - `sim/colony.gd`: fixed-tick economy. `tick()` runs `_balance_power()`
     then `_run_production()`. Power balance: generators (`power > 0`)
@@ -111,6 +119,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Zoom is now toggled 1×/2× on `Z` (scroll/wheel no longer zoom). Trackpad
+  scroll-to-zoom, added in the previous pass to fix macOS zoom, felt
+  twitchy in practice, so mouse-wheel and trackpad two-finger-scroll zoom
+  were removed entirely in favor of an explicit `Z` toggle
+  (`IsoCamera.toggle_zoom()`: 1×↔2×, snapping straight to 1× from any
+  higher zoom). Pinch and keyboard `+`/`-` remain as secondary fine-zoom
+  controls. `tests/test_camera.gd` was rewritten for the new scheme.
+- Faster map panning: `PAN_SPEED` in `render/iso_camera.gd` raised from
+  260 to 420 world px/sec at 1× zoom.
 - Sidebar build menu is now scrollable: content wrapped in a
   `ScrollContainer` (horizontal scroll disabled) so every building is
   reachable regardless of list length, not just the ones that fit in
