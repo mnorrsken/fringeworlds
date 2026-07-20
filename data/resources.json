@@ -1,0 +1,11 @@
+[
+  { "id": "water",      "name": "Water",      "category": "life_support", "unit": "u" },
+  { "id": "oxygen",     "name": "Oxygen",     "category": "life_support", "unit": "u" },
+  { "id": "food",       "name": "Food",       "category": "life_support", "unit": "u" },
+  { "id": "power",      "name": "Power",      "category": "utility",      "unit": "MW" },
+  { "id": "iron_ore",   "name": "Iron Ore",   "category": "raw",          "unit": "u" },
+  { "id": "copper_ore", "name": "Copper Ore", "category": "raw",          "unit": "u" },
+  { "id": "metal",      "name": "Metal",      "category": "refined",      "unit": "u" },
+  { "id": "parts",      "name": "Parts",      "category": "refined",      "unit": "u" },
+  { "id": "xenite",     "name": "Xenite",     "category": "special",      "unit": "u" }
+]
