@@ -67,8 +67,25 @@ func _process(delta: float) -> void:
 
 func _advance_tick() -> void:
 	tick += 1
-	# Later milestones: producers/consumers, power balance, prospecting, colonists.
+	colony.tick()
+	Events.stockpile_changed.emit(colony.stockpile)
 	Events.ticked.emit(tick)
 
+# --- Speed control (pause / 1x / 3x) ---
+
+# Remembers the last running speed so unpausing restores it.
+var _last_run_speed := 1.0
+
+func set_speed(mult: float) -> void:
+	speed = mult
+	if mult > 0.0:
+		_last_run_speed = mult
+
+func toggle_pause() -> void:
+	speed = 0.0 if speed > 0.0 else _last_run_speed
+
+func is_paused() -> bool:
+	return speed <= 0.0
+
 func set_paused(paused: bool) -> void:
-	speed = 0.0 if paused else 1.0
+	set_speed(0.0 if paused else _last_run_speed)

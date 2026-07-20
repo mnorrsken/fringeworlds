@@ -1,30 +1,31 @@
 [
   {
     "id": "solar_panel", "name": "Solar Panel", "size": 1,
-    "cost": { "metal": 10 },
+    "cost": { "metal": 10 }, "power": 10,
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "e0b64a",
-    "desc": "Steady, cheap power."
+    "desc": "Generates 10 power. Cheap and steady."
   },
   {
     "id": "ice_harvester", "name": "Ice Harvester", "size": 1,
-    "cost": { "metal": 15 },
+    "cost": { "metal": 15 }, "power": -5,
+    "recipe": { "inputs": {}, "outputs": { "water": 1 }, "ticks": 4 },
     "allowed_terrain": ["ICE"],
     "color": "7cc7d6",
-    "desc": "Extracts water from ice fields."
+    "desc": "Uses 5 power. Produces water from ice."
   },
   {
     "id": "habitat", "name": "Habitat", "size": 2,
-    "cost": { "metal": 30 },
+    "cost": { "metal": 30 }, "power": -2,
     "allowed_terrain": ["REGOLITH"],
     "color": "5a86c4",
-    "desc": "Houses colonists."
+    "desc": "Uses 2 power. Houses colonists."
   },
   {
     "id": "survey_station", "name": "Survey Station", "size": 2,
-    "cost": { "metal": 25 },
+    "cost": { "metal": 25 }, "power": -3,
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "d98a3a",
-    "desc": "Scans surrounding tiles for deposits."
+    "desc": "Uses 3 power. Scans for deposits."
   }
 ]

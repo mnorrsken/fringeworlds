@@ -13,6 +13,10 @@ var buildings: Dictionary = {}        # building instance id (int) -> instance d
 var _occupancy: Dictionary = {}       # Vector2i cell -> building instance id
 var _next_id := 1
 
+# Power figures from the most recent tick (for HUD display).
+var power_produced := 0
+var power_consumed := 0
+
 func _init(p_map: ColonyMap, p_defs: Dictionary, p_stockpile: Dictionary = {}) -> void:
 	map = p_map
 	defs = p_defs
@@ -60,7 +64,12 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 	var cells := footprint(type_id, origin)
 	var id := _next_id
 	_next_id += 1
-	var inst := {"id": id, "type": type_id, "origin": origin, "cells": cells}
+	# `active` = powered/running (set each tick by power balance); `progress`
+	# counts ticks toward the next recipe completion.
+	var inst := {
+		"id": id, "type": type_id, "origin": origin, "cells": cells,
+		"active": true, "progress": 0,
+	}
 	buildings[id] = inst
 	for c in cells:
 		_occupancy[c] = id
@@ -71,6 +80,95 @@ func building_at(cell: Vector2i) -> Dictionary:
 	if _occupancy.has(cell):
 		return buildings[_occupancy[cell]]
 	return {}
+
+# --- Simulation tick ---------------------------------------------------------
+
+## Advances the economy by one tick: balance power, then run production.
+func tick() -> void:
+	_balance_power()
+	_run_production()
+
+# Generators always run. Consumers are switched on oldest-first (by id) while
+# there's power budget; the newest ones shut down when demand exceeds supply.
+func _balance_power() -> void:
+	power_produced = 0
+	var consumers := []  # instance ids of buildings that draw power
+	for id in _ids_oldest_first():
+		var inst: Dictionary = buildings[id]
+		var p := int(defs[inst.type].get("power", 0))
+		if p > 0:
+			power_produced += p
+			inst.active = true
+		elif p < 0:
+			consumers.append(id)
+		else:
+			inst.active = true
+
+	power_consumed = 0
+	var available := power_produced
+	for id in consumers:  # already oldest-first
+		var inst: Dictionary = buildings[id]
+		var need := -int(defs[inst.type].power)
+		if available >= need:
+			inst.active = true
+			available -= need
+			power_consumed += need
+		else:
+			inst.active = false
+
+func _run_production() -> void:
+	for id in _ids_oldest_first():
+		var inst: Dictionary = buildings[id]
+		if not inst.active:
+			continue
+		var def: Dictionary = defs[inst.type]
+		if not def.has("recipe"):
+			continue
+		var recipe: Dictionary = def.recipe
+		inst.progress = int(inst.progress) + 1
+		if int(inst.progress) < int(recipe.ticks):
+			continue
+		if _has(recipe.get("inputs", {})):
+			_spend(recipe.get("inputs", {}))
+			_gain(recipe.get("outputs", {}))
+			inst.progress = 0
+		else:
+			# Stalled on missing inputs: hold at the completion threshold.
+			inst.progress = int(recipe.ticks)
+
+## Net stockpile change per tick from currently-active buildings (for the HUD).
+func rates() -> Dictionary:
+	var r := {}
+	for id in buildings:
+		var inst: Dictionary = buildings[id]
+		if not inst.active or not defs[inst.type].has("recipe"):
+			continue
+		var recipe: Dictionary = defs[inst.type].recipe
+		var per_tick := 1.0 / float(recipe.ticks)
+		for res in recipe.get("outputs", {}):
+			r[res] = float(r.get(res, 0.0)) + float(recipe.outputs[res]) * per_tick
+		for res in recipe.get("inputs", {}):
+			r[res] = float(r.get(res, 0.0)) - float(recipe.inputs[res]) * per_tick
+	return r
+
+func _ids_oldest_first() -> Array:
+	var ids := buildings.keys()
+	ids.sort()
+	return ids
+
+func _has(cost: Dictionary) -> bool:
+	for r in cost:
+		if int(stockpile.get(r, 0)) < int(cost[r]):
+			return false
+	return true
+
+func _spend(cost: Dictionary) -> void:
+	for r in cost:
+		stockpile[r] = int(stockpile.get(r, 0)) - int(cost[r])
+
+func _gain(gain: Dictionary) -> void:
+	for r in gain:
+		stockpile[r] = int(stockpile.get(r, 0)) + int(gain[r])
 
 ## Removes the building covering `cell` (any of its footprint cells works).
 ## Returns the removed instance, or null if the cell was empty.
