@@ -14,6 +14,8 @@ enum Mode { NONE, PLACE, DEMOLISH }
 @onready var _cursor: TileCursor = $TileCursor
 @onready var _ghost: BuildingSprite = $Ghost
 @onready var _sidebar := $UI/Sidebar
+@onready var _minimap_root: Control = $MinimapLayer/Root
+@onready var _minimap: Minimap = $MinimapLayer/Root/Center/Panel/Margin/VBox/Minimap
 @onready var _debug: CanvasLayer = $Debug
 @onready var _label: Label = $Debug/Label
 
@@ -33,6 +35,7 @@ func _ready() -> void:
 	_sidebar.build_requested.connect(_on_build_requested)
 	_sidebar.demolish_requested.connect(func() -> void: _set_mode(Mode.DEMOLISH))
 	_sidebar.populate(Defs.buildings)
+	_minimap.setup(_map, _camera)
 	_set_mode(Mode.NONE)
 
 func _process(_delta: float) -> void:
@@ -58,8 +61,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		match event.keycode:
 			KEY_F1:
 				_debug.visible = not _debug.visible
+			KEY_M:
+				_minimap_root.visible = not _minimap_root.visible
 			KEY_ESCAPE:
-				_set_mode(Mode.NONE)
+				if _minimap_root.visible:
+					_minimap_root.visible = false
+				else:
+					_set_mode(Mode.NONE)
 			KEY_SPACE:
 				Sim.toggle_pause()
 			KEY_1:

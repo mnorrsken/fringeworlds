@@ -1,20 +1,17 @@
 class_name IsoCamera
 extends Camera2D
-## Camera controls: WASD/arrows + middle-mouse-drag panning, stepped integer
-## zoom. Zoom is driven by ALL of: mouse wheel, trackpad two-finger scroll
-## (pan gesture) and pinch (magnify gesture) — needed on macOS, where a trackpad
-## / Magic Mouse never emit wheel events — plus keyboard +/-. Integer factors
-## keep pixels crisp.
+## Camera controls: WASD/arrows + middle-mouse-drag panning. Zoom is toggled
+## 1x<->2x on Z (the primary control), with pinch (magnify gesture) and keyboard
+## +/- as secondary fine zoom. Scroll/wheel intentionally does NOT zoom — on a
+## trackpad that was too twitchy. Zoom stays at integer factors for crisp pixels.
 
 const ZOOM_STEPS: Array[float] = [1.0, 2.0, 3.0, 4.0]
-const PAN_SPEED := 260.0  # world px/sec at zoom 1x
+const PAN_SPEED := 420.0  # world px/sec at zoom 1x
 
-# Gestures fire many small events; accumulate until a threshold, then step once.
-const PAN_GESTURE_PER_STEP := 14.0   # accumulated scroll px per zoom step
-const MAGNIFY_PER_STEP := 0.18       # accumulated pinch factor per zoom step
+# Pinch fires many small events; accumulate to a threshold, then step once.
+const MAGNIFY_PER_STEP := 0.18
 
 var _zoom_index := 1
-var _pan_accum := 0.0
 var _magnify_accum := 0.0
 
 func _ready() -> void:
@@ -38,20 +35,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion \
 			and (event.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0:
 		position -= event.relative / zoom.x
-	elif event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			zoom_by(1)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			zoom_by(-1)
-	elif event is InputEventPanGesture:
-		# Trackpad / Magic Mouse scroll. Up (negative y) zooms in, like the wheel.
-		_pan_accum += event.delta.y
-		while _pan_accum <= -PAN_GESTURE_PER_STEP:
-			_pan_accum += PAN_GESTURE_PER_STEP
-			zoom_by(1)
-		while _pan_accum >= PAN_GESTURE_PER_STEP:
-			_pan_accum -= PAN_GESTURE_PER_STEP
-			zoom_by(-1)
 	elif event is InputEventMagnifyGesture:
 		# Pinch. factor > 1 = fingers apart = zoom in.
 		_magnify_accum += event.factor - 1.0
@@ -62,10 +45,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			_magnify_accum += MAGNIFY_PER_STEP
 			zoom_by(-1)
 	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_EQUAL or event.keycode == KEY_KP_ADD:
+		if event.keycode == KEY_Z:
+			toggle_zoom()
+		elif event.keycode == KEY_EQUAL or event.keycode == KEY_KP_ADD:
 			zoom_by(1)
 		elif event.keycode == KEY_MINUS or event.keycode == KEY_KP_SUBTRACT:
 			zoom_by(-1)
+
+## Toggles between 1x and 2x. From any higher zoom, snaps back to 1x first.
+func toggle_zoom() -> void:
+	_zoom_index = 1 if _zoom_index == 0 else 0
+	_apply_zoom()
 
 ## Steps the zoom by `steps` levels (clamped), keeping integer factors.
 func zoom_by(steps: int) -> void:

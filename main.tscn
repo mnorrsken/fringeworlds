@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://b0regolithmain0"]
+[gd_scene load_steps=9 format=3 uid="uid://b0regolithmain0"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://render/terrain_view.gd" id="2_terrain"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://render/tile_cursor.gd" id="5_cursor"]
 [ext_resource type="Script" path="res://render/iso_camera.gd" id="6_camera"]
 [ext_resource type="PackedScene" path="res://ui/sidebar.tscn" id="7_sidebar"]
+[ext_resource type="Script" path="res://render/minimap.gd" id="8_minimap"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_main")
@@ -33,6 +34,47 @@ script = ExtResource("6_camera")
 [node name="UI" type="CanvasLayer" parent="."]
 
 [node name="Sidebar" parent="UI" instance=ExtResource("7_sidebar")]
+
+[node name="MinimapLayer" type="CanvasLayer" parent="."]
+
+[node name="Root" type="Control" parent="MinimapLayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+
+[node name="Backdrop" type="ColorRect" parent="MinimapLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.55)
+
+[node name="Center" type="CenterContainer" parent="MinimapLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="MinimapLayer/Root/Center"]
+
+[node name="Margin" type="MarginContainer" parent="MinimapLayer/Root/Center/Panel"]
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="VBox" type="VBoxContainer" parent="MinimapLayer/Root/Center/Panel/Margin"]
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="MinimapLayer/Root/Center/Panel/Margin/VBox"]
+text = "OVERHEAD MAP   [M]"
+
+[node name="Minimap" type="Control" parent="MinimapLayer/Root/Center/Panel/Margin/VBox"]
+clip_contents = true
+script = ExtResource("8_minimap")
 
 [node name="Debug" type="CanvasLayer" parent="."]
 

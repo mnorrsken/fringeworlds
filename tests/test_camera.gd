@@ -1,41 +1,48 @@
 extends RefCounted
-## Camera zoom via macOS trackpad gestures (constructed input events fed
-## directly to the handler). Guards the fix for "scroll doesn't zoom on Mac".
+## Camera zoom controls: Z toggles 1x<->2x, pinch (magnify gesture) fine-zooms,
+## and scroll does NOT zoom (guarding the "toggle on Z instead of scroll" change).
 
-func _cam() -> IsoCamera:
+func _cam(index := 1) -> IsoCamera:
 	var c := IsoCamera.new()
-	c._zoom_index = 1  # start at 2x (mid-range) so we can step either way
-	c.zoom = Vector2(2, 2)
+	c._zoom_index = index
+	c._apply_zoom()
 	return c
 
-func test_pan_gesture_scroll_up_zooms_in(t: Object) -> void:
-	var c := _cam()
-	var ev := InputEventPanGesture.new()
-	ev.delta = Vector2(0, -30)  # two-finger scroll up
-	c._unhandled_input(ev)
-	t.ok(c.zoom.x > 2.0, "trackpad scroll up zooms in")
+func test_z_toggles_1x_and_2x(t: Object) -> void:
+	var c := _cam(0)  # 1x
+	c.toggle_zoom()
+	t.eq(c.zoom.x, 2.0, "Z from 1x -> 2x")
+	c.toggle_zoom()
+	t.eq(c.zoom.x, 1.0, "Z from 2x -> 1x")
 	c.free()
 
-func test_pan_gesture_scroll_down_zooms_out(t: Object) -> void:
-	var c := _cam()
-	var ev := InputEventPanGesture.new()
-	ev.delta = Vector2(0, 30)  # two-finger scroll down
-	c._unhandled_input(ev)
-	t.ok(c.zoom.x < 2.0, "trackpad scroll down zooms out")
+func test_z_from_higher_zoom_snaps_to_1x(t: Object) -> void:
+	var c := _cam(3)  # 4x
+	c.toggle_zoom()
+	t.eq(c.zoom.x, 1.0, "Z from 4x snaps back to 1x")
 	c.free()
 
-func test_magnify_gesture_zooms(t: Object) -> void:
-	var c := _cam()
+func test_z_key_event_toggles(t: Object) -> void:
+	var c := _cam(0)
+	var ev := InputEventKey.new()
+	ev.keycode = KEY_Z
+	ev.pressed = true
+	c._unhandled_input(ev)
+	t.eq(c.zoom.x, 2.0, "Z key event toggles zoom")
+	c.free()
+
+func test_pinch_zooms_in(t: Object) -> void:
+	var c := _cam(1)  # 2x
 	var ev := InputEventMagnifyGesture.new()
 	ev.factor = 1.5  # pinch out
 	c._unhandled_input(ev)
 	t.ok(c.zoom.x > 2.0, "pinch out zooms in")
 	c.free()
 
-func test_tiny_gesture_below_threshold_does_nothing(t: Object) -> void:
-	var c := _cam()
+func test_scroll_does_not_zoom(t: Object) -> void:
+	var c := _cam(1)  # 2x
 	var ev := InputEventPanGesture.new()
-	ev.delta = Vector2(0, -2)  # smaller than PAN_GESTURE_PER_STEP
+	ev.delta = Vector2(0, -40)  # two-finger scroll — must be ignored for zoom
 	c._unhandled_input(ev)
-	t.eq(c.zoom.x, 2.0, "sub-threshold scroll does not step zoom")
+	t.eq(c.zoom.x, 2.0, "trackpad scroll no longer changes zoom")
 	c.free()

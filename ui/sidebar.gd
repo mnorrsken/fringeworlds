@@ -41,7 +41,7 @@ func _ready() -> void:
 	_hint.add_theme_color_override("font_color", DIM)
 
 	_demolish.pressed.connect(func() -> void: demolish_requested.emit())
-	_hint.text = "LMB place / select\nRMB demolish / cancel\nWASD pan  ·  scroll/pinch zoom\nSpace pause · 1/3 speed\nEsc cancel  ·  F1 debug"
+	_hint.text = "LMB place / select\nRMB demolish / cancel\nWASD pan  ·  Z / pinch zoom\nM overhead map  ·  Space pause\n1/3 speed  ·  Esc  ·  F1 debug"
 
 ## Builds one button per building definition.
 func populate(buildings: Dictionary) -> void:
