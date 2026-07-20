@@ -34,6 +34,14 @@ func _load_buildings(path: String) -> Dictionary:
 				push_warning("[Defs] building '%s' unknown terrain '%s'" % [id, name])
 		def["allowed_terrain_ids"] = ids
 		def["color_value"] = Color.html(str(def.get("color", "ffffff")))
+		if def.has("requires_deposit"):
+			var deps: Array[int] = []
+			for name in def.requires_deposit:
+				if ColonyMap.Deposit.has(name):
+					deps.append(ColonyMap.Deposit[name])
+				else:
+					push_warning("[Defs] building '%s' unknown deposit '%s'" % [id, name])
+			def["requires_deposit_ids"] = deps
 	return raw
 
 ## Loads a JSON file expected to contain an array of objects each with an "id"

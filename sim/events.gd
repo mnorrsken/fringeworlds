@@ -15,3 +15,7 @@ signal stockpile_changed(stockpile: Dictionary)
 ## ({ id, type, origin, cells }). The render layer spawns/frees sprites from these.
 signal building_placed(instance: Dictionary)
 signal building_removed(instance: Dictionary)
+
+## Emitted after a tick if any tiles' prospecting scan state changed. Payload is
+## the list of changed cells; the prospecting overlay updates just those.
+signal scan_changed(cells: Array)

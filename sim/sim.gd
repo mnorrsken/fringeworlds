@@ -68,6 +68,8 @@ func _process(delta: float) -> void:
 func _advance_tick() -> void:
 	tick += 1
 	colony.tick()
+	if not colony.scan_changes.is_empty():
+		Events.scan_changed.emit(colony.scan_changes)
 	Events.stockpile_changed.emit(colony.stockpile)
 	Events.ticked.emit(tick)
 

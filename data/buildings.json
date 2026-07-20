@@ -24,8 +24,27 @@
   {
     "id": "survey_station", "name": "Survey Station", "size": 2,
     "cost": { "metal": 25 }, "power": -3,
+    "scan": { "max_radius": 7, "ticks_per_ring": 2 },
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "d98a3a",
-    "desc": "Uses 3 power. Scans for deposits."
+    "desc": "Uses 3 power. Scans outward for deposits; scan again to confirm."
+  },
+  {
+    "id": "mine", "name": "Mine", "size": 1,
+    "cost": { "metal": 20 }, "power": -4,
+    "requires_deposit": ["IRON", "COPPER"],
+    "mine": { "base_per_tick": 0.5 },
+    "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
+    "color": "b0623a",
+    "desc": "On a confirmed ore deposit. Faster on richer tiles."
+  },
+  {
+    "id": "crystal_extractor", "name": "Crystal Extractor", "size": 1,
+    "cost": { "metal": 40 }, "power": -6,
+    "requires_deposit": ["XENITE"],
+    "mine": { "base_per_tick": 0.25 },
+    "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
+    "color": "9a5ac4",
+    "desc": "On a confirmed xenite deposit. Late-game currency."
   }
 ]
