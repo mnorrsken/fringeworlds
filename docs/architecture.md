@@ -64,8 +64,8 @@ Registered in `project.godot` under `[autoload]`, in load order:
    to read `Defs.resources` / `Defs.buildings` rather than hard-code
    content; adding a building means editing `data/buildings.json`, not this
    script.
-3. **`Sim`** (`sim/sim.gd`) — game state and the fixed tick loop, plus (as
-   of Milestone 2) the live `Colony`. `new_game(seed, size)` generates a
+3. **`Sim`** (`sim/sim.gd`) — game state and the fixed tick loop, plus the
+   live `Colony` (since Milestone 2). `new_game(seed, size)` generates a
    `ColonyMap`, constructs `colony := Colony.new(map, Defs.buildings,
    STARTING_STOCKPILE)` (`STARTING_STOCKPILE = {metal: 100}`), and resets
    the tick counter; `colony` is `null` until this is called. `Sim` exposes
@@ -74,12 +74,18 @@ Registered in `project.godot` under `[autoload]`, in load order:
    delegate to `colony` and then emit the matching `Events` signal
    (`building_placed`/`building_removed`/`stockpile_changed`) on success,
    so `Colony` itself stays free of any signal-bus dependency. The tick
-   loop is unchanged: runs at `TICKS_PER_SECOND = 4.0`, accumulator-driven
-   inside `_process` so ticks stay decoupled from frame rate; `speed` is a
-   multiplier (`0.0` = paused, `1.0` = normal; `set_paused()` toggles
-   between them). Each tick still just increments a counter and emits
-   `Events.ticked` — producer/consumer economy and power balance land in
-   Milestone 3 per the comment at the top of the file.
+   loop runs at `TICKS_PER_SECOND = 4.0`, accumulator-driven inside
+   `_process` so ticks stay decoupled from frame rate. As of Milestone 3,
+   `_advance_tick()` calls `colony.tick()` (see below) before emitting
+   `Events.stockpile_changed` and `Events.ticked`, so the economy actually
+   runs every tick rather than just the counter. Speed control:
+   `speed: float` is a multiplier (`0.0` = paused, `1.0` = normal, `3.0` =
+   fast); `set_speed(mult)` sets it directly and remembers non-zero values
+   in `_last_run_speed`; `toggle_pause()` flips between `0.0` and
+   `_last_run_speed` (so unpausing restores whatever speed — 1× or 3× —
+   was running before the pause, not always 1×); `is_paused()` reads
+   `speed <= 0.0`; `set_paused(bool)` remains as a thin wrapper over
+   `set_speed` for callers that prefer a boolean.
 
 ## Grid math lives in one place: `IsoGrid`
 
@@ -111,15 +117,66 @@ far:
 
 - `data/resources.json` — an array of 9 objects (`id`, `name`, `category`,
   `unit`), loaded into `Defs.resources`.
-- `data/buildings.json` — an array of 4 building objects (`id`, `name`,
-  `size`, `cost`, `allowed_terrain`, `color`, `desc`): `solar_panel` and
-  `ice_harvester` (1×1), `habitat` and `survey_station` (2×2). Loaded into
-  `Defs.buildings` and augmented with `allowed_terrain_ids`/`color_value`
-  as described above. Adding a fifth building is a matter of adding a JSON
-  entry — no script changes needed, since `BuildingSprite`, `Colony`, and
-  the sidebar's build menu all read generically off the def dictionary.
+- `data/buildings.json` — an array of 4 building objects: `solar_panel` and
+  `ice_harvester` (1×1), `habitat` and `survey_station` (2×2). Fields:
+  `id`, `name`, `size`, `cost`, `allowed_terrain`, `color`, `desc`, and (as
+  of Milestone 3) `power` (int; positive = generator, negative = consumer,
+  every building declares one) and, optionally, `recipe`
+  (`{inputs: {resource: amount, ...}, outputs: {...}, ticks: int}` — only
+  `ice_harvester` has one so far: no inputs, 1 water every 4 ticks). Loaded
+  into `Defs.buildings` and augmented with `allowed_terrain_ids`/
+  `color_value` as described above. Adding a fifth building, or giving an
+  existing one a recipe, is a matter of editing JSON — no script changes
+  needed, since `Colony.tick()`, `BuildingSprite`, and the sidebar's build
+  menu all read generically off the def dictionary.
 
-`data/recipes.json` arrives with Milestone 3 (production chains).
+There is no separate `data/recipes.json` — recipes live inline on the
+building that runs them, one recipe per building, which is enough for the
+single-tier production so far. A dedicated recipes file may still arrive if
+buildings need to switch between multiple recipes later.
+
+## The tick economy (`Colony.tick()`)
+
+As of Milestone 3, `Colony` (in `sim/colony.gd`) does more than hold
+placement state — it also owns the fixed-tick production economy, called
+once per simulation tick from `Sim._advance_tick()`. `tick()` is exactly:
+
+```gdscript
+func tick() -> void:
+    _balance_power()
+    _run_production()
+```
+
+**Power balance (`_balance_power`)**: iterates buildings **oldest-first**
+(`_ids_oldest_first()`, i.e. sorted by instance id — ids are assigned
+sequentially by `place()`, so this is placement order). Every building with
+`power > 0` is a generator: it always runs (`active = true`) and adds to
+`power_produced`. Buildings with `power < 0` are consumers, collected in
+placement order and then switched on **while supply lasts**: since the
+loop processes them oldest-first and stops granting power once the running
+total would exceed `power_produced`, the practical effect is that the
+**newest** consumers are the ones left `active = false` on a deficit —
+older buildings keep priority. `power_produced`/`power_consumed` are
+recomputed from scratch every tick and exposed as `Colony` members for the
+HUD.
+
+**Production (`_run_production`)**: for every *active* building with a
+`recipe`, increments a per-instance `progress` counter (a field on the
+building instance dict, alongside `active`, both initialized in `place()`).
+Once `progress >= recipe.ticks`, it checks whether `recipe.inputs` are
+affordable in the stockpile: if so, it spends the inputs, adds the outputs,
+and resets `progress` to `0`; if not, it **stalls** — holds `progress` at
+the threshold (doesn't consume, doesn't reset, doesn't lose the built-up
+progress) until inputs become available on a later tick. Inactive
+(unpowered) buildings don't advance `progress` at all, so a power outage
+doesn't cause a burst of production the instant power returns.
+
+**`rates()`** returns the net stockpile change **per tick** (not per
+second) summed across only currently-active buildings with a recipe —
+`{resource_id: float}`, positive for net production, negative for net
+consumption. Callers that want a per-second figure for display multiply by
+`Sim.TICKS_PER_SECOND` themselves (see `main.gd` below); `Colony` has no
+concept of real time, only ticks.
 
 ## Rendering and camera
 
@@ -134,17 +191,23 @@ far:
   the building's footprint. `configure(def, origin, ghost)` sets it up from
   a `Defs.buildings` entry; `set_origin()` moves it (used every frame for
   the ghost following the cursor); `set_valid()` switches the ghost's
-  green/red tint (`_ghost=true` also applies a semi-transparent modulate).
-  Its node `position` is pinned to the footprint's front (max-corner) tile
-  via `IsoGrid.grid_to_screen`, which is what makes y-sorting order
-  multi-tile buildings correctly against each other.
+  green/red tint (`_ghost=true` also applies a semi-transparent modulate);
+  `set_dimmed(dimmed)` (Milestone 3) applies a flat grey modulate to a
+  placed (non-ghost) building that's currently shut down — a no-op if
+  called on a ghost. Its node `position` is pinned to the footprint's front
+  (max-corner) tile via `IsoGrid.grid_to_screen`, which is what makes
+  y-sorting order multi-tile buildings correctly against each other.
 - `render/buildings_view.gd` (`BuildingsView`, extends `Node2D`) has no
   `_process`/state of its own — `bind()` connects to
-  `Events.building_placed`/`building_removed` and backfills sprites for any
-  buildings already in `Sim.colony.buildings` (needed because it binds
-  after `Sim.new_game()` has already placed nothing, but is defensive for
-  future load-game flows). Sprites are tracked in a `Dictionary` keyed by
-  building instance id so removal is O(1).
+  `Events.building_placed`/`building_removed` and, as of Milestone 3,
+  `Events.ticked`, and backfills sprites for any buildings already in
+  `Sim.colony.buildings` (needed because it binds after `Sim.new_game()`
+  has already placed nothing, but is defensive for future load-game
+  flows). Sprites are tracked in a `Dictionary` keyed by building instance
+  id so removal is O(1). Its `_on_ticked` handler walks every tracked
+  sprite each tick and calls `set_dimmed(not inst.active)` against the
+  live `Colony` instance, so power-driven shutdowns become visible without
+  `BuildingsView` running any economy logic itself.
 - `render/tile_cursor.gd` (`TileCursor`, extends `Node2D`) is the hover
   highlight, replacing the Milestone-1 version. It exposes `cell` and
   `demolish` as setter-observed properties that trigger `queue_redraw()`,
@@ -182,11 +245,15 @@ signals for user intent:
 
 - `populate(buildings: Dictionary)` builds one `Button` per entry in
   `Defs.buildings`, each emitting `build_requested(type_id)` when pressed.
-- `set_mode_label`, `set_tile_info`, `set_stockpile` are pushed to by
-  `main.gd` (mode/tile info, every frame) and by `Events.stockpile_changed`
-  (stockpile, event-driven — `main.gd` connects
-  `Events.stockpile_changed.connect(_sidebar.set_stockpile)` and seeds the
-  initial value once, since `new_game()` doesn't itself emit).
+- `set_mode_label(text)` and `set_tile_info(cell, terrain, occupant)` are
+  pushed by `main.gd` every frame.
+- `set_economy(stock, rates, power_produced, power_consumed, speed)`
+  (replacing Milestone 2's `set_stockpile`) is also pushed every frame by
+  `main.gd`, not event-driven — it renders the STOCKPILE section with a
+  per-second rate suffix per resource where the rate is non-negligible
+  (`%+.1f/s`), the POWER section as `"<consumed> / <produced> used"`
+  (colored red when consumption exceeds production), and the speed label
+  as `❚❚ PAUSED` or `▶ Nx`.
 - A Demolish button emits `demolish_requested()`.
 
 `main.gd` connects `build_requested`/`demolish_requested` to switch its own
@@ -200,8 +267,7 @@ top-level scene and game controller. On `_ready()` it calls
 `Sim.new_game(DEFAULT_SEED, MAP_SIZE)` (seed `1337`, 64×64), hands the
 resulting map to `TerrainView` to render, calls `BuildingsView.bind()`,
 centers the `IsoCamera`, wires up the sidebar (`populate`, `build_requested`
-→ enter place mode, `demolish_requested` → enter demolish mode,
-`Events.stockpile_changed` → `sidebar.set_stockpile`), and enters
+→ enter place mode, `demolish_requested` → enter demolish mode), and enters
 `Mode.NONE`.
 
 Each frame (`_process`) it converts the mouse position to a grid cell via
@@ -209,17 +275,23 @@ Each frame (`_process`) it converts the mouse position to a grid cell via
 the mouse is over a UI control (`get_viewport().gui_get_hovered_control()`),
 updates the placement ghost (visible + repositioned + validity-tinted only
 in `Mode.PLACE` and only over the map), and refreshes the sidebar's tile
-info plus the F1 debug label.
+info. It also (as of Milestone 3) reads `Sim.colony.rates()` — per-tick —
+and multiplies each value by `Sim.TICKS_PER_SECOND` to get a per-second
+figure before calling `sidebar.set_economy(stockpile, per_sec,
+power_produced, power_consumed, Sim.speed)`; this conversion happens here,
+in the render/UI layer, precisely so `Colony` itself never needs to know
+about real time or the sidebar. Finally it refreshes the F1 debug label.
 
 Input (`_unhandled_input`) is skipped for mouse clicks that landed on UI.
 Left-click places (in `PLACE` mode) or demolishes (in `DEMOLISH` mode) at
 the hovered cell via `Sim`; right-click cancels the current mode if one is
 active, otherwise demolishes at the hovered cell directly; Escape always
 cancels to `Mode.NONE`; F1 toggles the debug overlay
-(`$Debug/Label` — cell coords, terrain name, zoom level, seed, FPS). The
-debug overlay is intentionally meant to stay available for the life of the
-project — the plan calls out coordinate conversion as the first thing to
-suspect when on-screen visuals look wrong.
+(`$Debug/Label` — cell coords, terrain name, zoom level, seed, FPS); Space
+calls `Sim.toggle_pause()`; `1` and `3` call `Sim.set_speed(1.0)` /
+`Sim.set_speed(3.0)` directly. The debug overlay is intentionally meant to
+stay available for the life of the project — the plan calls out coordinate
+conversion as the first thing to suspect when on-screen visuals look wrong.
 
 ## Folder layout
 
@@ -266,6 +338,8 @@ Current suite: `tests/test_defs.gd` (resources.json shape/uniqueness),
 `tests/test_map.gd` (`ColonyMap` dimensions, terrain id validity,
 determinism, variety), `tests/test_iso_grid.gd` (`IsoGrid` vs. Godot's real
 `TileMapLayer` math), `tests/test_placement.gd` (`Colony` placement,
-occupancy, and demolish rules — built with a hand-rolled defs dictionary,
-independent of `Defs`/`Sim`). 718 assertions across 17 tests, 0 failures as
-of Milestone 2.
+occupancy, and demolish rules), `tests/test_economy.gd` (`Colony.tick()`:
+production accrual, power-deficit shutdown, newest-first shedding, recipe
+stalling on missing inputs, active-only `rates()`) — the last two built
+with hand-rolled defs dictionaries, independent of `Defs`/`Sim`. 730
+assertions across 22 tests, 0 failures as of Milestone 3.

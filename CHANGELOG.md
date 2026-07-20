@@ -8,6 +8,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 3 — Simulation core: tick, stockpile, power** (2026-07-20)
+  - `sim/colony.gd`: fixed-tick economy. `tick()` runs `_balance_power()`
+    then `_run_production()`. Power balance: generators (`power > 0`)
+    always run; consumers (`power < 0`) are switched on oldest-placed-first
+    while supply lasts, so the newest consumers are shed first on a
+    deficit. Production: each active building with a `recipe` advances a
+    per-instance `progress` counter and, on reaching `recipe.ticks`,
+    consumes `inputs` and produces `outputs` if affordable, otherwise
+    stalls without losing progress. Added `rates()` (net per-tick
+    stockpile change from active buildings, for the HUD) and
+    `power_produced`/`power_consumed` members. Building instances gained
+    `active` and `progress` fields.
+  - `sim/sim.gd`: `_advance_tick()` now calls `colony.tick()` and emits
+    `stockpile_changed` alongside `ticked`. Speed controls:
+    `set_speed(mult)`, `toggle_pause()`, `is_paused()` (pause / 1× / 3×),
+    remembering the last running speed so unpausing restores it instead of
+    always resuming at 1×.
+  - `data/buildings.json`: every building now declares `power` (Solar
+    Panel +10, Ice Harvester −5, Habitat −2, Survey Station −3); Ice
+    Harvester gained a `recipe` (no inputs → 1 water every 4 ticks).
+  - `render/building_sprite.gd`: `set_dimmed()` greys out a shut-down
+    building.
+  - `render/buildings_view.gd`: connects `Events.ticked` and dims/undims
+    each tracked sprite from the building's `active` flag every tick.
+  - `ui/sidebar.gd` / `ui/sidebar.tscn`: added a speed label and a POWER
+    section; `set_economy(stock, rates, power_produced, power_consumed,
+    speed)` shows the stockpile with per-second rates (e.g.
+    `water 4  +1.0/s`), power as `used / produced` (red on deficit), and
+    speed (`❚❚ PAUSED` / `▶ Nx`).
+  - `main.gd`: Space toggles pause, `1`/`3` set speed; pushes the economy
+    to the sidebar every frame, converting `Colony.rates()` from per-tick
+    to per-second via `Sim.TICKS_PER_SECOND`.
+  - Tests: `tests/test_economy.gd` (5 tests — production accrual, power
+    deficit halting a consumer, newest-consumer-shed-first, recipe stall
+    and recovery on missing inputs, active-only `rates()`).
+  - Full suite: 730 assertions across 22 tests, 0 failures (`make test`).
+
 - **Milestone 2 — Building placement** (2026-07-20)
   - `sim/colony.gd` (`Colony`): pure sim class holding the map, stockpile,
     placed buildings, and a cell occupancy index; `can_place`/`place`/

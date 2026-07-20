@@ -6,6 +6,11 @@ heavily simplified. Its signature mechanic: resource deposits are hidden
 underground and must be found through prospecting before they can be
 extracted.
 
+Place buildings on the isometric terrain and watch a real fixed-tick
+economy run: generators and consumers balance against a shared power
+budget, production buildings turn inputs into outputs on a per-building
+progress timer, and the whole thing runs at pause / 1× / 3× speed.
+
 ## Tech stack
 
 - **Engine:** [Godot](https://godotengine.org/) 4.7.1
@@ -42,7 +47,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**718 assertions across 17 tests, 0 failures.**
+**730 assertions across 22 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -51,7 +56,7 @@ on script/asset errors — good for CI), `make clean` (remove the generated
 ## Folder structure
 
 ```
-data/       JSON content definitions: resources.json, buildings.json (recipes.json to come)
+data/       JSON content definitions: resources.json, buildings.json (recipes live inline per building)
 sim/        Pure simulation logic and state — no rendering dependency
 render/     Views of sim state: tilemap, buildings, camera, hover cursor
 ui/         Screen-space UI: the sidebar
@@ -73,27 +78,36 @@ reads sim state and never writes game rules back. See
 | Left click | Place selected building, or demolish (in demolish mode) |
 | Right click | Demolish at cursor, or cancel current mode |
 | Esc | Cancel current mode |
+| Space | Pause / unpause (resumes at whatever speed was running) |
+| 1 | Set speed to 1× |
+| 3 | Set speed to 3× |
 | F1 | Toggle debug overlay (grid coords, terrain, zoom, seed, FPS) |
 
 Buildings and Demolish are selected from the right-hand sidebar, which also
-shows the current mode, the hovered tile's info, and the stockpile.
+shows the current mode, the hovered tile's info, the stockpile with live
+per-second rates, power used/produced (red on deficit), and the current
+speed.
 
 ## Buildings (current 4)
 
-| Building | Footprint | Cost | Terrain |
-|---|---|---|---|
-| Solar Panel | 1×1 | 10 metal | Regolith, Highlands |
-| Ice Harvester | 1×1 | 15 metal | Ice |
-| Habitat | 2×2 | 30 metal | Regolith |
-| Survey Station | 2×2 | 25 metal | Regolith, Highlands |
+| Building | Footprint | Cost | Power | Recipe | Terrain |
+|---|---|---|---|---|---|
+| Solar Panel | 1×1 | 10 metal | +10 | — | Regolith, Highlands |
+| Ice Harvester | 1×1 | 15 metal | −5 | 1 water / 4 ticks (no inputs) | Ice |
+| Habitat | 2×2 | 30 metal | −2 | — | Regolith |
+| Survey Station | 2×2 | 25 metal | −3 | — | Regolith, Highlands |
 
-Defined in `data/buildings.json`; none of them produce or consume resources
-yet — that's Milestone 3.
+Defined in `data/buildings.json`. Every building has a power figure;
+generators (positive power) always run, consumers (negative power) run
+oldest-placed-first and the newest ones shut down (and dim on screen) when
+demand exceeds supply. Only Ice Harvester has a recipe so far — the rest of
+the production chain from the design plan arrives in later milestones.
 
 ## Status
 
 Milestones 0 (project skeleton), 1 (isometric terrain rendering and
-camera), and 2 (building placement) are done. See
+camera), 2 (building placement), and 3 (simulation core: tick economy,
+stockpile, power balance, speed controls) are done. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

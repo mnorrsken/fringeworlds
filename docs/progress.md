@@ -4,7 +4,7 @@ Status of each milestone from [`colony-game-plan.md`](../colony-game-plan.md).
 That file defines the acceptance criteria referenced below — this log tracks
 whether they've been met, not what they are.
 
-Current automated test count: **718 assertions across 17 tests, 0 failures**
+Current automated test count: **730 assertions across 22 tests, 0 failures**
 (`make test`).
 
 ---
@@ -162,14 +162,66 @@ Verified: `make import` clean, headless run clean (no script errors),
 `make test` green, and the visuals (highlight on top, sidebar layout,
 building blocks) were confirmed by screenshot.
 
-## Milestone 3 — Simulation core: tick, stockpile, power — pending
+## Milestone 3 — Simulation core: tick, stockpile, power — done
 
-Not started. `Sim`'s fixed 4-tick/second loop already exists
-(`sim/sim.gd`), and Milestone 2 gave it a `Colony`-backed stockpile
-(currently just a starting balance debited by building cost) — but there
-is still no producer/consumer recipe logic or power balance; each tick
-only advances a counter and emits `Events.ticked`. See plan section
-"Milestone 3".
+Deliverables:
+
+- `sim/colony.gd`: added the tick economy on top of the Milestone-2
+  placement core. `tick()` runs `_balance_power()` then
+  `_run_production()`. Power balance: buildings with `power > 0` always
+  run and add to `power_produced`; buildings with `power < 0` are switched
+  on oldest-first (by instance id) while supply lasts, and the **newest**
+  consumers are the ones shut off (`active = false`) once demand exceeds
+  supply. Production: each *active* building with a `recipe` advances a
+  per-instance `progress` counter every tick; on reaching `recipe.ticks` it
+  consumes `recipe.inputs` and produces `recipe.outputs` if the inputs are
+  available, otherwise it stalls (holds at the threshold, doesn't consume
+  or reset). Building instances gained `active` (bool) and `progress`
+  (int) fields, initialized in `place()`. `rates()` returns the net
+  stockpile change **per tick** across active buildings, for the HUD.
+  `power_produced`/`power_consumed` are recomputed each tick for display.
+- `sim/sim.gd`: `_advance_tick()` now calls `colony.tick()` and emits both
+  `Events.stockpile_changed` and `Events.ticked`. Added speed controls:
+  `set_speed(mult)`, `toggle_pause()`, `is_paused()`, with a
+  `_last_run_speed` member so unpausing restores whatever speed (1× or 3×)
+  was active before pausing rather than always resuming at 1×.
+- `data/buildings.json`: every building now declares `power` (Solar Panel
+  +10, Ice Harvester −5, Habitat −2, Survey Station −3) and Ice Harvester
+  gained a `recipe` (`{inputs: {}, outputs: {water: 1}, ticks: 4}` — no
+  inputs, so it always produces once powered).
+- `render/building_sprite.gd`: added `set_dimmed(dimmed)`, applying a
+  grey modulate to a shut-down building (no-op on ghosts).
+- `render/buildings_view.gd`: `bind()` now also connects `Events.ticked`
+  and dims/undims each tracked sprite from the corresponding instance's
+  `active` flag every tick.
+- `ui/sidebar.gd` / `ui/sidebar.tscn`: added a `SpeedLabel` and a POWER
+  section. `set_economy(stock, rates, power_produced, power_consumed,
+  speed)` renders the stockpile with a per-second rate suffix where
+  nonzero (e.g. `water 4  +1.0/s`), power as `used / produced` (turns red
+  on deficit), and speed as `❚❚ PAUSED` or `▶ Nx`.
+- `main.gd`: Space toggles pause, `1`/`3` set speed directly. Each frame it
+  converts `Colony.rates()` (per-tick) to per-second by multiplying by
+  `Sim.TICKS_PER_SECOND` before pushing to the sidebar, alongside power
+  figures and `Sim.speed`.
+- `tests/test_economy.gd`: 5 new tests — production accrues correctly over
+  ticks; a power deficit stops a consumer and halts its production
+  entirely; the newest consumer is the one shed when demand exceeds supply
+  (with `power_produced`/`power_consumed` assertions); a recipe with
+  missing inputs stalls and then produces exactly once inputs arrive;
+  `rates()` reflects only currently-active buildings.
+
+Acceptance criteria from the plan: placing a Solar Panel and an Ice
+Harvester makes Water tick upward; removing the panel stops the harvester;
+the resource HUD updates live; pause works.
+
+**Status: met.** `tests/test_economy.gd` proves the mechanics directly
+against `Colony` (production accrual, power-deficit shutdown, newest-first
+shedding, input stalling, active-only rates). The plan's acceptance
+criteria were additionally confirmed by screenshot: Solar Panel + Ice
+Harvester ticks Water upward with power showing `5 / 10` used; removing the
+Solar Panel dims the harvester and halts Water; the sidebar's stockpile,
+rate, and power figures update live; Space/1/3 pause and change speed as
+expected.
 
 ## Milestone 4 — Deposits and prospecting — pending
 
@@ -182,11 +234,12 @@ Not started. See plan section "Milestone 5".
 
 ## Milestone 6 — Real UI — pending
 
-Not started as a milestone, though Milestone 2's Dune II–style sidebar
-(`ui/sidebar.gd`/`.tscn`) already covers some of its ground (a persistent
-resource/build panel). Still missing: rates (+/- per second), an alert
-ticker over `Events`, a building inspection panel, and overlay toggles.
-See plan section "Milestone 6".
+Not started as a milestone, though the sidebar built across Milestones 2–3
+(`ui/sidebar.gd`/`.tscn`) already covers a fair amount of its ground: a
+persistent resource/build panel, per-second stockpile rates, and a
+power used/produced readout. Still missing: an alert ticker over `Events`,
+a building inspection panel with an idle-reason explanation, and overlay
+toggles (prospecting, power coverage). See plan section "Milestone 6".
 
 ## Milestone 7 — Save/load and main menu — pending
 
