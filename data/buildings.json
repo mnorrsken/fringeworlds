@@ -1,0 +1,30 @@
+[
+  {
+    "id": "solar_panel", "name": "Solar Panel", "size": 1,
+    "cost": { "metal": 10 },
+    "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
+    "color": "e0b64a",
+    "desc": "Steady, cheap power."
+  },
+  {
+    "id": "ice_harvester", "name": "Ice Harvester", "size": 1,
+    "cost": { "metal": 15 },
+    "allowed_terrain": ["ICE"],
+    "color": "7cc7d6",
+    "desc": "Extracts water from ice fields."
+  },
+  {
+    "id": "habitat", "name": "Habitat", "size": 2,
+    "cost": { "metal": 30 },
+    "allowed_terrain": ["REGOLITH"],
+    "color": "5a86c4",
+    "desc": "Houses colonists."
+  },
+  {
+    "id": "survey_station", "name": "Survey Station", "size": 2,
+    "cost": { "metal": 25 },
+    "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
+    "color": "d98a3a",
+    "desc": "Scans surrounding tiles for deposits."
+  }
+]

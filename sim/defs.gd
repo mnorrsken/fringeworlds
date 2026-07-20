@@ -10,12 +10,31 @@ const DATA_DIR := "res://data/"
 ## resource id (String) -> definition (Dictionary)
 var resources: Dictionary = {}
 
+## building id (String) -> definition (Dictionary). Each def is augmented at load
+## with `allowed_terrain_ids` (Array[int]) and `color_value` (Color) so game code
+## never re-parses terrain names or hex strings.
+var buildings: Dictionary = {}
+
 func _ready() -> void:
 	resources = _load_json(DATA_DIR + "resources.json")
-	print("[Defs] loaded %d resource definitions:" % resources.size())
-	for id in resources:
-		var r: Dictionary = resources[id]
-		print("  - %s: %s (%s)" % [id, r.get("name", "?"), r.get("category", "?")])
+	print("[Defs] loaded %d resource definitions" % resources.size())
+	buildings = _load_buildings(DATA_DIR + "buildings.json")
+	print("[Defs] loaded %d building definitions" % buildings.size())
+
+## Loads buildings.json and pre-processes each entry for fast use at runtime.
+func _load_buildings(path: String) -> Dictionary:
+	var raw := _load_json(path)
+	for id in raw:
+		var def: Dictionary = raw[id]
+		var ids: Array[int] = []
+		for name in def.get("allowed_terrain", []):
+			if ColonyMap.Terrain.has(name):
+				ids.append(ColonyMap.Terrain[name])
+			else:
+				push_warning("[Defs] building '%s' unknown terrain '%s'" % [id, name])
+		def["allowed_terrain_ids"] = ids
+		def["color_value"] = Color.html(str(def.get("color", "ffffff")))
+	return raw
 
 ## Loads a JSON file expected to contain an array of objects each with an "id"
 ## field, and returns a dictionary keyed by that id. Returns {} on any failure.
