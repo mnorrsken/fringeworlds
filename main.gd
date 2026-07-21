@@ -17,6 +17,9 @@ enum Mode { NONE, PLACE, DEMOLISH }
 @onready var _sidebar := $UI/Sidebar
 @onready var _minimap_root: Control = $MinimapLayer/Root
 @onready var _minimap: Minimap = $MinimapLayer/Root/Center/Panel/Margin/VBox/Minimap
+@onready var _gameover_root: Control = $GameOverLayer/Root
+@onready var _gameover_title: Label = $GameOverLayer/Root/Center/Panel/Margin/VBox/Title
+@onready var _gameover_subtitle: Label = $GameOverLayer/Root/Center/Panel/Margin/VBox/Subtitle
 @onready var _debug: CanvasLayer = $Debug
 @onready var _label: Label = $Debug/Label
 
@@ -38,6 +41,7 @@ func _ready() -> void:
 	_sidebar.demolish_requested.connect(func() -> void: _set_mode(Mode.DEMOLISH))
 	_sidebar.populate(Defs.buildings)
 	_minimap.setup(_map, _camera)
+	Events.game_over.connect(_on_game_over)
 	_set_mode(Mode.NONE)
 
 func _process(_delta: float) -> void:
@@ -60,6 +64,10 @@ func _update_ghost() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
+		if _gameover_root.visible:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				get_tree().reload_current_scene()
+			return
 		match event.keycode:
 			KEY_F1:
 				_debug.visible = not _debug.visible
@@ -112,6 +120,12 @@ func _set_mode(mode: Mode) -> void:
 		_ghost.visible = false
 	_sidebar.set_mode_label(_mode_name())
 
+func _on_game_over(won: bool) -> void:
+	_gameover_title.text = "BEACON LAUNCHED" if won else "COLONY LOST"
+	_gameover_subtitle.text = ("The colony endures — victory!\n" if won
+		else "The last colonist is gone.\n") + "Press Enter to start a new colony."
+	_gameover_root.visible = true
+
 func _toggle_prospect() -> void:
 	_prospect.visible = not _prospect.visible
 	if _prospect.visible:
@@ -145,6 +159,7 @@ func _update_info() -> void:
 		per_sec[r] = per_tick[r] * Sim.TICKS_PER_SECOND
 	_sidebar.set_economy(col.stockpile, per_sec, col.power_produced,
 		col.power_consumed, Sim.speed)
+	_sidebar.set_colony(col.population, col.capacity(), col.workers_used())
 	if _debug.visible:
 		_label.text = "cell (%d, %d)  %s\nzoom %dx  seed %d  FPS %d  [F1]" % [
 			_hover.x, _hover.y, terrain,

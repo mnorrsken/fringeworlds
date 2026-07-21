@@ -19,6 +19,8 @@ const DIM := Color("7a6f5f")
 @onready var _stock_info: Label = $Margin/Scroll/VBox/StockInfo
 @onready var _power_header: Label = $Margin/Scroll/VBox/PowerHeader
 @onready var _power_info: Label = $Margin/Scroll/VBox/PowerInfo
+@onready var _colony_header: Label = $Margin/Scroll/VBox/ColonyHeader
+@onready var _colony_info: Label = $Margin/Scroll/VBox/ColonyInfo
 @onready var _build_header: Label = $Margin/Scroll/VBox/BuildHeader
 @onready var _build_list: VBoxContainer = $Margin/Scroll/VBox/BuildList
 @onready var _demolish: Button = $Margin/Scroll/VBox/DemolishBtn
@@ -34,7 +36,7 @@ func _ready() -> void:
 
 	_title.add_theme_color_override("font_color", AMBER)
 	_title.add_theme_font_size_override("font_size", 18)
-	for h in [_tile_header, _stock_header, _power_header, _build_header]:
+	for h in [_tile_header, _stock_header, _power_header, _colony_header, _build_header]:
 		h.add_theme_color_override("font_color", AMBER)
 	_mode.add_theme_color_override("font_color", SAND)
 	_speed.add_theme_color_override("font_color", SAND)
@@ -100,3 +102,11 @@ func set_economy(stock: Dictionary, rates: Dictionary, power_produced: int,
 		_speed.text = "❚❚ PAUSED"
 	else:
 		_speed.text = "▶ %dx" % int(speed)
+
+## Population / housing capacity / workforce use.
+func set_colony(population: int, cap: int, workers_used: int) -> void:
+	_colony_info.text = "pop %d / %d\nworkers %d / %d" % [
+		population, cap, workers_used, population]
+	var crowded := population >= cap
+	_colony_info.add_theme_color_override("font_color",
+		Color("d6a84a") if crowded else SAND)

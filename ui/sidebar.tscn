@@ -61,6 +61,12 @@ text = "POWER"
 [node name="PowerInfo" type="Label" parent="Margin/Scroll/VBox"]
 text = "—"
 
+[node name="ColonyHeader" type="Label" parent="Margin/Scroll/VBox"]
+text = "COLONISTS"
+
+[node name="ColonyInfo" type="Label" parent="Margin/Scroll/VBox"]
+text = "—"
+
 [node name="Sep3" type="HSeparator" parent="Margin/Scroll/VBox"]
 
 [node name="BuildHeader" type="Label" parent="Margin/Scroll/VBox"]

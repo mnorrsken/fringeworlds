@@ -82,6 +82,49 @@ text = "OVERHEAD MAP   [M]"
 clip_contents = true
 script = ExtResource("8_minimap")
 
+[node name="GameOverLayer" type="CanvasLayer" parent="."]
+
+[node name="Root" type="Control" parent="GameOverLayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+
+[node name="Backdrop" type="ColorRect" parent="GameOverLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.7)
+
+[node name="Center" type="CenterContainer" parent="GameOverLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="GameOverLayer/Root/Center"]
+
+[node name="Margin" type="MarginContainer" parent="GameOverLayer/Root/Center/Panel"]
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="GameOverLayer/Root/Center/Panel/Margin"]
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="GameOverLayer/Root/Center/Panel/Margin/VBox"]
+theme_override_font_sizes/font_size = 28
+text = "GAME OVER"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="GameOverLayer/Root/Center/Panel/Margin/VBox"]
+text = "Press Enter to start a new colony."
+horizontal_alignment = 1
+
 [node name="Debug" type="CanvasLayer" parent="."]
 
 [node name="Label" type="Label" parent="Debug"]
