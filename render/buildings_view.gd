@@ -1,10 +1,10 @@
 class_name BuildingsView
 extends Node2D
-## Spawns/frees BuildingSprites in response to Events, keyed by instance id.
-## Enable y_sort on this node (in the scene) so overlapping buildings order by
-## their front tile. This is only a view — it holds no game state.
+## Spawns/frees BuildingSprites in response to Events. Each building spawns ONE
+## sprite per footprint cell, so the y-sorted parent depth-sorts each tile
+## individually. This is only a view — it holds no game state.
 
-var _sprites: Dictionary = {}  # building instance id -> BuildingSprite
+var _sprites: Dictionary = {}  # building instance id -> Array[BuildingSprite]
 
 ## Connect to sim events and spawn sprites for any buildings already placed.
 func bind() -> void:
@@ -14,21 +14,26 @@ func bind() -> void:
 	for id in Sim.colony.buildings:
 		_on_placed(Sim.colony.buildings[id])
 
-# Each tick, reflect the shut-down (unpowered) state as dimming.
+# Each tick, reflect the shut-down (unpowered / understaffed) state as dimming.
 func _on_ticked(_tick: int) -> void:
 	for id in _sprites:
 		var inst: Dictionary = Sim.colony.buildings.get(id, {})
-		if not inst.is_empty():
-			_sprites[id].set_dimmed(not inst.active)
+		if inst.is_empty():
+			continue
+		for spr in _sprites[id]:
+			spr.set_dimmed(not inst.active)
 
 func _on_placed(inst: Dictionary) -> void:
-	var spr := BuildingSprite.new()
-	add_child(spr)
-	spr.configure(Defs.buildings[inst.type], inst.origin, false)
-	_sprites[inst.id] = spr
+	var color: Color = Defs.buildings[inst.type].get("color_value", Color.WHITE)
+	var sprites := []
+	for cell in inst.cells:
+		var spr := BuildingSprite.new()
+		add_child(spr)
+		spr.configure(color, [cell], false)
+		sprites.append(spr)
+	_sprites[inst.id] = sprites
 
 func _on_removed(inst: Dictionary) -> void:
-	var spr: BuildingSprite = _sprites.get(inst.id)
-	if spr != null:
+	for spr in _sprites.get(inst.id, []):
 		spr.queue_free()
 	_sprites.erase(inst.id)

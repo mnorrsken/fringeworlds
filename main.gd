@@ -59,7 +59,7 @@ func _update_ghost() -> void:
 		_ghost.visible = false
 		return
 	_ghost.visible = true
-	_ghost.set_origin(_hover)
+	_ghost.set_cells(Sim.colony.footprint(_place_type, _hover))
 	_ghost.set_valid(Sim.can_place(_place_type, _hover).ok)
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -111,7 +111,8 @@ func _on_right_click() -> void:
 func _on_build_requested(type_id: String) -> void:
 	_place_type = type_id
 	_set_mode(Mode.PLACE)
-	_ghost.configure(Defs.buildings[type_id], _hover, true)
+	_ghost.configure(Defs.buildings[type_id].get("color_value", Color.WHITE),
+		Sim.colony.footprint(type_id, _hover), true)
 
 func _set_mode(mode: Mode) -> void:
 	_mode = mode
