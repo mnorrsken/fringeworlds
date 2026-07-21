@@ -210,6 +210,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Rebalanced early game: starting metal 120→200 and Solar Panel 10→15
+  power, so the metal chain is reachable without a perfect build order
+  (fixes an early-game dead-end). Even with the gentler-early-game numbers
+  below, the starting metal couldn't fund power + life support +
+  prospecting *and* leave enough for a Smelter — the building that
+  replenishes metal — so a colony could paint itself into a corner with
+  no way to bootstrap self-sustaining metal production. `sim/sim.gd`'s
+  `STARTING_STOCKPILE` metal raised to 200; `data/buildings.json`'s Solar
+  Panel power raised to 15 (roughly 2 panels power the early base instead
+  of 3, freeing metal for the rest of the bootstrap). New
+  `tests/test_balance.gd` regression-guards this: the metal cost of a
+  minimal self-sustaining bootstrap (2 solar panels + ice harvester +
+  electrolysis plant + hydroponics farm + survey station + mine + smelter
+  = 145 metal) must fit inside the starting metal with at least 20 to
+  spare.
 - Gentler early game: automated (robot) early buildings, reduced
   life-support drain, larger starting buffer. `data/buildings.json`:
   Solar Panel, Habitat, Ice Harvester, Electrolysis Plant, Hydroponics
@@ -217,9 +232,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   processing/advanced tier (Smelter, Parts Factory, Crystal Extractor)
   needs colonists. `sim/colony.gd`: `LIFE_SUPPORT` reduced (oxygen/water
   0.03→0.02, food 0.02→0.015 per colonist per tick), `STARVE_TICKS`
-  raised 16→24 (~6s grace). `sim/sim.gd`: `STARTING_STOCKPILE` raised to
-  metal 120, oxygen/water/food 100 each (was 100/60/60/60). Colonist
-  pressure now builds slowly over a game rather than hitting immediately.
+  raised 16→24 (~6s grace). `sim/sim.gd`: `STARTING_STOCKPILE`'s
+  oxygen/water/food raised to 100 each (was 60); its starting metal was
+  raised too in this same pass, but see the metal-cliff entry above for
+  the number that actually shipped. Colonist pressure now builds slowly
+  over a game rather than hitting immediately.
 - Zoom is now toggled 1×/2× on `Z` (scroll/wheel no longer zoom). Trackpad
   scroll-to-zoom, added in the previous pass to fix macOS zoom, felt
   twitchy in practice, so mouse-wheel and trackpad two-finger-scroll zoom

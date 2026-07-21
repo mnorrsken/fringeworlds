@@ -79,12 +79,18 @@ Registered in `project.godot` under `[autoload]`, in load order:
 3. **`Sim`** (`sim/sim.gd`) — game state and the fixed tick loop, plus the
    live `Colony` (since Milestone 2). `new_game(seed, size)` generates a
    `ColonyMap`, constructs `colony := Colony.new(map, Defs.buildings,
-   STARTING_STOCKPILE)`, and resets the tick counter. As of Milestone 5,
-   `STARTING_STOCKPILE` is `{metal: 100, oxygen: 60, water: 60, food: 60}`
-   — the life-support buffer exists so a new colony survives long enough
-   to get its first O2/water/food buildings running before colonists
-   starve — and `new_game()` also resets `_ended`, the tick accumulator,
-   and `speed` back to `1.0`, so restarting after a game-over isn't left
+   STARTING_STOCKPILE)`, and resets the tick counter. `STARTING_STOCKPILE`
+   is currently `{metal: 200, oxygen: 100, water: 100, food: 100}` (raised
+   from `{metal: 100}` in Milestone 5 to add the oxygen/water/food
+   life-support buffer, then metal raised again 100→200 in the pre-M6
+   metal-cliff fix — see "Tech unlocks" and the balance notes in
+   `docs/progress.md` for why) — the life-support buffer exists so a new
+   colony survives long enough to get its first O2/water/food buildings
+   running before colonists starve, and the larger metal buffer exists so
+   the early bootstrap (power + prospecting + a mine + a smelter) is
+   actually affordable — and `new_game()` also resets `_ended`, the tick
+   accumulator, and `speed` back to `1.0`, so restarting after a game-over
+   isn't left
    paused or fast-forwarded. `colony` is `null` until `new_game()` is
    called. `Sim` exposes thin wrapper methods over `Colony`'s placement
    API — `can_place`, `place_building`, `demolish_at`, `building_at` —
@@ -738,8 +744,34 @@ zero), `tests/test_tech.gd` (a building with no prerequisites is unlocked
 from the start; one with a prerequisite is locked until it's built and
 `can_place()` rejects it while locked; `missing_prereqs()` reports
 correctly before/after; an unlock survives demolishing the prerequisite;
-a two-step prerequisite chain unlocks in order) — the
-placement/economy/camera/prospecting/colonist/tech files are built with
-hand-rolled defs dictionaries or constructed nodes/maps, independent of
-`Defs`/`Sim`/a running scene. 771 assertions across 48 tests, 0 failures
-as of the pre-M6 fixes & balance pass.
+a two-step prerequisite chain unlocks in order), `tests/test_balance.gd`
+(a regression guard for the metal-cliff fix — sums the metal cost of a
+minimal self-sustaining bootstrap build order and asserts it fits inside
+`Sim.STARTING_STOCKPILE`'s starting metal with headroom to spare; see
+"Balance regression testing" below for why it reads `sim.gd` as text
+instead of loading it) — the
+placement/economy/camera/prospecting/colonist/tech/balance files are built
+with hand-rolled defs dictionaries or constructed nodes/maps, independent
+of `Defs`/`Sim`/a running scene. 773 assertions across 49 tests, 0
+failures as of the metal-cliff balance fix.
+
+### Balance regression testing
+
+`tests/test_balance.gd` is a different shape from the other test files:
+instead of constructing a `Colony`/`ColonyMap` with hand-rolled defs, it
+reads the *real* `data/buildings.json` (via `FileAccess` + `JSON.parse_string`,
+the same way `Defs._load_json` does) and the *real*
+`sim/sim.gd`'s `STARTING_STOCKPILE` constant, then asserts a fact about
+actual shipped balance numbers (a specific bootstrap build order's total
+metal cost fits inside the actual starting metal, with headroom). Reading
+`STARTING_STOCKPILE` is done by scanning `sim.gd`'s source text with a
+regex for the `"metal": <number>` pattern inside the line that declares
+the constant, rather than `load("res://sim/sim.gd")`-ing the script and
+reading the constant off it directly. This is deliberate: `Sim` is an
+autoload `Node` script that references other autoloads (`Defs`, `Events`)
+implicitly through the autoload system; `load()`-ing it standalone in a
+headless test (outside the autoload environment `run_tests.gd` runs in)
+recompiles it in a context where those identifiers don't resolve, which
+fails. Text-scanning sidesteps that entirely at the cost of being a bit
+more fragile to unrelated formatting changes in `sim.gd` — a tradeoff
+noted in a comment in the test file itself.

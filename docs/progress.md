@@ -4,7 +4,7 @@ Status of each milestone from [`colony-game-plan.md`](../colony-game-plan.md).
 That file defines the acceptance criteria referenced below — this log tracks
 whether they've been met, not what they are.
 
-Current automated test count: **771 assertions across 48 tests, 0 failures**
+Current automated test count: **773 assertions across 49 tests, 0 failures**
 (`make test`).
 
 ---
@@ -493,8 +493,11 @@ play of the Milestone 5 build. Three related changes:
   Smelter (2), Parts Factory (3), Crystal Extractor (2). `sim/colony.gd`:
   `LIFE_SUPPORT` reduced (oxygen/water 0.03→0.02, food 0.02→0.015 per
   colonist per tick) and `STARVE_TICKS` raised 16→24 (~6s grace instead of
-  ~4s). `sim/sim.gd`: `STARTING_STOCKPILE` raised to `metal: 120,
-  oxygen/water/food: 100` each (was `100`/`60`/`60`/`60`). Net effect:
+  ~4s). `sim/sim.gd`: `STARTING_STOCKPILE`'s oxygen/water/food raised to
+  `100` each (was `60`); metal was raised too, though — see the
+  "metal cliff" follow-up below — the value committed here was quickly
+  superseded again (100→200, not the 120 this pass shipped with
+  momentarily) once the metal-cliff dead-end below was found. Net effect:
   colonists become a slow-burning long-game pressure tied to unlocking the
   advanced tier, not an immediate crisis from turn one.
 - **Tech unlocks — pedagogical build gating.** Buildings now unlock only
@@ -534,6 +537,32 @@ a building in front of it correctly occluding the near corner; the
 sidebar's life-support rates read gentler; the build menu shows locked
 buildings greyed out with a 🔒 icon, which unlock live as prerequisites are
 built.
+
+**Follow-up: the "metal cliff" fix.** Hands-on play surfaced a dead-end:
+even with the gentler-early-game numbers above, the starting metal
+couldn't cover a viable path to self-sustaining metal — power, life
+support, and prospecting spent it all before a Smelter (the building that
+replenishes metal) could be afforded, leaving no way forward. Fixed with
+two small numbers: `sim/sim.gd`'s `STARTING_STOCKPILE` metal raised to
+**200** (from the `100` it started Milestone 5 at — a `120` intermediate
+value was drafted for this same fix but superseded by `200` before it was
+ever committed on its own, so it never shipped as a distinct step; both
+land together in the same commit as the workers rebalance above), and
+`data/buildings.json`'s Solar Panel power raised 10 → **15** (so the early
+base needs roughly 2 panels instead of 3, freeing up metal for the rest of
+the bootstrap).
+`tests/test_balance.gd` is a new regression guard: it sums the metal cost
+of a minimal self-sustaining bootstrap (2 solar panels + ice harvester +
+electrolysis plant + hydroponics farm + survey station + mine + smelter =
+145 metal) and asserts it fits inside the starting metal with at least 20
+metal of headroom — so a future balance tweak can't silently reopen this
+dead-end without a test failing. It reads `STARTING_STOCKPILE` out of
+`sim.gd`'s source text with a regex rather than `load()`-ing the script,
+because `load()` would recompile an autoload-dependent script outside the
+autoload environment, which fails in the headless test runner (documented
+in a comment in the test file). Verified: bootstrap costs 145 metal
+against a 200 start (55 headroom); `make test` = 773 assertions across 49
+tests, 0 failures.
 
 ## Milestone 6 — Real UI — pending
 

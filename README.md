@@ -67,7 +67,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**771 assertions across 48 tests, 0 failures.**
+**773 assertions across 49 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -118,7 +118,7 @@ the game-over screen to start a fresh colony.
 
 | Building | Footprint | Cost | Power | Workers | Produces | Requires built | Terrain / deposit |
 |---|---|---|---|---|---|---|---|
-| Solar Panel | 1×1 | 10 metal | +10 | 0 | — | — | Regolith, Highlands |
+| Solar Panel | 1×1 | 10 metal | +15 | 0 | — | — | Regolith, Highlands |
 | Habitat | 2×2 | 30 metal | −2 | 0 | houses +6 colonists | — | Regolith |
 | Ice Harvester | 1×1 | 15 metal | −5 | 0 | 1 water / 4 ticks (no inputs) | — | Ice |
 | Survey Station | 2×2 | 25 metal | −3 | 0 | scans outward, ring every 2 ticks, radius 7 | Solar Panel | Regolith, Highlands |
