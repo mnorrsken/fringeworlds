@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Tech unlocks: buildings gated behind prerequisites (e.g. solar → survey
+  → mine → smelter → parts → crystal; ice harvester → electrolysis/
+  hydroponics), shown in the build menu. `Colony` tracks `built_types`
+  (every building type ever placed, so an unlock persists even if the
+  prerequisite is later demolished); `is_unlocked()`/`missing_prereqs()`
+  drive a new `can_place()` rejection ("Locked — prerequisite not
+  built"). The sidebar's build buttons disable, show a 🔒, and explain
+  what's missing via `set_locks()`; the menu recomputes on every building
+  placement since a new building can unlock others. 5 new tests in
+  `tests/test_tech.gd`.
+
 - **Milestone 5 — Full production chains and colonists** (2026-07-21)
   - `data/buildings.json`: expanded from 6 to 10 buildings. Every building
     now declares `workers`; Habitat gained `capacity: 6`. Four new
@@ -199,6 +210,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Gentler early game: automated (robot) early buildings, reduced
+  life-support drain, larger starting buffer. `data/buildings.json`:
+  Solar Panel, Habitat, Ice Harvester, Electrolysis Plant, Hydroponics
+  Farm, Survey Station, and Mine are all `workers: 0`; only the
+  processing/advanced tier (Smelter, Parts Factory, Crystal Extractor)
+  needs colonists. `sim/colony.gd`: `LIFE_SUPPORT` reduced (oxygen/water
+  0.03→0.02, food 0.02→0.015 per colonist per tick), `STARVE_TICKS`
+  raised 16→24 (~6s grace). `sim/sim.gd`: `STARTING_STOCKPILE` raised to
+  metal 120, oxygen/water/food 100 each (was 100/60/60/60). Colonist
+  pressure now builds slowly over a game rather than hitting immediately.
 - Zoom is now toggled 1×/2× on `Z` (scroll/wheel no longer zoom). Trackpad
   scroll-to-zoom, added in the previous pass to fix macOS zoom, felt
   twitchy in practice, so mouse-wheel and trackpad two-finger-scroll zoom
@@ -216,6 +237,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `clip_text` to fit.
 
 ### Fixed
+
+- Multi-tile buildings render per-tile, fixing depth/occlusion overlap.
+  Previously a multi-tile building was a single `BuildingSprite` y-sorted
+  at one depth, so a 2×2+ footprint could draw in front of or behind a
+  neighboring building incorrectly on some of its cells. `BuildingSprite`
+  was rewritten to draw a list of cells as separate 1×1 blocks;
+  `BuildingsView` now spawns one sprite per footprint cell, so each tile
+  of a multi-tile building depth-sorts against its neighbors
+  independently. The placement ghost still uses one multi-cell sprite
+  (it always renders on top, so per-tile interleaving isn't needed there).
 
 - Zoom now works on macOS trackpad / Magic Mouse. Those devices never emit
   mouse-wheel events, only `InputEventPanGesture` (two-finger scroll) and

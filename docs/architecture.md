@@ -151,18 +151,25 @@ far:
   optionally `recipe` (`{inputs: {...}, outputs: {...}, ticks: int}`),
   `scan` (survey buildings), `mine`/`requires_deposit` (extractors — see
   "Deposits and prospecting" below). Milestone 5 added two more fields:
-  `workers` (int; every building now declares one, `0` for unstaffed
-  buildings like Solar Panel and Habitat) and `capacity` (int, housing
-  added by the building — only `habitat`, at `6`). `crystal_extractor`'s
-  `cost` now also requires `parts: 8`, so it needs the full chain (mine →
-  smelter → parts factory) to reach, not just raw metal. Loaded into
+  `workers` (int; every building declares one) and `capacity` (int,
+  housing added by the building — only `habitat`, at `6`).
+  `crystal_extractor`'s `cost` also requires `parts: 8`, so it needs the
+  full chain (mine → smelter → parts factory) to reach, not just raw
+  metal. As of the pre-M6 balance pass, `workers` is rebalanced so the
+  entire starter loop (Solar Panel, Habitat, Ice Harvester, Electrolysis
+  Plant, Hydroponics Farm, Survey Station, Mine) is `workers: 0` — only
+  the processing/advanced tier (Smelter 2, Parts Factory 3, Crystal
+  Extractor 2) needs colonists. The same pass added `requires_built`
+  (`Array[String]` of building ids — see "Tech unlocks" below) to every
+  building except Solar Panel, Habitat, and Ice Harvester. Loaded into
   `Defs.buildings` and augmented with
   `allowed_terrain_ids`/`color_value`/`requires_deposit_ids` as described
-  above (`workers`/`capacity` need no preprocessing — `Colony` reads them
-  as plain ints). Adding a building, or a recipe/scan/mine block to an
-  existing one, is a matter of editing JSON — no script changes needed,
-  since `Colony.tick()`, `BuildingSprite`, and the sidebar's build menu all
-  read generically off the def dictionary.
+  above (`workers`/`capacity`/`requires_built` need no preprocessing —
+  `Colony` reads them as plain ints/arrays). Adding a building, or a
+  recipe/scan/mine/requires_built block to an existing one, is a matter of
+  editing JSON — no script changes needed, since `Colony.tick()`,
+  `BuildingsView`, and the sidebar's build menu all read generically off
+  the def dictionary.
 
 There is no separate `data/recipes.json` — recipes live inline on the
 building that runs them, one recipe per building, which is enough for the
@@ -248,10 +255,14 @@ concept of real time, only ticks.
 `Colony` tracks `population: int` (starts at `STARTING_POPULATION = 4`)
 and `status: int` (`enum Status { PLAYING, WON, LOST }`). Related
 constants: `BASE_CAPACITY = 4` (housing the colony ship itself provides,
-before any habitat), `STARVE_TICKS = 16` (~4s of real time at 1× speed),
-`GROWTH_TICKS = 80` (~20s), `VICTORY_XENITE = 50`, and `LIFE_SUPPORT =
-{oxygen: 0.03, water: 0.03, food: 0.02}` (consumption per colonist per
-tick).
+before any habitat), `STARVE_TICKS = 24` (~6s of real time at 1× speed —
+raised from `16` in the pre-M6 balance pass, for a more forgiving grace
+period), `GROWTH_TICKS = 80` (~20s), `VICTORY_XENITE = 50`, and
+`LIFE_SUPPORT = {oxygen: 0.02, water: 0.02, food: 0.015}` (consumption per
+colonist per tick — also reduced from `{0.03, 0.03, 0.02}` in the same
+pass, and `Sim.STARTING_STOCKPILE`'s life-support buffer raised to `100`
+each from `60`, so colonist pressure now builds slowly over the course of
+a game rather than being an immediate early crisis).
 
 - **`capacity()`** — `BASE_CAPACITY` plus every placed building's
   `capacity` field (only `habitat` declares one, at `6`). Not cached;
@@ -276,6 +287,46 @@ tick).
   `PLAYING`. Otherwise: `population <= 0` → `Status.LOST`; stockpiled
   `xenite >= VICTORY_XENITE` → `Status.WON`. Checked last in `tick()`,
   after production and life support have both run for that tick.
+
+## Tech unlocks (`Colony`, pre-M6 balance pass)
+
+Buildings can declare `requires_built: [building_id, ...]` in
+`data/buildings.json` (see "Data-driven content" above); a building with
+any unmet prerequisite can't be placed. This is deliberately pedagogical —
+it walks a new player through the intended build order (solar → survey →
+mine → smelter → parts → crystal; ice harvester → electrolysis/
+hydroponics) rather than presenting all 10 buildings at once.
+
+- **`built_types: Dictionary`** — a set (keys used as a `Dictionary` with
+  unused `true` values) of every building type id ever placed. `place()`
+  writes `built_types[type_id] = true` unconditionally on a successful
+  placement. Crucially this is *ever built*, not *currently built*:
+  demolishing the building that satisfied a prerequisite does not
+  re-lock anything downstream — the colony "knows how" to build a mine
+  once it's built one, even if that particular mine is later removed.
+  `tests/test_tech.gd`'s `test_unlock_survives_demolish` pins this.
+- **`missing_prereqs(type_id) -> Array`** — the subset of
+  `defs[type_id].get("requires_built", [])` not yet in `built_types`, in
+  declared order. Empty means unlocked.
+- **`is_unlocked(type_id) -> bool`** — `missing_prereqs(type_id).is_empty()`.
+- **`can_place()`** checks `is_unlocked(type_id)` immediately after the
+  "does this building exist" check and before the terrain/occupancy/cost
+  checks, returning `{"ok": false, "reason": "Locked — prerequisite not
+  built"}` if not. So a locked building is rejected before any
+  footprint-level validation even runs.
+
+On the render/UI side: `ui/sidebar.gd` keeps its build buttons in a
+`_build_buttons: Dictionary` (id → `Button`, populated alongside
+`_build_list`'s children in `populate()`). `set_locks(locks: Dictionary)`
+(id → reason string, `""` meaning unlocked) disables each locked button,
+appends `"  🔒"` to its label, and swaps its tooltip from the building's
+`desc` to the lock reason. `main.gd`'s `_refresh_locks()` builds that
+`locks` dictionary by calling `Sim.colony.missing_prereqs(id)` for every
+building in `Defs.buildings` and formatting a `"Requires: <name>, ..."`
+string from the missing ids' display names; it's called once in `_ready()`
+and again on every `Events.building_placed` (a new building can unlock
+others further down the chain, so the whole menu is recomputed rather than
+patched incrementally).
 
 ## Deposits and prospecting (`ColonyMap` + `Colony`, Milestone 4)
 
@@ -373,29 +424,47 @@ reveal) don't spam the signal.
   whether *something* is there (`COARSE_DEP`) or not (`COARSE_EMPTY`), not
   which resource — matching the "coarse readings are imprecise" design;
   only `CONFIRMED` reveals the specific ore/crystal color.
-- `render/building_sprite.gd` (`BuildingSprite`, extends `Node2D`) draws one
-  placed building or the placement ghost as a flat-shaded iso block: a lit
-  top face plus two darkened side walls (`WALL_H = 16.0` px tall), sized to
-  the building's footprint. `configure(def, origin, ghost)` sets it up from
-  a `Defs.buildings` entry; `set_origin()` moves it (used every frame for
-  the ghost following the cursor); `set_valid()` switches the ghost's
-  green/red tint (`_ghost=true` also applies a semi-transparent modulate);
-  `set_dimmed(dimmed)` (Milestone 3) applies a flat grey modulate to a
-  placed (non-ghost) building that's currently shut down — a no-op if
-  called on a ghost. Its node `position` is pinned to the footprint's front
-  (max-corner) tile via `IsoGrid.grid_to_screen`, which is what makes
-  y-sorting order multi-tile buildings correctly against each other.
-- `render/buildings_view.gd` (`BuildingsView`, extends `Node2D`) has no
-  `_process`/state of its own — `bind()` connects to
-  `Events.building_placed`/`building_removed` and, as of Milestone 3,
-  `Events.ticked`, and backfills sprites for any buildings already in
-  `Sim.colony.buildings` (needed because it binds after `Sim.new_game()`
-  has already placed nothing, but is defensive for future load-game
-  flows). Sprites are tracked in a `Dictionary` keyed by building instance
-  id so removal is O(1). Its `_on_ticked` handler walks every tracked
-  sprite each tick and calls `set_dimmed(not inst.active)` against the
-  live `Colony` instance, so power-driven shutdowns become visible without
-  `BuildingsView` running any economy logic itself.
+- `render/building_sprite.gd` (`BuildingSprite`, extends `Node2D`) — 
+  **rewritten in the pre-M6 fixes pass**. It used to draw one whole
+  building's footprint (any size) as a single node, but that meant a
+  multi-tile building y-sorted at one depth value, which is wrong for a
+  2×2+ footprint — it could draw in front of or behind a neighboring
+  building incorrectly on tiles where a single depth can't be correct for
+  all 4 (or more) of its cells at once. It now draws a *list of cells*,
+  each a separate flat-shaded 1×1 iso block (lit top face plus two
+  darkened side walls, `WALL_H = 14.0` px). `configure(color, cells,
+  ghost)` and `set_cells(cells)` take a plain `Color` (not a def
+  dictionary — callers pass `def.color_value` themselves now) and an
+  `Array` of `Vector2i` cells; the node `position` anchors at whichever
+  cell has the largest `x + y` (the front-most, matching the old
+  max-corner-tile logic) via `IsoGrid.grid_to_screen`, and `_draw()`
+  renders all cells in the list back-to-front relative to that anchor.
+  `set_valid()` and `set_dimmed()` are unchanged in behavior (ghost
+  green/red tint; grey modulate for a shut-down placed building, no-op on
+  a ghost).
+- `render/buildings_view.gd` (`BuildingsView`, extends `Node2D`) — also
+  updated in the same pass: `_on_placed(inst)` now spawns **one
+  `BuildingSprite` per footprint cell** (`spr.configure(color, [cell],
+  false)` for each `cell in inst.cells`), rather than one sprite for the
+  whole building. This is what actually fixes the depth-sorting bug —
+  with `Buildings` still `y_sort_enabled = true`, each individual tile of
+  a multi-tile building now sorts against its neighbors independently,
+  the same way single-tile buildings always did. `_sprites: Dictionary`
+  changed shape accordingly: instance id → `Array[BuildingSprite]`
+  (previously → a single sprite). `_on_removed` frees every sprite in the
+  array; `_on_ticked`'s dimming loop iterates the array too, so all of a
+  building's tiles dim/undim together. `bind()`'s responsibilities
+  (connecting `Events.building_placed`/`building_removed`/`ticked`,
+  backfilling for buildings already in `Sim.colony.buildings`) are
+  unchanged.
+
+The placement ghost is the one place still using a single multi-cell
+`BuildingSprite`: `main.gd`'s `_ghost` is configured with the *entire*
+`Sim.colony.footprint(type_id, origin)` array in one `configure()`/
+`set_cells()` call. This is safe because the ghost always renders at
+`z_index = 50`, above every real building regardless of y-sort depth, so
+per-tile interleaving with other buildings was never needed for it —
+only placed buildings needed the fix.
 - `render/tile_cursor.gd` (`TileCursor`, extends `Node2D`) is the hover
   highlight, replacing the Milestone-1 version. It exposes `cell` and
   `demolish` as setter-observed properties that trigger `queue_redraw()`,
@@ -501,7 +570,17 @@ displays state pushed into it and emits signals for user intent:
   `Defs.buildings`, each emitting `build_requested(type_id)` when pressed.
   Buttons are single-line (`"%s  ·  %s" % [name, cost]`) with
   `clip_text = true` so a long name/cost combination truncates instead of
-  wrapping or overflowing the narrower scrollable column.
+  wrapping or overflowing the narrower scrollable column. As of the pre-M6
+  balance pass, each button is also kept in `_build_buttons: Dictionary`
+  (id → `Button`), and its label/desc text is cached on the button itself
+  via `set_meta("label", ...)`/`set_meta("desc", ...)` rather than set
+  directly, so `set_locks` (below) can rewrite the visible text/tooltip
+  without needing to recompute the base strings.
+- `set_locks(locks: Dictionary)` (pre-M6 balance pass; id → reason string,
+  `""` = unlocked) disables (`Button.disabled = true`) every button whose
+  id has a non-empty reason, appends `"  🔒"` to its label, and sets its
+  tooltip to the reason (an unlocked button's tooltip reverts to the
+  building's `desc`). Called by `main.gd`'s `_refresh_locks()`.
 - `set_mode_label(text)` and `set_tile_info(cell, terrain, occupant,
   reading = "")` are pushed by `main.gd` every frame. The optional
   `reading` parameter (Milestone 4) renders `ColonyMap.reading_text(cell)`
@@ -535,13 +614,23 @@ resulting map to `TerrainView` to render, calls `_prospect.setup(_map)`
 up the sidebar (`populate`, `build_requested` → enter place mode,
 `demolish_requested` → enter demolish mode), calls
 `_minimap.setup(_map, _camera)`, connects `Events.game_over` to
-`_on_game_over` (Milestone 5), and enters `Mode.NONE`.
+`_on_game_over` (Milestone 5), connects `Events.building_placed` to a
+lambda that calls `_refresh_locks()` (pre-M6 balance pass — a newly placed
+building can unlock others further down the tech tree, so the whole build
+menu's lock state is recomputed), calls `_refresh_locks()` once up front,
+and enters `Mode.NONE`. `_refresh_locks()` itself builds an id → reason
+`Dictionary` from `Sim.colony.missing_prereqs(id)` for every entry in
+`Defs.buildings` (an empty reason for an unlocked building) and hands it
+to `sidebar.set_locks()`.
 
 Each frame (`_process`) it converts the mouse position to a grid cell via
 `IsoGrid.screen_to_grid`, updates `TileCursor.cell`, hides the cursor when
 the mouse is over a UI control (`get_viewport().gui_get_hovered_control()`),
 updates the placement ghost (visible + repositioned + validity-tinted only
-in `Mode.PLACE` and only over the map), and refreshes the sidebar's tile
+in `Mode.PLACE` and only over the map — as of the pre-M6 fixes pass, via
+`_ghost.set_cells(Sim.colony.footprint(_place_type, _hover))` rather than a
+single-cell/single-origin call, so a multi-tile ghost previews its whole
+footprint, not just its origin tile), and refreshes the sidebar's tile
 info — including (Milestone 4) `_map.reading_text(_hover)`, the
 prospecting reading for the hovered cell, passed as `set_tile_info`'s new
 `reading` argument. It also (as of Milestone 3) reads `Sim.colony.rates()`
@@ -645,7 +734,12 @@ matching deposits, and richness-scaled output), `tests/test_colonists.gd`
 happens when fed/housed/under capacity, no growth once at capacity,
 workforce idles the newest understaffed building on a labor deficit,
 victory triggers at the xenite target, defeat triggers at population
-zero) — the placement/economy/camera/prospecting/colonist files are built
-with hand-rolled defs dictionaries or constructed nodes/maps, independent
-of `Defs`/`Sim`/a running scene. 760 assertions across 43 tests, 0
-failures as of Milestone 5.
+zero), `tests/test_tech.gd` (a building with no prerequisites is unlocked
+from the start; one with a prerequisite is locked until it's built and
+`can_place()` rejects it while locked; `missing_prereqs()` reports
+correctly before/after; an unlock survives demolishing the prerequisite;
+a two-step prerequisite chain unlocks in order) — the
+placement/economy/camera/prospecting/colonist/tech files are built with
+hand-rolled defs dictionaries or constructed nodes/maps, independent of
+`Defs`/`Sim`/a running scene. 771 assertions across 48 tests, 0 failures
+as of the pre-M6 fixes & balance pass.

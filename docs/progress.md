@@ -4,7 +4,7 @@ Status of each milestone from [`colony-game-plan.md`](../colony-game-plan.md).
 That file defines the acceptance criteria referenced below — this log tracks
 whether they've been met, not what they are.
 
-Current automated test count: **760 assertions across 43 tests, 0 failures**
+Current automated test count: **771 assertions across 48 tests, 0 failures**
 (`make test`).
 
 ---
@@ -462,6 +462,78 @@ the HUD shows live negative life-support rates and a pop/capacity line,
 and that reaching the xenite threshold triggers the "BEACON LAUNCHED"
 overlay. The Geothermal Plant from the design plan is intentionally not
 built yet (see above) — noted here so it isn't mistaken for an oversight.
+
+## Pre-M6 fixes & balance (not a milestone)
+
+A fixes-and-balance pass done ahead of Milestone 6, prompted by hands-on
+play of the Milestone 5 build. Three related changes:
+
+- **Multi-tile buildings render per-tile — fixes wrong overlap/occlusion.**
+  Previously a whole multi-tile building was one `BuildingSprite` y-sorted
+  at a single depth, so a 2×2 building could draw in front of or behind a
+  neighbor incorrectly (a single depth value can't be correct for all 4 of
+  its cells at once). `render/building_sprite.gd` was rewritten: a
+  `BuildingSprite` now draws a *list of cells* as separate 1×1 iso blocks,
+  anchored at its front-most cell (`configure(color, cells, ghost)` /
+  `set_cells(cells)`). `render/buildings_view.gd` now spawns one
+  `BuildingSprite` **per footprint cell** for a placed building, so the
+  y-sorted parent depth-sorts each tile of a multi-tile building
+  independently against its neighbors; dimming (power/worker shutdown)
+  applies to every one of a building's per-cell sprites together. The
+  placement ghost is the one exception — it stays a single sprite holding
+  every footprint cell, because the ghost always renders on top
+  (`z_index = 50`) regardless of depth, so per-tile interleaving with real
+  buildings isn't needed there.
+- **Gentler early game: the first base runs on robots.** Feedback from
+  playing Milestone 5 was that colonist pressure hit too early and too
+  hard. `data/buildings.json`: `workers` rebalanced so the entire starter
+  loop — Solar Panel, Habitat, Ice Harvester, Electrolysis Plant,
+  Hydroponics Farm, Survey Station, and Mine — is `workers: 0`
+  ("Automated."); only the processing/advanced tier needs colonists:
+  Smelter (2), Parts Factory (3), Crystal Extractor (2). `sim/colony.gd`:
+  `LIFE_SUPPORT` reduced (oxygen/water 0.03→0.02, food 0.02→0.015 per
+  colonist per tick) and `STARVE_TICKS` raised 16→24 (~6s grace instead of
+  ~4s). `sim/sim.gd`: `STARTING_STOCKPILE` raised to `metal: 120,
+  oxygen/water/food: 100` each (was `100`/`60`/`60`/`60`). Net effect:
+  colonists become a slow-burning long-game pressure tied to unlocking the
+  advanced tier, not an immediate crisis from turn one.
+- **Tech unlocks — pedagogical build gating.** Buildings now unlock only
+  after a prerequisite building type has actually been built, guiding a
+  new player through the intended order: `data/buildings.json` gives most
+  buildings a `requires_built` list (Electrolysis Plant and Hydroponics
+  Farm need Ice Harvester; Survey Station needs Solar Panel; Mine needs
+  Survey Station; Smelter needs Mine; Parts Factory needs Smelter; Crystal
+  Extractor needs Parts Factory — Solar Panel, Habitat, and Ice Harvester
+  have no prerequisite and are available immediately). `sim/colony.gd`
+  tracks `built_types` (every type ever built — the unlock persists even
+  if that specific building is later demolished, since it represents
+  knowledge, not a working building), with `is_unlocked(type_id)` and
+  `missing_prereqs(type_id)`; `can_place()` now rejects a locked building
+  with "Locked — prerequisite not built"; `place()` records the type into
+  `built_types`. `ui/sidebar.gd`'s build buttons are tracked in a
+  dictionary so `set_locks(id -> reason)` can disable a locked button,
+  append a 🔒 to its label, and swap its tooltip to the "Requires: …"
+  reason. `main.gd` computes those reasons via
+  `Sim.colony.missing_prereqs` in `_refresh_locks()`, called once on
+  `_ready()` and again on every `Events.building_placed` (since placing a
+  building can unlock others further down the chain).
+- Tests: `tests/test_tech.gd` — 5 new tests (a building with no
+  prerequisites is unlocked from the start; a building with one is locked
+  until it's built, and `can_place()` rejects it while locked;
+  `missing_prereqs()` reports correctly before and after; the unlock
+  survives demolishing the prerequisite building; a two-step prerequisite
+  chain unlocks in order). No existing tests needed changes — the render
+  fix has no sim-side test surface, and the balance constants are only
+  referenced symbolically (via `Colony.STARVE_TICKS` etc.) in
+  `tests/test_colonists.gd`, not hard-coded, so they kept passing
+  unmodified.
+
+Verified: `make import` clean, headless run clean, `make test` green.
+Screenshots confirmed: a 2×2 building renders as 4 depth-sorted tiles with
+a building in front of it correctly occluding the near corner; the
+sidebar's life-support rates read gentler; the build menu shows locked
+buildings greyed out with a 🔒 icon, which unlock live as prerequisites are
+built.
 
 ## Milestone 6 — Real UI — pending
 
