@@ -91,9 +91,12 @@ capture.tscn capture.gd.uid`. Save PNGs to a scratch/tmp dir, never the repo.
 Docs and git are handled by the **`docs` agent** (defined in
 `.claude/agents/docs.md`, Sonnet — invoke with `subagent_type: "docs"`), after
 each logical, working change (not per file save). The invariant rules live in
-that definition; when invoking, just describe *what changed*. It:
+that definition; when invoking, just describe *what changed* — terse and
+specific. It:
 
-- updates `docs/progress.md` (milestone status), `README.md`, and `CHANGELOG.md`;
+- makes **terse, targeted** updates to `CHANGELOG.md`, `README.md`, and the
+  conceptual/reference docs in `docs/` (how systems work — tech tree, economy,
+  prospecting) — it is *not* a blow-by-blow project log;
 - runs `make test` first and commits **only if green**;
 - makes scoped commits (separate feature code from docs), **does not push**;
 - ends every commit message with the trailer
