@@ -8,6 +8,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 5 — Full production chains and colonists** (2026-07-21)
+  - `data/buildings.json`: expanded from 6 to 10 buildings. Every building
+    now declares `workers`; Habitat gained `capacity: 6`. Four new
+    production-chain buildings on the existing recipe system: Electrolysis
+    Plant (water→oxygen), Hydroponics Farm (water→food), Smelter
+    (iron_ore→metal), Parts Factory (metal+copper_ore→parts). Crystal
+    Extractor's cost now also requires `parts: 8`. The design plan's
+    Geothermal Plant is deferred — it needs a surface "vent" feature the
+    map doesn't generate yet; Solar Panel remains the only power source.
+  - `sim/colony.gd`: colonists, life support, workforce, and win/lose.
+    `enum Status { PLAYING, WON, LOST }`; `population`; constants
+    `STARTING_POPULATION 4`, `BASE_CAPACITY 4`, `STARVE_TICKS 16`,
+    `GROWTH_TICKS 80`, `VICTORY_XENITE 50`, `LIFE_SUPPORT` (oxygen/water/
+    food per colonist per tick). `capacity()`/`workers_used()`. `tick()`
+    order: power → workforce → prospecting → production → life support →
+    status. `_balance_workforce()` idles the newest understaffed buildings
+    when labor demand exceeds population, mirroring the power-shedding
+    rule. `_run_life_support()` consumes O2/water/food via a fractional
+    accumulator; sustained shortage kills a colonist, sustained surplus
+    under capacity grows one. `_check_status()` sets WON at the xenite
+    threshold or LOST at population zero. `rates()` now nets out
+    life-support consumption too.
+  - `sim/sim.gd`: `STARTING_STOCKPILE` gained an oxygen/water/food buffer
+    (60 each). The tick loop freezes once the colony reaches a terminal
+    state; `_end_game()` emits `Events.game_over(won)` exactly once.
+  - `sim/events.gd`: new `game_over(won: bool)` signal.
+  - `ui/sidebar.gd`/`ui/sidebar.tscn`: new COLONISTS section —
+    `set_colony(population, cap, workers_used)` shows pop/capacity and
+    workers used/population, amber when at capacity.
+  - `main.tscn`/`main.gd`: new `GameOverLayer` overlay — "BEACON LAUNCHED"
+    on victory or "COLONY LOST" on defeat, with Enter-to-restart
+    (`reload_current_scene()`).
+  - Tests: `tests/test_colonists.gd` (7 tests — life support consumption,
+    starvation deaths, growth when fed/housed, no growth past capacity,
+    workforce idling the newest understaffed building, xenite victory,
+    population-zero defeat).
+  - Full suite: 760 assertions across 43 tests, 0 failures (`make test`).
+
 - **Milestone 4 — Deposits and prospecting** (2026-07-20)
   - `sim/map.gd`: `ColonyMap` gained hidden per-cell deposit/richness
     layers (`enum Deposit { NONE, IRON, COPPER, XENITE }`, richness

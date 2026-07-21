@@ -14,6 +14,13 @@ Survey Station sweeps the ground in expanding rings, upgrading each tile's
 reading from unscanned to a coarse guess to a confirmed deposit type and
 richness — toggle the `P` overlay to see it happen — and mines/extractors
 can only be built on confirmed ore, producing faster on richer tiles.
+Colonists need oxygen, water, and food every tick, drawn from a
+production chain you build (ice → water → oxygen/food); go hungry too
+long and the colony starts losing colonists, keep everyone fed and housed
+under capacity and it grows. Refine ore into metal into parts, extract
+xenite once you've got enough parts to build the extractor, and hit the
+victory threshold to "launch the beacon" — or lose everyone and see the
+colony end, either way followed by a one-key restart.
 
 ## Tech stack
 
@@ -51,7 +58,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**749 assertions across 36 tests, 0 failures.**
+**760 assertions across 43 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -94,35 +101,45 @@ Mouse wheel / trackpad scroll do **not** zoom (removed — it felt twitchy on
 a trackpad); use `Z`, pinch, or `+`/`-` instead. Buildings and Demolish are
 selected from the right-hand scrollable sidebar, which also shows the
 current mode, the hovered tile's info, the stockpile with live per-second
-rates, power used/produced (red on deficit), and the current speed.
+rates, power used/produced (red on deficit), population/housing/workforce,
+and the current speed. When the colony wins or loses, press **Enter** on
+the game-over screen to start a fresh colony.
 
-## Buildings (current 6)
+## Buildings (current 10)
 
-| Building | Footprint | Cost | Power | Produces | Terrain / requirement |
-|---|---|---|---|---|---|
-| Solar Panel | 1×1 | 10 metal | +10 | — | Regolith, Highlands |
-| Ice Harvester | 1×1 | 15 metal | −5 | 1 water / 4 ticks (no inputs) | Ice |
-| Habitat | 2×2 | 30 metal | −2 | — | Regolith |
-| Survey Station | 2×2 | 25 metal | −3 | scans outward, ring every 2 ticks, radius 7 | Regolith, Highlands |
-| Mine | 1×1 | 20 metal | −4 | iron/copper ore, `0.5 × richness` / tick | confirmed Iron or Copper deposit |
-| Crystal Extractor | 1×1 | 40 metal | −6 | xenite, `0.25 × richness` / tick | confirmed Xenite deposit |
+| Building | Footprint | Cost | Power | Workers | Produces | Terrain / requirement |
+|---|---|---|---|---|---|---|
+| Solar Panel | 1×1 | 10 metal | +10 | 0 | — | Regolith, Highlands |
+| Habitat | 2×2 | 30 metal | −2 | 0 | houses +6 colonists | Regolith |
+| Ice Harvester | 1×1 | 15 metal | −5 | 1 | 1 water / 4 ticks (no inputs) | Ice |
+| Electrolysis Plant | 1×1 | 20 metal | −4 | 1 | water → 1 oxygen / 3 ticks | Regolith, Highlands |
+| Hydroponics Farm | 2×2 | 20 metal | −3 | 1 | water → 1 food / 3 ticks | Regolith |
+| Survey Station | 2×2 | 25 metal | −3 | 1 | scans outward, ring every 2 ticks, radius 7 | Regolith, Highlands |
+| Mine | 1×1 | 20 metal | −4 | 2 | iron/copper ore, `0.5 × richness` / tick | confirmed Iron or Copper deposit |
+| Smelter | 2×2 | 25 metal | −4 | 2 | 2 iron ore → 1 metal / 2 ticks | Regolith, Highlands |
+| Parts Factory | 2×2 | 35 metal | −5 | 2 | 2 metal + 1 copper ore → 1 parts / 4 ticks | Regolith, Highlands |
+| Crystal Extractor | 1×1 | 20 metal + 8 parts | −6 | 2 | xenite, `0.25 × richness` / tick | confirmed Xenite deposit |
 
-Defined in `data/buildings.json`. Every building has a power figure;
-generators (positive power) always run, consumers (negative power) run
-oldest-placed-first and the newest ones shut down (and dim on screen) when
-demand exceeds supply. Mine and Crystal Extractor can only be placed on a
-tile whose prospecting scan is CONFIRMED and whose hidden deposit matches;
-their output rate scales with that deposit's richness (0–100%, revealed
-exactly only once confirmed — a coarse scan gives an imprecise guess).
+Defined in `data/buildings.json`. Every building has a power figure and a
+worker requirement; generators (positive power) always run, and both power
+and workforce are allocated oldest-placed-first, with the newest
+under-supplied buildings shutting down (and dimming on screen) when
+demand exceeds supply of either. Mine and Crystal Extractor can only be
+placed on a tile whose prospecting scan is CONFIRMED and whose hidden
+deposit matches; their output rate scales with that deposit's richness
+(0–100%, revealed exactly only once confirmed — a coarse scan gives an
+imprecise guess). The design plan's Geothermal Plant (a second power
+source, sited on a surface vent) is deferred — the map doesn't generate
+vents yet, so Solar Panel is the only power source for now.
 
 ## Status
 
 Milestones 0 (project skeleton), 1 (isometric terrain rendering and
 camera), 2 (building placement), 3 (simulation core: tick economy,
-stockpile, power balance, speed controls), and 4 (deposits and
-prospecting) are done. See [`docs/progress.md`](docs/progress.md) for
-what's implemented, what's verified by test vs. eyeballed on screen, and
-what's next.
+stockpile, power balance, speed controls), 4 (deposits and prospecting),
+and 5 (full production chains and colonists) are done. See
+[`docs/progress.md`](docs/progress.md) for what's implemented, what's
+verified by test vs. eyeballed on screen, and what's next.
 
 ## Documentation
 

@@ -4,7 +4,7 @@ Status of each milestone from [`colony-game-plan.md`](../colony-game-plan.md).
 That file defines the acceptance criteria referenced below — this log tracks
 whether they've been met, not what they are.
 
-Current automated test count: **749 assertions across 36 tests, 0 failures**
+Current automated test count: **760 assertions across 43 tests, 0 failures**
 (`make test`).
 
 ---
@@ -382,9 +382,86 @@ the visual side: the `P` overlay tints tiles by scan state/deposit type,
 the sidebar shows live readings, and a Survey Station visibly reveals its
 surroundings in two passes.
 
-## Milestone 5 — Full production chains and colonists — pending
+## Milestone 5 — Full production chains and colonists — done
 
-Not started. See plan section "Milestone 5".
+Deliverables:
+
+- `data/buildings.json`: expanded from 6 to 10 buildings. Every building
+  now declares `workers` (integer, 0 for unstaffed like Solar Panel and
+  Habitat); Habitat gained `capacity: 6`. Four new chain buildings, all
+  built on the existing recipe system with no engine changes: Electrolysis
+  Plant (water→oxygen), Hydroponics Farm (water→food), Smelter
+  (iron_ore→metal), Parts Factory (metal+copper_ore→parts). Crystal
+  Extractor's cost now also requires `parts: 8`, so reaching it needs the
+  full chain (mine → smelter → parts factory) rather than just metal. The
+  plan's Geothermal Plant is **deferred** — it needs a surface "vent"
+  feature the map doesn't generate yet; Solar Panel remains the only power
+  source for now.
+- `sim/colony.gd`: colonists, life support, workforce, and win/lose.
+  `enum Status { PLAYING, WON, LOST }`; constants `STARTING_POPULATION 4`,
+  `BASE_CAPACITY 4` (the colony ship itself), `STARVE_TICKS 16` (~4s at
+  1×), `GROWTH_TICKS 80` (~20s), `VICTORY_XENITE 50`, `LIFE_SUPPORT`
+  (`{oxygen: 0.03, water: 0.03, food: 0.02}` per colonist per tick).
+  `capacity()` = base + every habitat's `capacity`; `workers_used()` sums
+  `workers` across currently-active buildings. `tick()` order is now:
+  power → workforce → prospecting → production → life support → status.
+  `_balance_workforce()` staffs buildings oldest-first from the population
+  pool, idling the newest understaffed buildings when demand exceeds
+  supply — the same oldest-first/newest-shed pattern as power.
+  `_run_life_support()` consumes oxygen/water/food via a fractional
+  accumulator; a sustained shortage (`STARVE_TICKS` in a row) kills one
+  colonist, a sustained surplus under capacity (`GROWTH_TICKS` in a row)
+  grows one; having zero of a life-support resource in stock counts as an
+  immediate shortage even before the accumulator would otherwise trigger.
+  `_check_status()` sets WON at the xenite victory threshold or LOST at
+  population zero. Production runs *before* life support in the tick
+  order specifically so a resource produced this same tick still counts
+  toward that tick's life-support need (no false starvation flag on
+  just-in-time supply). `rates()` now nets out life-support consumption
+  too, so the HUD shows true per-second supply/demand.
+- `sim/sim.gd`: `STARTING_STOCKPILE` gained a life-support buffer
+  (`oxygen`/`water`/`food` 60 each, plus the existing `metal: 100`) so a
+  new colony survives long enough to get its first O2/water/food chain
+  running. The tick loop freezes once `colony.status != PLAYING` (checked
+  both before starting the accumulator loop and inside it, so a
+  status-changing tick doesn't get followed by more ticks in the same
+  frame). `_end_game()` emits `Events.game_over(won)` exactly once,
+  guarded by `_ended`; `new_game()` resets `_ended`, the tick accumulator,
+  and speed back to defaults so a restart isn't left paused or fast-forwarded.
+- `sim/events.gd`: new `game_over(won: bool)` signal.
+- `ui/sidebar.gd`/`ui/sidebar.tscn`: new COLONISTS section.
+  `set_colony(population, cap, workers_used)` shows "pop N / cap" and
+  "workers used / population", turning amber when population is at or
+  over capacity (crowded).
+- `main.tscn`/`main.gd`: new `GameOverLayer` (dim backdrop + centered
+  Title/Subtitle panel, hidden by default, structurally identical to the
+  minimap's popup pattern). `main` connects `Events.game_over` to show
+  "BEACON LAUNCHED" (win) or "COLONY LOST" (loss) with an Enter-to-restart
+  hint (`get_tree().reload_current_scene()`); population/capacity/workers
+  are pushed to the sidebar every frame alongside the rest of the economy.
+- Tests: `tests/test_colonists.gd` (7 tests — life support is consumed,
+  starvation kills a colonist under sustained shortage, growth happens
+  when fed/housed/under capacity, no growth once at capacity, workforce
+  idles the newest understaffed building, victory triggers at the xenite
+  target, defeat triggers at population zero). `tests/test_economy.gd`'s
+  `_colony()` helper now sets `population = 0` on the returned `Colony`,
+  isolating building economics (power/recipes) from colonist life-support
+  consumption so those tests didn't need rewriting.
+
+Acceptance criteria from the plan: a full playthrough is possible —
+survive on starter resources, prospect, build the metal chain, reach
+xenite extraction, win — and starving the colony on purpose triggers the
+loss state.
+
+**Status: met.** `tests/test_colonists.gd` proves both terminal states
+directly (`test_victory_on_xenite`, `test_defeat_on_zero_population`) plus
+the mechanics that must hold along the way (life support drains stock,
+starvation kills, growth requires both supply and headroom, workforce
+idles newest-first exactly like power). Screenshots additionally confirmed
+the HUD shows live negative life-support rates and a pop/capacity line,
+and that reaching the xenite threshold triggers the "BEACON LAUNCHED"
+overlay. The Geothermal Plant from the design plan is intentionally not
+built yet (see above) — noted here so it isn't mistaken for an oversight.
 
 ## Milestone 6 — Real UI — pending
 

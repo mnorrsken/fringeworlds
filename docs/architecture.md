@@ -48,17 +48,19 @@ Registered in `project.godot` under `[autoload]`, in load order:
 1. **`Events`** (`sim/events.gd`) — a global signal bus. Defines
    `ticked(tick: int)`, `stockpile_changed(stockpile: Dictionary)`,
    `building_placed(instance: Dictionary)`,
-   `building_removed(instance: Dictionary)`, and (Milestone 4)
-   `scan_changed(cells: Array)`. The sim emits; UI/render layers connect.
-   UI is meant to never poke `Sim` internals directly — it calls `Sim`
-   methods and listens on `Events` signals instead. The
-   `building_placed`/`building_removed` payload is the same instance
-   dictionary `Colony.place()`/`demolish_at()` returns:
-   `{id, type, origin, cells}`. `scan_changed`'s payload is the list of
-   grid cells whose prospecting scan state changed on the tick just
-   processed; `ProspectOverlay` is the only current listener, using it to
-   repaint incrementally instead of rebuilding the whole overlay every
-   tick.
+   `building_removed(instance: Dictionary)`, (Milestone 4)
+   `scan_changed(cells: Array)`, and (Milestone 5) `game_over(won: bool)`.
+   The sim emits; UI/render layers connect. UI is meant to never poke
+   `Sim` internals directly — it calls `Sim` methods and listens on
+   `Events` signals instead. The `building_placed`/`building_removed`
+   payload is the same instance dictionary `Colony.place()`/
+   `demolish_at()` returns: `{id, type, origin, cells}`. `scan_changed`'s
+   payload is the list of grid cells whose prospecting scan state changed
+   on the tick just processed; `ProspectOverlay` is the only current
+   listener, using it to repaint incrementally instead of rebuilding the
+   whole overlay every tick. `game_over` fires exactly once when the
+   colony reaches a terminal state; `main.gd` is the only listener, and
+   shows the win/loss overlay from it.
 2. **`Defs`** (`sim/defs.gd`) — loads read-only content definitions from
    `data/*.json` at startup into two dictionaries: `resources` (id →
    definition, unchanged since Milestone 0) and `buildings` (id →
@@ -77,18 +79,27 @@ Registered in `project.godot` under `[autoload]`, in load order:
 3. **`Sim`** (`sim/sim.gd`) — game state and the fixed tick loop, plus the
    live `Colony` (since Milestone 2). `new_game(seed, size)` generates a
    `ColonyMap`, constructs `colony := Colony.new(map, Defs.buildings,
-   STARTING_STOCKPILE)` (`STARTING_STOCKPILE = {metal: 100}`), and resets
-   the tick counter; `colony` is `null` until this is called. `Sim` exposes
-   thin wrapper methods over `Colony`'s placement API —
-   `can_place`, `place_building`, `demolish_at`, `building_at` — that
-   delegate to `colony` and then emit the matching `Events` signal
+   STARTING_STOCKPILE)`, and resets the tick counter. As of Milestone 5,
+   `STARTING_STOCKPILE` is `{metal: 100, oxygen: 60, water: 60, food: 60}`
+   — the life-support buffer exists so a new colony survives long enough
+   to get its first O2/water/food buildings running before colonists
+   starve — and `new_game()` also resets `_ended`, the tick accumulator,
+   and `speed` back to `1.0`, so restarting after a game-over isn't left
+   paused or fast-forwarded. `colony` is `null` until `new_game()` is
+   called. `Sim` exposes thin wrapper methods over `Colony`'s placement
+   API — `can_place`, `place_building`, `demolish_at`, `building_at` —
+   that delegate to `colony` and then emit the matching `Events` signal
    (`building_placed`/`building_removed`/`stockpile_changed`) on success,
    so `Colony` itself stays free of any signal-bus dependency. The tick
    loop runs at `TICKS_PER_SECOND = 4.0`, accumulator-driven inside
-   `_process` so ticks stay decoupled from frame rate. As of Milestone 3,
-   `_advance_tick()` calls `colony.tick()` (see below) before emitting
-   `Events.stockpile_changed` and `Events.ticked`, so the economy actually
-   runs every tick rather than just the counter. Speed control:
+   `_process` so ticks stay decoupled from frame rate; `_process` now also
+   checks `colony.status` both before and inside the accumulator loop
+   (Milestone 5) so once the colony reaches a terminal state, no further
+   ticks run in that frame or any later one. `_advance_tick()` calls
+   `colony.tick()` (see below) before emitting `Events.stockpile_changed`
+   and `Events.ticked`. `_end_game()` emits `Events.game_over(won)` the
+   first time `colony.status != PLAYING` is observed, guarded by an
+   `_ended` flag so it never fires twice for the same game. Speed control:
    `speed: float` is a multiplier (`0.0` = paused, `1.0` = normal, `3.0` =
    fast); `set_speed(mult)` sets it directly and remembers non-zero values
    in `_last_run_speed`; `toggle_pause()` flips between `0.0` and
@@ -127,21 +138,28 @@ far:
 
 - `data/resources.json` — an array of 9 objects (`id`, `name`, `category`,
   `unit`), loaded into `Defs.resources`.
-- `data/buildings.json` — an array of 6 building objects: `solar_panel` and
-  `ice_harvester` (1×1), `habitat` and `survey_station` (2×2), and (as of
-  Milestone 4) `mine` and `crystal_extractor` (1×1). Fields: `id`, `name`,
-  `size`, `cost`, `allowed_terrain`, `color`, `desc`, `power` (int;
+- `data/buildings.json` — an array of 10 building objects (up from 6 as of
+  Milestone 5): `solar_panel` and `ice_harvester` (1×1), `habitat` and
+  `survey_station` (2×2), `mine` and `crystal_extractor` (1×1), plus four
+  new production-chain buildings — `electrolysis_plant` (1×1,
+  water→oxygen), `hydroponics_farm` (2×2, water→food), `smelter` (2×2,
+  iron_ore→metal), `parts_factory` (2×2, metal+copper_ore→parts). All four
+  are built entirely on the existing `recipe` mechanism — no engine
+  changes were needed to add a production chain, only JSON. Fields: `id`,
+  `name`, `size`, `cost`, `allowed_terrain`, `color`, `desc`, `power` (int;
   positive = generator, negative = consumer, every building declares one),
-  and optionally `recipe` (`{inputs: {resource: amount, ...}, outputs:
-  {...}, ticks: int}` — only `ice_harvester` has one: no inputs, 1 water
-  every 4 ticks). Milestone 4 added two more optional fields: `scan`
-  (`{max_radius: int, ticks_per_ring: int}` — only `survey_station`, whose
-  values are `7`/`2`) and `mine`/`requires_deposit` together
-  (`mine: {base_per_tick: float}` plus `requires_deposit: [DEPOSIT_NAME,
-  ...]` — `mine` at `0.5` requiring `[IRON, COPPER]`, `crystal_extractor`
-  at `0.25` requiring `[XENITE]`). Loaded into `Defs.buildings` and
-  augmented with `allowed_terrain_ids`/`color_value`/`requires_deposit_ids`
-  as described above. Adding a building, or a recipe/scan/mine block to an
+  optionally `recipe` (`{inputs: {...}, outputs: {...}, ticks: int}`),
+  `scan` (survey buildings), `mine`/`requires_deposit` (extractors — see
+  "Deposits and prospecting" below). Milestone 5 added two more fields:
+  `workers` (int; every building now declares one, `0` for unstaffed
+  buildings like Solar Panel and Habitat) and `capacity` (int, housing
+  added by the building — only `habitat`, at `6`). `crystal_extractor`'s
+  `cost` now also requires `parts: 8`, so it needs the full chain (mine →
+  smelter → parts factory) to reach, not just raw metal. Loaded into
+  `Defs.buildings` and augmented with
+  `allowed_terrain_ids`/`color_value`/`requires_deposit_ids` as described
+  above (`workers`/`capacity` need no preprocessing — `Colony` reads them
+  as plain ints). Adding a building, or a recipe/scan/mine block to an
   existing one, is a matter of editing JSON — no script changes needed,
   since `Colony.tick()`, `BuildingSprite`, and the sidebar's build menu all
   read generically off the def dictionary.
@@ -155,16 +173,25 @@ buildings need to switch between multiple recipes later.
 
 As of Milestone 3, `Colony` (in `sim/colony.gd`) does more than hold
 placement state — it also owns the fixed-tick production economy, called
-once per simulation tick from `Sim._advance_tick()`. As of Milestone 4,
-`tick()` also runs prospecting between power and production:
+once per simulation tick from `Sim._advance_tick()`. As of Milestone 5,
+`tick()` runs six phases in this order:
 
 ```gdscript
 func tick() -> void:
     scan_changes = []
     _balance_power()
+    _balance_workforce()
     _run_prospecting()
     _run_production()
+    _run_life_support()  # after production, so a just-in-time supply counts
+    _check_status()
 ```
+
+Production deliberately runs *before* life support: a resource a building
+produces this tick (e.g. an Electrolysis Plant finishing an oxygen batch)
+is available to be consumed by life support in that same tick, so
+colonists aren't falsely flagged as short on something the colony in fact
+supplied in time.
 
 **Power balance (`_balance_power`)**: iterates buildings **oldest-first**
 (`_ids_oldest_first()`, i.e. sorted by instance id — ids are assigned
@@ -178,6 +205,16 @@ total would exceed `power_produced`, the practical effect is that the
 older buildings keep priority. `power_produced`/`power_consumed` are
 recomputed from scratch every tick and exposed as `Colony` members for the
 HUD.
+
+**Workforce balance (`_balance_workforce`, Milestone 5)**: the same
+oldest-first/newest-shed pattern as power, applied to labor. Iterates
+buildings oldest-first; any building that's still `active` (i.e. it
+survived the power pass) and declares `workers > 0` is staffed from a
+running `available := population` pool if there's enough left, otherwise
+it's set `active = false` — so understaffing, like a power deficit, shuts
+the newest offending buildings down first. `workers_used()` (a public
+method, not part of the tick) sums `workers` across currently-active
+buildings, for the HUD.
 
 **Production (`_run_production`)**: for every *active* building with a
 `recipe`, increments a per-instance `progress` counter (a field on the
@@ -197,11 +234,48 @@ def block (extractors — see below) before the recipe branch, calling
 **`rates()`** returns the net stockpile change **per tick** (not per
 second) summed across only currently-active buildings — `{resource_id:
 float}`, positive for net production, negative for net consumption. It
-covers both recipe-based production and (as of Milestone 4) extractor
-output (`_mine_per_tick`, the same formula `_run_mine` uses). Callers that
-want a per-second figure for display multiply by `Sim.TICKS_PER_SECOND`
-themselves (see `main.gd` below); `Colony` has no concept of real time,
-only ticks.
+covers recipe-based production, (Milestone 4) extractor output
+(`_mine_per_tick`, the same formula `_run_mine` uses), and (Milestone 5)
+life-support consumption (`population * LIFE_SUPPORT[res]`, subtracted for
+oxygen/water/food whenever `population > 0`) — so the HUD's per-resource
+rate is the true net figure, not just what buildings are doing. Callers
+that want a per-second figure for display multiply by
+`Sim.TICKS_PER_SECOND` themselves (see `main.gd` below); `Colony` has no
+concept of real time, only ticks.
+
+## Colonists, life support, and win/lose (`Colony`, Milestone 5)
+
+`Colony` tracks `population: int` (starts at `STARTING_POPULATION = 4`)
+and `status: int` (`enum Status { PLAYING, WON, LOST }`). Related
+constants: `BASE_CAPACITY = 4` (housing the colony ship itself provides,
+before any habitat), `STARVE_TICKS = 16` (~4s of real time at 1× speed),
+`GROWTH_TICKS = 80` (~20s), `VICTORY_XENITE = 50`, and `LIFE_SUPPORT =
+{oxygen: 0.03, water: 0.03, food: 0.02}` (consumption per colonist per
+tick).
+
+- **`capacity()`** — `BASE_CAPACITY` plus every placed building's
+  `capacity` field (only `habitat` declares one, at `6`). Not cached;
+  recomputed on call by summing over `buildings`.
+- **`_run_life_support()`** — for each of oxygen/water/food, adds
+  `population * LIFE_SUPPORT[res]` to a per-resource fractional
+  accumulator (`_life_accum`, mirroring the pattern `_run_mine` uses for
+  fractional ore output), then withdraws whatever whole units it can
+  afford from the stockpile (never going negative — it takes `min(whole,
+  have)`). If it couldn't take the full amount, or the stockpile is
+  already at zero for that resource (checked as an independent condition,
+  so a resource that's been fully drained is an immediate shortage even
+  before the accumulator would otherwise cross a whole unit), the tick
+  counts as unmet. A fully-met tick resets `_starve_ticks` to `0` and, if
+  `population < capacity()`, increments `_growth_ticks` — reaching
+  `GROWTH_TICKS` resets it and adds one colonist. An unmet tick resets
+  `_growth_ticks` to `0` and increments `_starve_ticks` — reaching
+  `STARVE_TICKS` resets it and removes one colonist. Both are streak
+  counters, not cumulative totals: a single good/bad tick doesn't
+  immediately grow or kill anyone, but breaks the *other* streak.
+- **`_check_status()`** — a no-op once `status` has already left
+  `PLAYING`. Otherwise: `population <= 0` → `Status.LOST`; stockpiled
+  `xenite >= VICTORY_XENITE` → `Status.WON`. Checked last in `tick()`,
+  after production and life support have both run for that tick.
 
 ## Deposits and prospecting (`ColonyMap` + `Colony`, Milestone 4)
 
@@ -441,6 +515,10 @@ displays state pushed into it and emits signals for user intent:
   (`%+.1f/s`), the POWER section as `"<consumed> / <produced> used"`
   (colored red when consumption exceeds production), and the speed label
   as `❚❚ PAUSED` or `▶ Nx`.
+- `set_colony(population, cap, workers_used)` (Milestone 5, a new
+  COLONISTS section) renders `"pop %d / %d"` and `"workers %d / %d"`
+  (workers used vs. population, not capacity), turning amber when
+  `population >= cap` to flag a crowded colony.
 - A Demolish button emits `demolish_requested()`.
 
 `main.gd` connects `build_requested`/`demolish_requested` to switch its own
@@ -456,7 +534,8 @@ resulting map to `TerrainView` to render, calls `_prospect.setup(_map)`
 (Milestone 4), calls `BuildingsView.bind()`, centers the `IsoCamera`, wires
 up the sidebar (`populate`, `build_requested` → enter place mode,
 `demolish_requested` → enter demolish mode), calls
-`_minimap.setup(_map, _camera)`, and enters `Mode.NONE`.
+`_minimap.setup(_map, _camera)`, connects `Events.game_over` to
+`_on_game_over` (Milestone 5), and enters `Mode.NONE`.
 
 Each frame (`_process`) it converts the mouse position to a grid cell via
 `IsoGrid.screen_to_grid`, updates `TileCursor.cell`, hides the cursor when
@@ -471,7 +550,22 @@ and multiplies each value by `Sim.TICKS_PER_SECOND` to get a per-second
 figure before calling `sidebar.set_economy(stockpile, per_sec,
 power_produced, power_consumed, Sim.speed)`; this conversion happens here,
 in the render/UI layer, precisely so `Colony` itself never needs to know
-about real time or the sidebar. Finally it refreshes the F1 debug label.
+about real time or the sidebar. As of Milestone 5 it also calls
+`sidebar.set_colony(col.population, col.capacity(), col.workers_used())`
+every frame. Finally it refreshes the F1 debug label.
+
+**Game over (Milestone 5)**: `_on_game_over(won: bool)`, connected to
+`Events.game_over`, sets the game-over panel's title to "BEACON LAUNCHED"
+(win) or "COLONY LOST" (loss), a matching subtitle plus "Press Enter to
+start a new colony.", and shows `_gameover_root`. `_unhandled_input`
+checks `_gameover_root.visible` first, before the normal input `match`: while
+it's visible, `Enter`/numpad-`Enter` calls `get_tree().reload_current_scene()`
+(a full scene reload — simplest possible restart, no partial-state
+cleanup needed since `_ready()` re-does all setup including a fresh
+`Sim.new_game()`) and every other key is swallowed; mouse clicks aren't
+separately blocked here, but since `Sim._process` has already frozen the
+tick loop once the colony reaches a terminal state, clicking around behind
+the overlay can't mutate a live game.
 
 Input (`_unhandled_input`) is skipped for mouse clicks that landed on UI.
 Left-click places (in `PLACE` mode) or demolishes (in `DEMOLISH` mode) at
@@ -537,15 +631,21 @@ determinism, variety), `tests/test_iso_grid.gd` (`IsoGrid` vs. Godot's real
 `TileMapLayer` math), `tests/test_placement.gd` (`Colony` placement,
 occupancy, and demolish rules), `tests/test_economy.gd` (`Colony.tick()`:
 production accrual, power-deficit shutdown, newest-first shedding, recipe
-stalling on missing inputs, active-only `rates()`), `tests/test_camera.gd`
+stalling on missing inputs, active-only `rates()` — its `_colony()` helper
+sets `population = 0` on the returned `Colony` so life support doesn't
+interfere with these building-economics-only tests), `tests/test_camera.gd`
 (`IsoCamera` zoom: `Z` toggles 1×↔2× and snaps back from higher zoom, a
 `KEY_Z` event toggles it, pinch still fine-zooms, and a trackpad
 pan-gesture no longer changes zoom), `tests/test_prospecting.gd`
 (deposit generation determinism/coverage, fresh-map unscanned state, a
 survey station's coarse-then-confirmed two-sweep revelation, outward ring
 expansion, `scan_changes` reporting, mine placement gating on confirmed
-matching deposits, and richness-scaled output) — the
-placement/economy/camera/prospecting files are built with hand-rolled defs
-dictionaries or constructed nodes/maps, independent of
-`Defs`/`Sim`/a running scene. 749 assertions across 36 tests, 0 failures
-as of Milestone 4.
+matching deposits, and richness-scaled output), `tests/test_colonists.gd`
+(life support is consumed, sustained starvation kills a colonist, growth
+happens when fed/housed/under capacity, no growth once at capacity,
+workforce idles the newest understaffed building on a labor deficit,
+victory triggers at the xenite target, defeat triggers at population
+zero) — the placement/economy/camera/prospecting/colonist files are built
+with hand-rolled defs dictionaries or constructed nodes/maps, independent
+of `Defs`/`Sim`/a running scene. 760 assertions across 43 tests, 0
+failures as of Milestone 5.
