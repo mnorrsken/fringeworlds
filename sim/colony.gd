@@ -5,9 +5,28 @@ extends RefCounted
 ## are injected — so all placement rules are headlessly testable. The Sim
 ## autoload wraps this and adds signal emission.
 
+enum Status { PLAYING, WON, LOST }
+
+const STARTING_POPULATION := 4
+const BASE_CAPACITY := 4               # the colony ship houses the starters
+const STARVE_TICKS := 16               # ticks of unmet needs before a death (~4s)
+const GROWTH_TICKS := 80               # ticks of met needs before a birth (~20s)
+const VICTORY_XENITE := 50             # xenite needed to "launch the beacon"
+
+# Life support consumed per colonist per tick.
+const LIFE_SUPPORT := {"oxygen": 0.03, "water": 0.03, "food": 0.02}
+
 var map: ColonyMap
 var defs: Dictionary                  # building id -> def (needs size, cost, allowed_terrain_ids)
 var stockpile: Dictionary = {}        # resource id -> amount
+
+var population := STARTING_POPULATION
+var status: int = Status.PLAYING
+
+# Fractional life-support carryover, and streak counters for growth/starvation.
+var _life_accum := {"oxygen": 0.0, "water": 0.0, "food": 0.0}
+var _starve_ticks := 0
+var _growth_ticks := 0
 
 var buildings: Dictionary = {}        # building instance id (int) -> instance dict
 var _occupancy: Dictionary = {}       # Vector2i cell -> building instance id
@@ -100,12 +119,88 @@ func building_at(cell: Vector2i) -> Dictionary:
 
 # --- Simulation tick ---------------------------------------------------------
 
-## Advances the economy by one tick: balance power, prospect, then produce.
+## Housing capacity: the colony ship base plus every habitat.
+func capacity() -> int:
+	var c := BASE_CAPACITY
+	for id in buildings:
+		c += int(defs[buildings[id].type].get("capacity", 0))
+	return c
+
+## Workers currently employed by running (active) buildings.
+func workers_used() -> int:
+	var n := 0
+	for id in buildings:
+		if buildings[id].active:
+			n += int(defs[buildings[id].type].get("workers", 0))
+	return n
+
+## Advances one tick: power, workforce, prospecting, life support, production,
+## then win/lose evaluation.
 func tick() -> void:
 	scan_changes = []
 	_balance_power()
+	_balance_workforce()
 	_run_prospecting()
 	_run_production()
+	_run_life_support()  # after production, so a just-in-time supply counts
+	_check_status()
+
+# Among powered buildings, staff oldest-first; idle the newest when the workforce
+# demand exceeds the population.
+func _balance_workforce() -> void:
+	var available := population
+	for id in _ids_oldest_first():
+		var inst: Dictionary = buildings[id]
+		if not inst.active:
+			continue
+		var w := int(defs[inst.type].get("workers", 0))
+		if w <= 0:
+			continue
+		if available >= w:
+			available -= w
+		else:
+			inst.active = false
+
+# Consume O2/water/food for the population; sustained shortage kills colonists,
+# sustained surplus grows them (up to capacity).
+func _run_life_support() -> void:
+	if population <= 0:
+		return
+	var met := true
+	for res in LIFE_SUPPORT:
+		_life_accum[res] = float(_life_accum[res]) + population * float(LIFE_SUPPORT[res])
+		var whole := int(_life_accum[res])
+		var have := int(stockpile.get(res, 0))
+		if whole > 0:
+			var take: int = min(whole, have)
+			stockpile[res] = have - take
+			_life_accum[res] = float(_life_accum[res]) - take
+			if take < whole:
+				met = false
+		# No reserve of a life-support resource at all is a shortage.
+		if int(stockpile.get(res, 0)) <= 0:
+			met = false
+	if not met:
+		_growth_ticks = 0
+		_starve_ticks += 1
+		if _starve_ticks >= STARVE_TICKS:
+			_starve_ticks = 0
+			population -= 1
+	else:
+		_starve_ticks = 0
+		if population < capacity():
+			_growth_ticks += 1
+			if _growth_ticks >= GROWTH_TICKS:
+				_growth_ticks = 0
+				population += 1
+
+func _check_status() -> void:
+	if status != Status.PLAYING:
+		return
+	if population <= 0:
+		status = Status.LOST
+	elif int(stockpile.get("xenite", 0)) >= VICTORY_XENITE:
+		status = Status.WON
 
 # Generators always run. Consumers are switched on oldest-first (by id) while
 # there's power budget; the newest ones shut down when demand exceeds supply.
@@ -226,6 +321,10 @@ func rates() -> Dictionary:
 			r[res] = float(r.get(res, 0.0)) + float(recipe.outputs[res]) * per_tick
 		for res in recipe.get("inputs", {}):
 			r[res] = float(r.get(res, 0.0)) - float(recipe.inputs[res]) * per_tick
+	# Life support drains O2/water/food.
+	if population > 0:
+		for res in LIFE_SUPPORT:
+			r[res] = float(r.get(res, 0.0)) - population * float(LIFE_SUPPORT[res])
 	return r
 
 func _ids_oldest_first() -> Array:

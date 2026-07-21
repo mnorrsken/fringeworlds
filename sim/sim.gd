@@ -12,8 +12,9 @@ extends Node
 ## Simulation ticks per real second at 1x speed.
 const TICKS_PER_SECOND := 4.0
 
-## Resources the colony starts a new game with.
-const STARTING_STOCKPILE := {"metal": 100}
+## Resources the colony starts a new game with (a life-support buffer to get
+## the first oxygen/water/food buildings up before the colonists run out).
+const STARTING_STOCKPILE := {"metal": 100, "oxygen": 60, "water": 60, "food": 60}
 
 ## Speed multiplier: 0.0 = paused, 1.0 = normal, 3.0 = fast.
 var speed: float = 1.0
@@ -25,6 +26,7 @@ var tick: int = 0
 var colony: Colony = null
 
 var _accumulator: float = 0.0
+var _ended := false
 
 ## Starts a fresh game: generates a map and resets colony state.
 func new_game(seed: int, size: int) -> void:
@@ -32,6 +34,10 @@ func new_game(seed: int, size: int) -> void:
 	map.generate(seed)
 	colony = Colony.new(map, Defs.buildings, STARTING_STOCKPILE)
 	tick = 0
+	_accumulator = 0.0
+	_ended = false
+	speed = 1.0
+	_last_run_speed = 1.0
 
 # --- Placement API (thin wrappers that emit Events after mutating state) ---
 
@@ -57,13 +63,15 @@ func building_at(cell: Vector2i) -> Dictionary:
 	return colony.building_at(cell)
 
 func _process(delta: float) -> void:
-	if speed <= 0.0:
+	if colony == null or speed <= 0.0 or colony.status != Colony.Status.PLAYING:
 		return
 	_accumulator += delta * speed
 	var step := 1.0 / TICKS_PER_SECOND
-	while _accumulator >= step:
+	while _accumulator >= step and colony.status == Colony.Status.PLAYING:
 		_accumulator -= step
 		_advance_tick()
+	if colony.status != Colony.Status.PLAYING:
+		_end_game()
 
 func _advance_tick() -> void:
 	tick += 1
@@ -72,6 +80,13 @@ func _advance_tick() -> void:
 		Events.scan_changed.emit(colony.scan_changes)
 	Events.stockpile_changed.emit(colony.stockpile)
 	Events.ticked.emit(tick)
+
+# Emitted once when the game reaches a win/lose state; the sim then stays frozen.
+func _end_game() -> void:
+	if _ended:
+		return
+	_ended = true
+	Events.game_over.emit(colony.status == Colony.Status.WON)
 
 # --- Speed control (pause / 1x / 3x) ---
 

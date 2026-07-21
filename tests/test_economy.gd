@@ -24,7 +24,9 @@ func _defs() -> Dictionary:
 	}
 
 func _colony(stock := {}) -> Colony:
-	return Colony.new(ColonyMap.new(16, 16), _defs(), stock)
+	var c := Colony.new(ColonyMap.new(16, 16), _defs(), stock)
+	c.population = 0  # isolate building economics from colonist consumption
+	return c
 
 func test_production_accrues(t: Object) -> void:
 	var c := _colony()

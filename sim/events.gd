@@ -19,3 +19,7 @@ signal building_removed(instance: Dictionary)
 ## Emitted after a tick if any tiles' prospecting scan state changed. Payload is
 ## the list of changed cells; the prospecting overlay updates just those.
 signal scan_changed(cells: Array)
+
+## Emitted once when the colony reaches a terminal state (won == true means the
+## xenite beacon was launched; false means the population died out).
+signal game_over(won: bool)
