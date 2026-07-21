@@ -14,7 +14,7 @@ const TICKS_PER_SECOND := 4.0
 
 ## Resources the colony starts a new game with (a life-support buffer to get
 ## the first oxygen/water/food buildings up before the colonists run out).
-const STARTING_STOCKPILE := {"metal": 100, "oxygen": 60, "water": 60, "food": 60}
+const STARTING_STOCKPILE := {"metal": 200, "oxygen": 100, "water": 100, "food": 100}
 
 ## Speed multiplier: 0.0 = paused, 1.0 = normal, 3.0 = fast.
 var speed: float = 1.0

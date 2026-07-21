@@ -9,12 +9,13 @@ enum Status { PLAYING, WON, LOST }
 
 const STARTING_POPULATION := 4
 const BASE_CAPACITY := 4               # the colony ship houses the starters
-const STARVE_TICKS := 16               # ticks of unmet needs before a death (~4s)
+const STARVE_TICKS := 24               # ticks of unmet needs before a death (~6s)
 const GROWTH_TICKS := 80               # ticks of met needs before a birth (~20s)
 const VICTORY_XENITE := 50             # xenite needed to "launch the beacon"
 
-# Life support consumed per colonist per tick.
-const LIFE_SUPPORT := {"oxygen": 0.03, "water": 0.03, "food": 0.02}
+# Life support consumed per colonist per tick (kept gentle — the early base runs
+# on robots, so colonists are a slow-burning pressure, not an immediate crisis).
+const LIFE_SUPPORT := {"oxygen": 0.02, "water": 0.02, "food": 0.015}
 
 var map: ColonyMap
 var defs: Dictionary                  # building id -> def (needs size, cost, allowed_terrain_ids)
@@ -31,6 +32,10 @@ var _growth_ticks := 0
 var buildings: Dictionary = {}        # building instance id (int) -> instance dict
 var _occupancy: Dictionary = {}       # Vector2i cell -> building instance id
 var _next_id := 1
+
+# Building types ever built — drives tech unlocks (a prerequisite stays unlocked
+# even if you later demolish the building that unlocked it).
+var built_types: Dictionary = {}
 
 # Power figures from the most recent tick (for HUD display).
 var power_produced := 0
@@ -53,10 +58,24 @@ func footprint(type_id: String, origin: Vector2i) -> Array:
 			cells.append(origin + Vector2i(dx, dy))
 	return cells
 
+## True once all of a building's prerequisite types have been built.
+func is_unlocked(type_id: String) -> bool:
+	return missing_prereqs(type_id).is_empty()
+
+## Prerequisite building type ids not yet built (empty == unlocked).
+func missing_prereqs(type_id: String) -> Array:
+	var missing := []
+	for req in defs[type_id].get("requires_built", []):
+		if not built_types.has(req):
+			missing.append(req)
+	return missing
+
 ## { "ok": bool, "reason": String } — why a placement is or isn't allowed.
 func can_place(type_id: String, origin: Vector2i) -> Dictionary:
 	if not defs.has(type_id):
 		return {"ok": false, "reason": "Unknown building"}
+	if not is_unlocked(type_id):
+		return {"ok": false, "reason": "Locked — prerequisite not built"}
 	var def: Dictionary = defs[type_id]
 	for c in footprint(type_id, origin):
 		if not map.in_bounds(c):
@@ -109,6 +128,7 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 	buildings[id] = inst
 	for c in cells:
 		_occupancy[c] = id
+	built_types[type_id] = true
 	return inst
 
 ## The building instance covering `cell`, or {} if none.

@@ -45,19 +45,34 @@ func _ready() -> void:
 	_demolish.pressed.connect(func() -> void: demolish_requested.emit())
 	_hint.text = "LMB place / select\nRMB demolish / cancel\nWASD pan  ·  Z / pinch zoom\nP prospect  ·  M overhead map\nSpace pause · 1/3 speed · F1"
 
+var _build_buttons: Dictionary = {}  # building id -> Button
+
 ## Builds one button per building definition.
 func populate(buildings: Dictionary) -> void:
 	for child in _build_list.get_children():
 		child.queue_free()
+	_build_buttons.clear()
 	for id in buildings:
 		var def: Dictionary = buildings[id]
 		var btn := Button.new()
-		btn.text = "%s  ·  %s" % [def.name, _cost_text(def.cost)]
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.clip_text = true
-		btn.tooltip_text = def.get("desc", "")
+		btn.set_meta("label", "%s  ·  %s" % [def.name, _cost_text(def.cost)])
+		btn.set_meta("desc", str(def.get("desc", "")))
 		btn.pressed.connect(_on_build_pressed.bind(id))
 		_build_list.add_child(btn)
+		_build_buttons[id] = btn
+
+## Locks a build button whose prerequisites aren't met. `locks` maps building id
+## -> reason string ("" == unlocked).
+func set_locks(locks: Dictionary) -> void:
+	for id in _build_buttons:
+		var btn: Button = _build_buttons[id]
+		var reason := str(locks.get(id, ""))
+		var locked := reason != ""
+		btn.disabled = locked
+		btn.text = str(btn.get_meta("label")) + ("  🔒" if locked else "")
+		btn.tooltip_text = reason if locked else str(btn.get_meta("desc"))
 
 func _on_build_pressed(id: String) -> void:
 	build_requested.emit(id)
