@@ -195,7 +195,11 @@ far:
   `allowed_terrain_ids`/`color_value`/`requires_deposit_ids`/
   `guarantees_deposit_id` as described above
   (`workers`/`capacity`/`life_support`/`requires_built` need no
-  preprocessing — `Colony` reads them as plain ints/arrays). Adding a
+  preprocessing — `Colony` reads them as plain ints/arrays). The
+  Milestone 8 art pass added `smoke` (bool, purely cosmetic — read only
+  by `BuildingsView`, not `Colony`; `true` on `hub`, `smelter`, and
+  `parts_factory`, the industrial buildings) for the exhaust-puff
+  animation described under "Rendering and camera" below. Adding a
   building, or a recipe/scan/mine/requires_built block to an existing one,
   is a matter of editing JSON — no script changes needed, since
   `Colony.tick()`, `BuildingsView`, and the sidebar's build menu all read
@@ -616,11 +620,35 @@ same map.
 
 ## Rendering and camera
 
-- `render/terrain_view.gd` (`TerrainView`) builds its own placeholder iso
-  tileset in code (`_build_tileset` / `_build_atlas` / `_draw_diamond`) —
-  one shaded diamond per `ColonyMap.Terrain` enum value, drawn into an
-  `ImageTexture` at runtime. No external art files are committed yet; this
-  is explicitly a Milestone-8 replacement target.
+- `render/palette.gd` (`Palette`, `class_name`, static colour constants
+  only, Milestone 8) is the one shared colour source for the whole
+  procedural art pass: a warm dusty-brown/ochre "regolith" family with
+  amber highlights, plus cool cyan (ice) and violet (crystal) accents for
+  the special terrains, and building-detail tones (`LIGHT_ON`/`LIGHT_OFF`
+  lamp colours, `SMOKE`, `EDGE`/`RIM_LIGHT`). `TerrainView` and
+  `BuildingSprite` both pull from it so the whole screen reads as one
+  palette; never instantiated.
+- `render/terrain_view.gd` (`TerrainView`) builds a procedural iso tileset
+  in code, no external art files committed. As of the Milestone 8 art
+  pass this is a multi-variant, dithered, raised-edge atlas rather than
+  one flat diamond per terrain: a `SPEC` dict declares, per
+  `ColonyMap.Terrain`, how many static **variants** and animation
+  **frames** to generate (regolith/highlands: 4 variants, 1 frame; ice/
+  crystal: 2 variants, 3 frames each; void: 2 variants, 1 frame). Each
+  variant is drawn (`_draw_terrain`) as a 4x4 ordered (Bayer) dither
+  between a light and dark tone with a top-lit gradient, per-variant
+  mottling, a dark rim outline, a lit top bevel / shadowed bottom bevel
+  (the SC2000 raised-tile look), and sparse seeded flecks for grain. All
+  variants (and each one's animation frames) are packed into successive
+  columns of one atlas image; `_variant_coords` records each terrain's
+  variant base coords, and ice/crystal frames get
+  `TileSetAtlasSource.set_tile_animation_frames_count`/
+  `set_tile_animation_frame_duration` (~0.4s/frame) so their sparkle
+  pixels shift and the tiles shimmer. `render_map()` picks a variant per
+  cell via a deterministic hash (`_cell_variant`) so the ground looks
+  varied but stable across renders. `TERRAIN_COLORS` (still used by the
+  minimap) now maps to `Palette`'s base tones instead of inline `Color`
+  literals.
 - `render/prospect_overlay.gd` (`ProspectOverlay`, extends `TileMapLayer`,
   Milestone 4) is a toggleable overlay of semi-transparent iso diamonds
   tinting each tile by prospecting knowledge: `enum Cat { UNSCANNED,
@@ -654,7 +682,17 @@ same map.
   renders all cells in the list back-to-front relative to that anchor.
   `set_valid()` and `set_dimmed()` are unchanged in behavior (ghost
   green/red tint; grey modulate for a shut-down placed building, no-op on
-  a ghost).
+  a ghost). As of the Milestone 8 art pass, placed blocks also carry a
+  recessed roof panel and warm `Palette`-coloured edge lines, plus idle
+  animation: two indicator lamps that blink out of phase (phase derived
+  from cell position, via `sin` on an animation clock `_t`), and, when
+  `configure()`'s new `smoke: bool` parameter is set, rising/fading
+  exhaust smoke puffs. `_process` (only running on placed sprites, not
+  ghosts — `set_process(not ghost)`) advances `_t` every frame but
+  throttles `queue_redraw()` to ~12fps. `set_dimmed(true)` also darkens
+  the lamps and stops the smoke, so a shut-down building reads as
+  visibly "off". The ghost stays flat and static (no `_process`, no
+  lamps/smoke) since it never carries `smoke: true`.
 - `render/buildings_view.gd` (`BuildingsView`, extends `Node2D`) — also
   updated in the same pass: `_on_placed(inst)` now spawns **one
   `BuildingSprite` per footprint cell** (`spr.configure(color, [cell],
@@ -669,7 +707,11 @@ same map.
   building's tiles dim/undim together. `bind()`'s responsibilities
   (connecting `Events.building_placed`/`building_removed`/`ticked`,
   backfilling for buildings already in `Sim.colony.buildings`) are
-  unchanged.
+  unchanged. As of the Milestone 8 art pass, `_on_placed` also reads the
+  building def's `smoke: bool` (see "Data-driven content" above) and
+  passes it to `configure()` only for the sprite at the footprint's
+  front-most cell (`_front_cell`, largest `x + y`), so a multi-tile
+  building emits a single smoke plume rather than one per tile.
 
 The placement ghost is the one place still using a single multi-cell
 `BuildingSprite`: `main.gd`'s `_ghost` is configured with the *entire*
@@ -932,7 +974,7 @@ first thing to suspect when on-screen visuals look wrong.
 ```
 data/       JSON content definitions: resources.json, buildings.json
 sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd, alerts.gd
-render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd
+render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd, palette.gd
 ui/         Screen-space UI: sidebar.gd / sidebar.tscn, resource_bar.gd, alert_ticker.gd
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
 main.gd / main.tscn   In-game scene and controller

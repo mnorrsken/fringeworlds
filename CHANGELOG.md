@@ -8,6 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 8 (visual half) — Retro art pass** (2026-07-22)
+  - New `render/palette.gd` (`Palette`): one shared warm "regolith"
+    dusty-brown/ochre colour family with amber highlights, plus cool cyan
+    (ice) and violet (crystal) accents and building-detail tones (lit/unlit
+    lamp, smoke). Every renderer now pulls colours from here.
+  - `render/terrain_view.gd` rewritten: the procedural iso tileset now
+    builds several dithered (4x4 Bayer), raised-edge variants per terrain
+    (4 for regolith/highlands, 2 for ice/crystal/void) with a top-lit
+    gradient, mottling, rim outline, and bevels; `render_map()` picks a
+    variant per cell deterministically so the ground looks varied but
+    stable. Ice and crystal get 3 animation frames (shifting sparkle
+    pixels, ~0.4s each) so they shimmer.
+  - `render/building_sprite.gd` rewritten: placed buildings gained a
+    recessed roof panel, warm edge lines, and idle animation — two
+    out-of-phase blinking indicator lamps and, on industrial buildings,
+    rising/fading exhaust smoke puffs. A dimmed (shut-down) building's
+    lamps go dark and it stops smoking. The placement ghost stays flat and
+    static.
+  - `data/buildings.json` / `render/buildings_view.gd`: new `smoke: true`
+    field on the hub, smelter, and parts_factory; `BuildingsView` passes it
+    only to the front-most footprint cell's sprite, so a multi-tile
+    building has one plume.
+  - Audio (the other half of Milestone 8) is deferred. No sim/test changes
+    — full suite still 835 assertions across 70 tests, 0 failures
+    (`make test`).
+
 - **Milestone 7 — Save/load & main menu** (2026-07-22)
   - `ColonyMap.to_dict()`/static `from_dict(d)` and `Colony.to_dict()`/static
     `from_dict(map, defs, d)` snapshot full sim state to a JSON-safe dict

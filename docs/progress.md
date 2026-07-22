@@ -50,6 +50,8 @@ Current test count: **835 assertions across 70 tests, 0 failures** (`make test`)
   base 4 colonists for free, prospects, and guarantees a reachable iron
   deposit, replacing the earlier "large starting stockpile" safety net
   with a structural one.
-- **M8 — Retro art pass & audio — pending.** All art is currently
-  procedural placeholder.
+- **M8 — Retro art pass & audio — in progress.** Visuals/animation done:
+  a shared warm palette (`render/palette.gd`), dithered/raised/animated
+  terrain tiles, and buildings with roof detail + blinking lamps + smoke
+  — all still procedural (no external art files). Audio deferred.
 - **M9 — Balance, polish, v2 hooks — pending.**

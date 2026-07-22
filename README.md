@@ -84,7 +84,7 @@ on script/asset errors — good for CI), `make clean` (remove the generated
 ```
 data/       JSON content definitions: resources.json, buildings.json (recipes live inline per building)
 sim/        Pure simulation logic and state — no rendering dependency
-render/     Views of sim state: tilemap, buildings, camera, hover cursor
+render/     Views of sim state: tilemap, buildings, camera, hover cursor, shared palette
 ui/         Screen-space UI: the sidebar
 tests/      Headless tests for sim logic
 main.gd / main.tscn   In-game scene and controller
@@ -184,8 +184,10 @@ scrolls), and a Colony Hub early-game rework (the game now starts with a
 single Hub that sustains the base 4 colonists for free and guarantees
 reachable iron, gating everything else behind it). The game now boots to
 a main menu (New Game/Continue/Load/Quit) and the full sim state can be
-saved/loaded, with autosave every ~3 minutes. Milestone 8 (retro art pass
-& audio) is next. See
+saved/loaded, with autosave every ~3 minutes. Milestone 8's visual half is
+done — a retro art pass gives terrain dithered, raised, animated tiles and
+buildings idle lamp/smoke animation, all in one warm palette
+(`render/palette.gd`) — audio is still pending. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 
