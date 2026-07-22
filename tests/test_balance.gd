@@ -25,12 +25,10 @@ func _starting_metal() -> int:
 
 func test_metal_chain_affordable_from_start(t: Object) -> void:
 	var defs := _buildings()
-	# Power + life support + prospect + one mine + one smelter = a self-sustaining
-	# metal loop. It must fit inside the starting metal, with room to spare.
-	var plan := {
-		"solar_panel": 2, "ice_harvester": 1, "electrolysis_plant": 1,
-		"hydroponics_farm": 1, "survey_station": 1, "mine": 1, "smelter": 1,
-	}
+	# The hub (power + life support + prospecting + guaranteed iron) plus one mine
+	# and one smelter is a self-sustaining metal loop — it needs no separate power,
+	# survey, or life-support buildings. It must fit inside the starting metal.
+	var plan := {"hub": 1, "mine": 1, "smelter": 1}
 	var total := 0
 	for id in plan:
 		total += int(defs[id].cost.get("metal", 0)) * int(plan[id])
@@ -38,3 +36,22 @@ func test_metal_chain_affordable_from_start(t: Object) -> void:
 	t.ok(total <= start, "bootstrap costs %d metal, start is %d" % [total, start])
 	# ...and a little headroom left over (not down to the last credit).
 	t.ok(start - total >= 20, "at least 20 metal headroom after the bootstrap")
+
+func test_hub_is_the_only_starter(t: Object) -> void:
+	# Everything except the hub must be gated behind it, so the first build is
+	# unambiguous: place the hub.
+	var defs := _buildings()
+	t.ok(not defs["hub"].has("requires_built"), "the hub has no prerequisite")
+	for id in defs:
+		if id == "hub":
+			continue
+		var reqs: Array = defs[id].get("requires_built", [])
+		var rooted := reqs.has("hub") or _roots_at_hub(defs, id)
+		t.ok(rooted, "%s ultimately requires the hub" % id)
+
+# Walks the requires_built chain to check it bottoms out at the hub.
+func _roots_at_hub(defs: Dictionary, id: String) -> bool:
+	for req in defs[id].get("requires_built", []):
+		if req == "hub" or _roots_at_hub(defs, req):
+			return true
+	return false

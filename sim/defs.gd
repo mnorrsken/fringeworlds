@@ -42,6 +42,12 @@ func _load_buildings(path: String) -> Dictionary:
 				else:
 					push_warning("[Defs] building '%s' unknown deposit '%s'" % [id, name])
 			def["requires_deposit_ids"] = deps
+		if def.has("guarantees_deposit"):
+			var g := str(def.guarantees_deposit)
+			if ColonyMap.Deposit.has(g):
+				def["guarantees_deposit_id"] = ColonyMap.Deposit[g]
+			else:
+				push_warning("[Defs] building '%s' unknown deposit '%s'" % [id, g])
 	return raw
 
 ## Loads a JSON file expected to contain an array of objects each with an "id"

@@ -79,6 +79,13 @@ func get_deposit(cell: Vector2i) -> int:
 func get_richness(cell: Vector2i) -> float:
 	return _richness[cell.y * width + cell.x]
 
+## Sets a cell's hidden deposit type and richness. Used at generation and by the
+## hub's "guarantee reachable iron" rule; extractors read these once, at placement.
+func set_deposit(cell: Vector2i, dep: int, richness: float) -> void:
+	var i := cell.y * width + cell.x
+	_deposit[i] = dep
+	_richness[i] = richness
+
 func get_scan(cell: Vector2i) -> int:
 	return _scan[cell.y * width + cell.x]
 

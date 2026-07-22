@@ -19,9 +19,10 @@ const SAVE_VERSION := 1
 const AUTOSAVE_NAME := "autosave"
 const AUTOSAVE_SECONDS := 180.0  # ~3 minutes of real time
 
-## Resources the colony starts a new game with (a life-support buffer to get
-## the first oxygen/water/food buildings up before the colonists run out).
-const STARTING_STOCKPILE := {"metal": 200, "oxygen": 100, "water": 100, "food": 100}
+## Resources the colony starts a new game with. Metal covers the hub plus the
+## first metal-chain buildings; the oxygen/water/food buffer only has to last
+## until the hub is placed (it then sustains the base 4 colonists for free).
+const STARTING_STOCKPILE := {"metal": 120, "oxygen": 60, "water": 60, "food": 60}
 
 ## Speed multiplier: 0.0 = paused, 1.0 = normal, 3.0 = fast.
 var speed: float = 1.0

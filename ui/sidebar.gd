@@ -153,6 +153,8 @@ func set_inspector(rep: Dictionary) -> void:
 		lines.append("workers %d" % int(rep.workers))
 	if int(rep.capacity) > 0:
 		lines.append("houses +%d" % int(rep.capacity))
+	if int(rep.get("life_support", 0)) > 0:
+		lines.append("sustains %d colonists" % int(rep.life_support))
 	if rep.get("scans", false):
 		lines.append("surveys for deposits")
 	if rep.has("recipe"):

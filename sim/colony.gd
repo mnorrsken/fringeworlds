@@ -8,10 +8,11 @@ extends RefCounted
 enum Status { PLAYING, WON, LOST }
 
 const STARTING_POPULATION := 4
-const BASE_CAPACITY := 4               # the colony ship houses the starters
+const BASE_CAPACITY := 0               # housing now comes from the hub, not a phantom ship
 const STARVE_TICKS := 24               # ticks of unmet needs before a death (~6s)
 const GROWTH_TICKS := 80               # ticks of met needs before a birth (~20s)
 const VICTORY_XENITE := 50             # xenite needed to "launch the beacon"
+const GUARANTEED_RICHNESS := 0.6       # richness of a hub-injected iron deposit
 
 # Life support consumed per colonist per tick (kept gentle — the early base runs
 # on robots, so colonists are a slow-burning pressure, not an immediate crisis).
@@ -133,7 +134,42 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 	for c in cells:
 		_occupancy[c] = id
 	built_types[type_id] = true
+	# A prospecting building that "guarantees" a deposit (the hub) ensures a
+	# reachable node of that type exists in its survey range, so the player can
+	# always reach metal.
+	if def.has("guarantees_deposit_id") and def.has("scan"):
+		var center: Vector2i = origin + Vector2i(int(def.size) / 2, int(def.size) / 2)
+		_ensure_deposit_in_range(center, int(def.scan.max_radius),
+			int(def.guarantees_deposit_id), GUARANTEED_RICHNESS)
 	return inst
+
+# Ensures at least one *mineable* deposit of `dep` sits within `radius` of
+# `center`. A deposit already under a building doesn't count (it can't be mined),
+# so this always leaves the player a reachable node. Deterministic: scans rings
+# outward and injects into the first buildable, empty, unoccupied tile it finds.
+func _ensure_deposit_in_range(center: Vector2i, radius: int, dep: int, richness: float) -> void:
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
+			if int(round(sqrt(dx * dx + dy * dy))) > radius:
+				continue
+			var c := center + Vector2i(dx, dy)
+			if map.in_bounds(c) and map.get_deposit(c) == dep and not _occupancy.has(c):
+				return  # a reachable one already exists
+	for r in range(2, radius + 1):
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if int(round(sqrt(dx * dx + dy * dy))) != r:
+					continue
+				var c := center + Vector2i(dx, dy)
+				if not map.in_bounds(c) or _occupancy.has(c):
+					continue
+				var t := map.get_terrain(c)
+				if t != ColonyMap.Terrain.REGOLITH and t != ColonyMap.Terrain.HIGHLANDS:
+					continue
+				if map.get_deposit(c) != ColonyMap.Deposit.NONE:
+					continue
+				map.set_deposit(c, dep, richness)
+				return
 
 ## The building instance covering `cell`, or {} if none.
 func building_at(cell: Vector2i) -> Dictionary:
@@ -156,6 +192,15 @@ func workers_used() -> int:
 	for id in buildings:
 		if buildings[id].active:
 			n += int(defs[buildings[id].type].get("workers", 0))
+	return n
+
+## Colonists whose life support is provided for free by running buildings (the
+## hub). Consumption from the stockpile only applies to colonists beyond this.
+func life_support_covered() -> int:
+	var n := 0
+	for id in buildings:
+		if buildings[id].active:
+			n += int(defs[buildings[id].type].get("life_support", 0))
 	return n
 
 ## Advances one tick: power, workforce, prospecting, life support, production,
@@ -191,9 +236,11 @@ func _balance_workforce() -> void:
 func _run_life_support() -> void:
 	if population <= 0:
 		return
+	# The hub covers the first N colonists for free; only the rest draw stock.
+	var effective: int = max(0, population - life_support_covered())
 	var met := true
 	for res in LIFE_SUPPORT:
-		_life_accum[res] = float(_life_accum[res]) + population * float(LIFE_SUPPORT[res])
+		_life_accum[res] = float(_life_accum[res]) + effective * float(LIFE_SUPPORT[res])
 		var whole := int(_life_accum[res])
 		var have := int(stockpile.get(res, 0))
 		if whole > 0:
@@ -202,8 +249,8 @@ func _run_life_support() -> void:
 			_life_accum[res] = float(_life_accum[res]) - take
 			if take < whole:
 				met = false
-		# No reserve of a life-support resource at all is a shortage.
-		if int(stockpile.get(res, 0)) <= 0:
+		# An empty reserve is only a shortage if uncovered colonists actually need it.
+		if effective > 0 and int(stockpile.get(res, 0)) <= 0:
 			met = false
 	if not met:
 		_growth_ticks = 0
@@ -352,10 +399,11 @@ func rates() -> Dictionary:
 			r[res] = float(r.get(res, 0.0)) + float(recipe.outputs[res]) * per_tick
 		for res in recipe.get("inputs", {}):
 			r[res] = float(r.get(res, 0.0)) - float(recipe.inputs[res]) * per_tick
-	# Life support drains O2/water/food.
-	if population > 0:
+	# Life support drains O2/water/food — but only for colonists the hub doesn't cover.
+	var effective: int = max(0, population - life_support_covered())
+	if effective > 0:
 		for res in LIFE_SUPPORT:
-			r[res] = float(r.get(res, 0.0)) - population * float(LIFE_SUPPORT[res])
+			r[res] = float(r.get(res, 0.0)) - effective * float(LIFE_SUPPORT[res])
 	return r
 
 func _ids_oldest_first() -> Array:
@@ -394,6 +442,7 @@ func building_report(id: int) -> Dictionary:
 		"power": int(def.get("power", 0)),
 		"workers": int(def.get("workers", 0)),
 		"capacity": int(def.get("capacity", 0)),
+		"life_support": int(def.get("life_support", 0)),
 		"scans": def.has("scan"),
 	}
 	if def.has("recipe"):
