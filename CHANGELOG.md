@@ -8,6 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 7 — Save/load & main menu** (2026-07-22)
+  - `ColonyMap.to_dict()`/static `from_dict(d)` and `Colony.to_dict()`/static
+    `from_dict(map, defs, d)` snapshot full sim state to a JSON-safe dict
+    (byte/float layers base64-encoded, buildings flattened, occupancy
+    rebuilt on load) — pure, dependency-free, headlessly testable.
+  - `Sim`: `save_game(name)`/`load_game(name)` (JSON files under
+    `user://saves/`), `list_saves()`/`latest_save()`/`has_saves()`/
+    `delete_save(name)`, autosave every ~3 minutes, and an `active` flag
+    gating the tick loop/autosave so nothing simulates at the menu.
+  - New main menu (`menu.gd`/`menu.tscn`, now `run/main_scene`): New Game
+    (seed + map size), Continue, Load (with delete), Quit.
+  - New in-game system menu (Escape, when nothing else to dismiss): Resume,
+    Save Game, Main Menu, Quit; pauses the sim while open.
+  - Tests: `tests/test_save.gd` (map/colony round-trip, tick-determinism
+    after load). Full suite: 816 assertions across 64 tests, 0 failures
+    (`make test`).
+
 - **Milestone 6 — Real UI** (2026-07-22)
   - Building inspector: click a building in SELECT mode to inspect it in the
     sidebar (name, running/idle status with the reason — "No power", "No

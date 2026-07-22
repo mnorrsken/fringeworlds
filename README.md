@@ -67,7 +67,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**802 assertions across 61 tests, 0 failures.**
+**816 assertions across 64 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -81,7 +81,8 @@ sim/        Pure simulation logic and state — no rendering dependency
 render/     Views of sim state: tilemap, buildings, camera, hover cursor
 ui/         Screen-space UI: the sidebar
 tests/      Headless tests for sim logic
-main.gd / main.tscn   Current game root
+main.gd / main.tscn   In-game scene and controller
+menu.gd / menu.tscn   Main menu (new/continue/load/quit) — the project's main scene
 ```
 
 Simulation and rendering are kept strictly separate: the sim is plain data
@@ -106,6 +107,7 @@ reads sim state and never writes game rules back. See
 | 1 | Set speed to 1× |
 | 3 | Set speed to 3× |
 | F1 | Toggle debug overlay (grid coords, terrain, zoom, seed, FPS) |
+| Esc (nothing else to close) | Open the in-game system menu: Resume, Save Game, Main Menu, Quit |
 
 Mouse wheel / trackpad scroll do **not** zoom (removed — it felt twitchy on
 a trackpad); use `Z`, pinch, or `+`/`-` instead. A top resource bar shows
@@ -161,13 +163,15 @@ Panel is the only power source for now.
 Milestones 0 (project skeleton), 1 (isometric terrain rendering and
 camera), 2 (building placement), 3 (simulation core: tick economy,
 stockpile, power balance, speed controls), 4 (deposits and prospecting),
-5 (full production chains and colonists), and 6 (real UI — building
-inspector, alert ticker, status overlay) are done, plus a pre-M6
-fixes-and-balance pass (correct multi-tile building depth-sorting, a
-gentler early game, and the tech-unlock system described above) and a
-post-M6 UI/UX refinement pass (bigger window, a top glyph-based resource
-bar, and a sidebar where only the build list scrolls).
-Milestone 7 (save/load & main menu) is next. See
+5 (full production chains and colonists), 6 (real UI — building
+inspector, alert ticker, status overlay), and 7 (save/load & main menu)
+are done, plus a pre-M6 fixes-and-balance pass (correct multi-tile
+building depth-sorting, a gentler early game, and the tech-unlock system
+described above) and a post-M6 UI/UX refinement pass (bigger window, a
+top glyph-based resource bar, and a sidebar where only the build list
+scrolls). The game now boots to a main menu (New Game/Continue/Load/Quit)
+and the full sim state can be saved/loaded, with autosave every ~3
+minutes. Milestone 8 (retro art pass & audio) is next. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

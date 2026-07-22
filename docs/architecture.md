@@ -492,6 +492,67 @@ of the max-`x+y` cell, matching `BuildingSprite`'s anchor) — green
 `main.gd` calling `_status.toggle()`; redraws every frame while visible so
 it tracks the tick loop live.
 
+## Save / load and menus (`ColonyMap`/`Colony`/`Sim`/menu, Milestone 7)
+
+Full sim state serializes to a JSON-safe dict and back, following the same
+pure/testable pattern as everything else in `sim/`:
+
+- **`ColonyMap.to_dict()` / static `from_dict(d)`** (`sim/map.gd`): width,
+  height, seed, plus the byte layers (`_cells`, `_deposit`, `_scan`) and
+  float layers (`_richness`, `_reading_noise`), each base64-encoded via
+  `Marshalls.raw_to_base64` (float arrays go through
+  `to_byte_array()`/`to_float32_array()` first, since `Marshalls` only
+  handles raw bytes).
+- **`Colony.to_dict()` / static `from_dict(map, defs, d)`** (`sim/colony.gd`):
+  everything except the map (saved separately) — stockpile, population,
+  status, `_next_id`, starve/growth streak counters, `_life_accum`,
+  `built_types`, and every building instance. `_inst_to_dict`/
+  `_inst_from_dict` flatten `origin`/`cells` `Vector2i`s to `[x, y]` pairs
+  and carry the optional `scan_ring`/`scan_progress` and
+  `deposit_type`/`richness`/`mine_accum` fields. `from_dict` rebuilds the
+  cell-occupancy index from the restored buildings rather than serializing
+  it directly. Both classes stay free of any autoload/rendering dependency.
+
+**`Sim`** (`sim/sim.gd`) exposes the save API: `SAVE_DIR = "user://saves/"`,
+`SAVE_VERSION = 1`, `AUTOSAVE_NAME = "autosave"`, `AUTOSAVE_SECONDS = 180`.
+`save_game(name)` writes `{version, saved_at, tick, speed, last_run_speed,
+map, colony}` as JSON under `SAVE_DIR`; `load_game(name)` reconstructs the
+map and colony via the `from_dict` methods (injecting `Defs.buildings`),
+restores tick/speed, and resets the transient bits (`_accumulator`,
+`_autosave_accum`, `_alerts`). `list_saves()` (newest-first by file mtime),
+`latest_save()`, `has_saves()`, and `delete_save(name)` round out the API.
+A new `active: bool` gates the tick loop and autosave — `new_game()`/
+`load_game()` set it `true`; the main menu sets it `false` so nothing
+simulates while at the menu. `_process()` checks `active` first, drives
+autosave on real elapsed time (even while paused, as long as
+`status == PLAYING`), then runs the existing tick loop.
+
+**Main menu** (`menu.gd`/`menu.tscn`) is now `project.godot`'s
+`run/main_scene` (was `main.tscn`). It offers New Game (a seed field — blank
+random, numeric as-is, other text hashed — and a map-size picker), Continue
+(loads `Sim.latest_save()`), Load (an `ItemList` of saves with Load/Delete),
+and Quit; Continue/Load disable themselves when `Sim.has_saves()` is false.
+Selecting New/Continue/Load sets up `Sim` state, then
+`change_scene_to_file("res://main.tscn")`.
+
+**In-game system menu** (`SystemMenuLayer` in `main.tscn`): opened from
+`main.gd` when Escape is pressed with nothing else to dismiss — the Escape
+handling now cascades minimap → build/demolish mode → system menu. Opening
+it pauses the sim (remembering the prior pause state to restore on Resume)
+and offers Resume / Save Game (`Sim.save_game("quicksave")`) / Main Menu
+(sets `Sim.active = false`, returns to `menu.tscn`) / Quit; it swallows
+gameplay keys/clicks while visible.
+
+`main.gd`'s boot changed accordingly: `_ready()` only calls
+`Sim.new_game()` as a fallback when `Sim.colony == null` (the menu normally
+sets one up first), sets `Sim.active = true`, and centers the camera on the
+loaded map's actual `width`/`height` rather than a fixed constant, so a
+loaded non-default-size map centers correctly. The game-over restart path
+now calls `Sim.new_game(_map.seed, _map.width)` before
+`reload_current_scene()`, since the reloaded scene reuses the existing
+colony object — a fresh one must be created first for a true restart on the
+same map.
+
 ## Rendering and camera
 
 - `render/terrain_view.gd` (`TerrainView`) builds its own placeholder iso
@@ -813,7 +874,8 @@ sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_gr
 render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd
 ui/         Screen-space UI: sidebar.gd / sidebar.tscn, resource_bar.gd, alert_ticker.gd
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
-main.gd / main.tscn   Current game root and controller
+main.gd / main.tscn   In-game scene and controller
+menu.gd / menu.tscn   Main menu (project's run/main_scene): new/continue/load/quit
 ```
 
 `assets/` from the plan's suggested layout doesn't exist yet — it arrives
@@ -886,8 +948,12 @@ placement/economy/camera/prospecting/colonist/tech/balance/alerts/inspector
 files are built with hand-rolled defs dictionaries or constructed
 nodes/maps, independent of `Defs`/`Sim`/a running scene. `test_alerts.gd`
 also covers the broadened low-stock rule (a metal-draining building on a
-non-life-support resource triggers a warning). 802 assertions across 61
-tests, 0 failures as of the post-M6 alerts/tooltip follow-up.
+non-life-support resource triggers a warning). `tests/test_save.gd`
+(Milestone 7) covers `ColonyMap`/`Colony` `to_dict`/`from_dict` round-trips
+(every cell's terrain/deposit/scan/richness, and a JSON-text round-trip on
+top of that; population/stockpile/buildings/next_id/occupancy/mine-deposit
+all restored) plus a determinism check that a `from_dict`'d colony ticks
+identically to the original. 816 assertions across 64 tests, 0 failures.
 
 ### Balance regression testing
 

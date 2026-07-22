@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **802 assertions across 61 tests, 0 failures** (`make test`).
+Current test count: **816 assertions across 64 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -40,7 +40,11 @@ Current test count: **802 assertions across 61 tests, 0 failures** (`make test`)
 - **M6 — Real UI — done.** Building inspector (click to inspect, shows
   running/idle + why), alert ticker (power deficit, low life support,
   confirmed deposits), status overlay (`O`, running/idle dot per building).
-- **M7 — Save/load & main menu — pending.**
+- **M7 — Save/load & main menu — done.** Full sim state serializes via
+  `ColonyMap`/`Colony` `to_dict`/`from_dict`; `Sim` save/load/list/delete
+  API, autosave (~3 min), and an `active` gate so nothing simulates at the
+  menu. New main menu (New Game/Continue/Load/Quit) is now the boot scene;
+  a new in-game system menu (Escape) offers Resume/Save/Main Menu/Quit.
 - **M8 — Retro art pass & audio — pending.** All art is currently
   procedural placeholder.
 - **M9 — Balance, polish, v2 hooks — pending.**
