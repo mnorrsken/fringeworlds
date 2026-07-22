@@ -79,20 +79,22 @@ Registered in `project.godot` under `[autoload]`, in load order:
    `ColonyMap.Deposit`, the same pattern as `allowed_terrain_ids`. Engine
    code is meant to read `Defs.resources` / `Defs.buildings` rather than
    hard-code content; adding a building means editing
-   `data/buildings.json`, not this script.
+   `data/buildings.json`, not this script. As of the Colony Hub rework, a
+   building declaring `guarantees_deposit` (a single deposit name, for the
+   Hub) similarly gets `guarantees_deposit_id` resolved through
+   `ColonyMap.Deposit` — see "Colony Hub and guaranteed deposits" below.
 3. **`Sim`** (`sim/sim.gd`) — game state and the fixed tick loop, plus the
    live `Colony` (since Milestone 2). `new_game(seed, size)` generates a
    `ColonyMap`, constructs `colony := Colony.new(map, Defs.buildings,
    STARTING_STOCKPILE)`, and resets the tick counter. `STARTING_STOCKPILE`
-   is currently `{metal: 200, oxygen: 100, water: 100, food: 100}` (raised
-   from `{metal: 100}` in Milestone 5 to add the oxygen/water/food
-   life-support buffer, then metal raised again 100→200 in the pre-M6
-   metal-cliff fix — see "Tech unlocks" and the balance notes in
-   `docs/progress.md` for why) — the life-support buffer exists so a new
-   colony survives long enough to get its first O2/water/food buildings
-   running before colonists starve, and the larger metal buffer exists so
-   the early bootstrap (power + prospecting + a mine + a smelter) is
-   actually affordable — and `new_game()` also resets `_ended`, the tick
+   is currently `{metal: 120, oxygen: 60, water: 60, food: 60}` (metal
+   peaked at 200 in the pre-M6 metal-cliff fix, then dropped to 120 in the
+   Colony Hub rework once the Hub started sustaining the base 4 colonists
+   for free — see "Colony Hub and guaranteed deposits" below and the
+   balance notes in `docs/progress.md`) — the buffer only needs to cover
+   metal for the hub+mine+smelter bootstrap and life support for the time
+   until the Hub is placed, since the Hub then covers the base 4 at no
+   stockpile cost — and `new_game()` also resets `_ended`, the tick
    accumulator, and `speed` back to `1.0`, so restarting after a game-over
    isn't left
    paused or fast-forwarded. `colony` is `null` until `new_game()` is
@@ -155,21 +157,27 @@ far:
 
 - `data/resources.json` — an array of 9 objects (`id`, `name`, `category`,
   `unit`), loaded into `Defs.resources`.
-- `data/buildings.json` — an array of 10 building objects (up from 6 as of
-  Milestone 5): `solar_panel` and `ice_harvester` (1×1), `habitat` and
-  `survey_station` (2×2), `mine` and `crystal_extractor` (1×1), plus four
-  new production-chain buildings — `electrolysis_plant` (1×1,
+- `data/buildings.json` — an array of 11 building objects (up from 10 with
+  the Colony Hub rework, up from 6 as of Milestone 5): `hub` (2×2, the tech
+  root, `requires_built` empty), `solar_panel` and `ice_harvester` (1×1),
+  `habitat` and `survey_station` (2×2), `mine` and `crystal_extractor`
+  (1×1), plus four production-chain buildings — `electrolysis_plant` (1×1,
   water→oxygen), `hydroponics_farm` (2×2, water→food), `smelter` (2×2,
-  iron_ore→metal), `parts_factory` (2×2, metal+copper_ore→parts). All four
-  are built entirely on the existing `recipe` mechanism — no engine
-  changes were needed to add a production chain, only JSON. Fields: `id`,
-  `name`, `size`, `cost`, `allowed_terrain`, `color`, `desc`, `power` (int;
+  iron_ore→metal), `parts_factory` (2×2, metal+copper_ore→parts), all four
+  built entirely on the existing `recipe` mechanism — no engine changes
+  were needed to add a production chain, only JSON. Fields: `id`, `name`,
+  `size`, `cost`, `allowed_terrain`, `color`, `desc`, `power` (int;
   positive = generator, negative = consumer, every building declares one),
   optionally `recipe` (`{inputs: {...}, outputs: {...}, ticks: int}`),
   `scan` (survey buildings), `mine`/`requires_deposit` (extractors — see
   "Deposits and prospecting" below). Milestone 5 added two more fields:
   `workers` (int; every building declares one) and `capacity` (int,
-  housing added by the building — only `habitat`, at `6`).
+  housing added by the building — `habitat` at `6`, and (Colony Hub
+  rework) `hub` at `4`). The Colony Hub rework added `life_support` (int,
+  colonists sustained for free while the building is active — only `hub`,
+  at `4`) and `guarantees_deposit` (a deposit name, resolved by `Defs` to
+  `guarantees_deposit_id` — only `hub`, `"IRON"`; see "Colony Hub and
+  guaranteed deposits" below).
   `crystal_extractor`'s `cost` also requires `parts: 8`, so it needs the
   full chain (mine → smelter → parts factory) to reach, not just raw
   metal. As of the pre-M6 balance pass, `workers` is rebalanced so the
@@ -177,16 +185,21 @@ far:
   Plant, Hydroponics Farm, Survey Station, Mine) is `workers: 0` — only
   the processing/advanced tier (Smelter 2, Parts Factory 3, Crystal
   Extractor 2) needs colonists. The same pass added `requires_built`
-  (`Array[String]` of building ids — see "Tech unlocks" below) to every
-  building except Solar Panel, Habitat, and Ice Harvester. Loaded into
+  (`Array[String]` of building ids — see "Tech unlocks" below) to most
+  buildings; the Colony Hub rework re-rooted the tree at `hub` — it is now
+  the only building with no `requires_built`, and Solar Panel, Habitat,
+  Ice Harvester, Survey Station, and Mine all gained `requires_built:
+  ["hub"]` (Mine's prerequisite changed from Survey Station to Hub, since
+  the Hub itself prospects and guarantees iron). Loaded into
   `Defs.buildings` and augmented with
-  `allowed_terrain_ids`/`color_value`/`requires_deposit_ids` as described
-  above (`workers`/`capacity`/`requires_built` need no preprocessing —
-  `Colony` reads them as plain ints/arrays). Adding a building, or a
-  recipe/scan/mine/requires_built block to an existing one, is a matter of
-  editing JSON — no script changes needed, since `Colony.tick()`,
-  `BuildingsView`, and the sidebar's build menu all read generically off
-  the def dictionary.
+  `allowed_terrain_ids`/`color_value`/`requires_deposit_ids`/
+  `guarantees_deposit_id` as described above
+  (`workers`/`capacity`/`life_support`/`requires_built` need no
+  preprocessing — `Colony` reads them as plain ints/arrays). Adding a
+  building, or a recipe/scan/mine/requires_built block to an existing one,
+  is a matter of editing JSON — no script changes needed, since
+  `Colony.tick()`, `BuildingsView`, and the sidebar's build menu all read
+  generically off the def dictionary.
 
 There is no separate `data/recipes.json` — recipes live inline on the
 building that runs them, one recipe per building, which is enough for the
@@ -271,48 +284,64 @@ concept of real time, only ticks.
 
 `Colony` tracks `population: int` (starts at `STARTING_POPULATION = 4`)
 and `status: int` (`enum Status { PLAYING, WON, LOST }`). Related
-constants: `BASE_CAPACITY = 4` (housing the colony ship itself provides,
-before any habitat), `STARVE_TICKS = 24` (~6s of real time at 1× speed —
-raised from `16` in the pre-M6 balance pass, for a more forgiving grace
-period), `GROWTH_TICKS = 80` (~20s), `VICTORY_XENITE = 50`, and
-`LIFE_SUPPORT = {oxygen: 0.02, water: 0.02, food: 0.015}` (consumption per
-colonist per tick — also reduced from `{0.03, 0.03, 0.02}` in the same
-pass, and `Sim.STARTING_STOCKPILE`'s life-support buffer raised to `100`
-each from `60`, so colonist pressure now builds slowly over the course of
-a game rather than being an immediate early crisis).
+constants: `BASE_CAPACITY = 0` (the Colony Hub rework dropped this from
+`4` — housing no longer comes from an implicit colony ship, only from
+placed buildings' `capacity` fields, of which the Hub is now one),
+`STARVE_TICKS = 24` (~6s of real time at 1× speed — raised from `16` in
+the pre-M6 balance pass, for a more forgiving grace period),
+`GROWTH_TICKS = 80` (~20s), `VICTORY_XENITE = 50`, and `LIFE_SUPPORT =
+{oxygen: 0.02, water: 0.02, food: 0.015}` (consumption per colonist per
+tick — also reduced from `{0.03, 0.03, 0.02}` in the pre-M6 pass).
 
 - **`capacity()`** — `BASE_CAPACITY` plus every placed building's
-  `capacity` field (only `habitat` declares one, at `6`). Not cached;
-  recomputed on call by summing over `buildings`.
-- **`_run_life_support()`** — for each of oxygen/water/food, adds
-  `population * LIFE_SUPPORT[res]` to a per-resource fractional
-  accumulator (`_life_accum`, mirroring the pattern `_run_mine` uses for
-  fractional ore output), then withdraws whatever whole units it can
-  afford from the stockpile (never going negative — it takes `min(whole,
-  have)`). If it couldn't take the full amount, or the stockpile is
-  already at zero for that resource (checked as an independent condition,
-  so a resource that's been fully drained is an immediate shortage even
-  before the accumulator would otherwise cross a whole unit), the tick
-  counts as unmet. A fully-met tick resets `_starve_ticks` to `0` and, if
-  `population < capacity()`, increments `_growth_ticks` — reaching
-  `GROWTH_TICKS` resets it and adds one colonist. An unmet tick resets
-  `_growth_ticks` to `0` and increments `_starve_ticks` — reaching
-  `STARVE_TICKS` resets it and removes one colonist. Both are streak
-  counters, not cumulative totals: a single good/bad tick doesn't
-  immediately grow or kill anyone, but breaks the *other* streak.
+  `capacity` field (`habitat` at `6`, and — Colony Hub rework — `hub` at
+  `4`, so a fresh colony reaches its starting population of 4 as soon as
+  the Hub is placed). Not cached; recomputed on call by summing over
+  `buildings`.
+- **`life_support_covered()`** (Colony Hub rework) — sums the `life_support`
+  field across currently-*active* buildings (only `hub`, at `4`). This is
+  how many colonists have their O2/water/food needs met for free, without
+  touching the stockpile, as long as a building providing that coverage
+  stays powered.
+- **`_run_life_support()`** — computes `effective := max(0, population -
+  life_support_covered())` (Colony Hub rework) and, for each of
+  oxygen/water/food, adds `effective * LIFE_SUPPORT[res]` (not
+  `population * LIFE_SUPPORT[res]` — the covered colonists draw nothing)
+  to a per-resource fractional accumulator (`_life_accum`, mirroring the
+  pattern `_run_mine` uses for fractional ore output), then withdraws
+  whatever whole units it can afford from the stockpile (never going
+  negative — it takes `min(whole, have)`). If it couldn't take the full
+  amount, the tick counts as unmet; an empty stockpile for a resource only
+  counts as an unmet shortage when `effective > 0` (uncovered colonists
+  actually need it) — so with `effective == 0` (e.g. the Hub covering all
+  4 starting colonists) an empty reserve is not a crisis. A fully-met tick
+  resets `_starve_ticks` to `0` and, if `population < capacity()`,
+  increments `_growth_ticks` — reaching `GROWTH_TICKS` resets it and adds
+  one colonist. An unmet tick resets `_growth_ticks` to `0` and increments
+  `_starve_ticks` — reaching `STARVE_TICKS` resets it and removes one
+  colonist. Both are streak counters, not cumulative totals: a single
+  good/bad tick doesn't immediately grow or kill anyone, but breaks the
+  *other* streak.
 - **`_check_status()`** — a no-op once `status` has already left
   `PLAYING`. Otherwise: `population <= 0` → `Status.LOST`; stockpiled
   `xenite >= VICTORY_XENITE` → `Status.WON`. Checked last in `tick()`,
   after production and life support have both run for that tick.
+- **`rates()`** (Colony Hub rework) — the same `effective` figure gates
+  the life-support subtraction in `rates()` too, so the HUD's per-second
+  rate for oxygen/water/food shows zero drain while the Hub covers every
+  colonist, and only shows drain once growth pushes population past what's
+  covered.
 
 ## Tech unlocks (`Colony`, pre-M6 balance pass)
 
 Buildings can declare `requires_built: [building_id, ...]` in
 `data/buildings.json` (see "Data-driven content" above); a building with
 any unmet prerequisite can't be placed. This is deliberately pedagogical —
-it walks a new player through the intended build order (solar → survey →
-mine → smelter → parts → crystal; ice harvester → electrolysis/
-hydroponics) rather than presenting all 10 buildings at once.
+it walks a new player through the intended build order. As of the Colony
+Hub rework, `hub` is the tree's root (the only building with no
+`requires_built`, and the only one unlocked at game start): hub → solar
+panel / habitat / ice harvester / survey station / mine → smelter → parts
+→ crystal, with ice harvester → electrolysis/hydroponics on the side.
 
 - **`built_types: Dictionary`** — a set (keys used as a `Dictionary` with
   unused `true` values) of every building type id ever placed. `place()`
@@ -355,7 +384,10 @@ until surveyed, and extraction is gated on a confirmed reading.
 
 - `_deposit` (`PackedByteArray`) — one of `enum Deposit { NONE, IRON,
   COPPER, XENITE }` per cell. Hidden; `get_deposit(cell)` reads it, but
-  nothing renders it directly until a scan confirms it.
+  nothing renders it directly until a scan confirms it. `set_deposit(cell,
+  dep, richness)` (Colony Hub rework) writes both this and `_richness`
+  (below) for one cell — the only way a deposit is ever placed outside of
+  map generation; see "Colony Hub and guaranteed deposits" below.
 - `_richness` (`PackedFloat32Array`) — `0.0`–`1.0` per cell, how much a
   matching extractor produces there. Hidden the same way.
 - `_reading_noise` (`PackedFloat32Array`) — a fixed per-cell random value
@@ -382,8 +414,9 @@ algorithm, and is fully deterministic per seed — pinned by
 
 **Survey scanning** (`Colony._run_prospecting` / `_scan_ring`, in
 `sim/colony.gd`): a survey building (any def with a `scan` block —
-currently only `survey_station`, with `max_radius: 7, ticks_per_ring: 2`)
-sweeps an expanding ring outward from its footprint center. Each active
+`survey_station` at `max_radius: 7, ticks_per_ring: 2`, and — Colony Hub
+rework — `hub` at `max_radius: 6, ticks_per_ring: 2`) sweeps an expanding
+ring outward from its footprint center. Each active
 survey building's `scan_progress` (a per-instance counter, alongside
 `scan_ring`, both initialized in `place()`) advances one per tick; once it
 hits `ticks_per_ring`, `_scan_ring` processes the current ring — every
@@ -418,6 +451,31 @@ after `colony.tick()`, but only when the list is non-empty, so idle ticks
 (no active survey buildings, or a survey mid-ring with nothing left to
 reveal) don't spam the signal.
 
+### Colony Hub and guaranteed deposits (Colony Hub rework)
+
+A building def can declare `guarantees_deposit` (a deposit name, e.g.
+`"IRON"` — only `hub`); `Defs` resolves it to `guarantees_deposit_id`, the
+same pattern as `requires_deposit_ids`. `Colony.place()` checks, right
+after placement, whether the new instance's def has both
+`guarantees_deposit_id` and a `scan` block; if so it calls
+`_ensure_deposit_in_range(center, def.scan.max_radius,
+def.guarantees_deposit_id, GUARANTEED_RICHNESS)` (`GUARANTEED_RICHNESS =
+0.6`). That method first scans every cell within `radius` of `center` for
+an existing deposit of that type that isn't sitting under a building (a
+buried-under-a-building deposit can't be mined, so it doesn't count as
+reachable); if one exists, it does nothing. Otherwise it scans outward
+ring-by-ring from `radius = 2` and calls `ColonyMap.set_deposit()` on the
+first buildable (REGOLITH/HIGHLANDS), unoccupied, currently-empty
+(`Deposit.NONE`) tile it finds, injecting a fresh richness-0.6 deposit
+there — deterministic, since it always picks the first qualifying tile in
+a fixed scan order. In practice this means placing the Hub always leaves
+at least one mineable iron tile within its survey radius, so a new colony
+can never be stranded without buildable ore.
+
+`life_support` (int, per-instance in the def — only `hub`, at `4`) is the
+other half of the Hub's forgiveness: see `life_support_covered()` and
+`_run_life_support()` in "Colonists, life support, and win/lose" above.
+
 ## Building inspector (`Colony`/`Sim`/sidebar, Milestone 6)
 
 Every building instance dict carries `idle_reason: String` (initialized `""`
@@ -432,11 +490,14 @@ always means "running fine" — the inspector's running/idle line is just
 
 `Colony.building_report(id) -> Dictionary` (pure, no formatting) merges an
 instance's live state with its def into a display-ready dict: `name`,
-`active`, `idle_reason`, `power`, `workers`, `capacity`, `scans` (bool), plus
-`recipe` (with the instance's `progress`) or `mine` (resource/richness/
-per-tick rate) when applicable. Returns `{}` if `id` is no longer a placed
-building — the caller's cue to deselect. `Sim.building_report(id)` is a bare
-pass-through (no signal, since it's polled, not pushed).
+`active`, `idle_reason`, `power`, `workers`, `capacity`, `life_support`
+(Colony Hub rework — the def's `life_support` field, `0` unless it's the
+Hub), `scans` (bool), plus `recipe` (with the instance's `progress`) or
+`mine` (resource/richness/per-tick rate) when applicable. Returns `{}` if
+`id` is no longer a placed building — the caller's cue to deselect.
+`Sim.building_report(id)` is a bare pass-through (no signal, since it's
+polled, not pushed). `ui/sidebar.gd`'s inspector renders a "sustains N
+colonists" line whenever `life_support > 0`.
 
 On the render/UI side: `main.gd` tracks `_selected_id` (`-1` = none). In
 `Mode.NONE` (the same mode used for hovering/nothing-active — there's no
@@ -953,7 +1014,16 @@ non-life-support resource triggers a warning). `tests/test_save.gd`
 (every cell's terrain/deposit/scan/richness, and a JSON-text round-trip on
 top of that; population/stockpile/buildings/next_id/occupancy/mine-deposit
 all restored) plus a determinism check that a `from_dict`'d colony ticks
-identically to the original. 816 assertions across 64 tests, 0 failures.
+identically to the original. `tests/test_hub.gd` (Colony Hub rework) covers
+the Hub's forgiveness mechanics: it sustains the base 4 colonists with an
+empty stockpile, colonists beyond that coverage still consume normally,
+covered colonists show no drain in `rates()`, placing the Hub injects an
+iron deposit when none is reachable within its scan radius, and an
+already-reachable deposit isn't duplicated. `tests/test_balance.gd` was
+updated for the new bootstrap (Hub + Mine + Smelter now fits the reduced
+120 starting metal with headroom) and gained a check that every
+non-`hub` building's `requires_built` chain roots at `hub`. 835 assertions
+across 70 tests, 0 failures.
 
 ### Balance regression testing
 

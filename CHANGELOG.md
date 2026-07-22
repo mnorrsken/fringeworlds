@@ -249,6 +249,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Colony Hub early-game rework** (2026-07-22)
+  - New `hub` building (`data/buildings.json`, now 11 buildings): 2×2, 40
+    metal, +15 power, `capacity: 4`, a new `life_support: 4` field, a `scan`
+    block (radius 6), and `guarantees_deposit: "IRON"`. It's the only
+    building unlocked at game start and the new tech root — Solar Panel,
+    Habitat, Ice Harvester, Survey Station, and Mine now `requires_built:
+    ["hub"]` (Mine no longer requires Survey Station), so the basic loop is
+    hub → mine → smelter; Survey Station now exists to extend prospecting
+    farther out for copper/xenite.
+  - `Colony.life_support_covered()` sums `life_support` across active
+    buildings; life support only charges the stockpile for colonists beyond
+    that coverage, so the hub's base 4 colonists never starve while it
+    stands (`BASE_CAPACITY` 4→0 — housing now comes from the hub, not an
+    implicit colony ship).
+  - Guaranteed reachable iron: `ColonyMap.set_deposit()` (new) plus
+    `Colony._ensure_deposit_in_range()` — placing a building with
+    `guarantees_deposit`/`scan` injects a mineable iron deposit into its
+    survey radius if none is already reachable.
+  - `Sim.STARTING_STOCKPILE` reduced (metal 200→120, oxygen/water/food
+    100→60 each) — the buffer now only needs to cover the hub+mine+smelter
+    bootstrap and the time until the hub is placed.
+  - Inspector shows a "sustains N colonists" line for buildings with
+    `life_support`.
+  - New `tests/test_hub.gd`; `tests/test_balance.gd` updated for the
+    hub+mine+smelter bootstrap and a requires-built-roots-at-hub check.
+    Full suite: 835 assertions across 70 tests, 0 failures (`make test`).
+
 - **Post-M6 UI/UX refinement pass** (2026-07-22)
   - Bigger window/UI room: internal viewport 800×450→1280×720, window
     1600×900→1920×1080 — genuine extra layout space, not just bigger

@@ -6,6 +6,11 @@ heavily simplified. Its signature mechanic: resource deposits are hidden
 underground and must be found through prospecting before they can be
 extracted.
 
+Start by placing the Colony Hub — the only building unlocked at the
+beginning — which sustains your first 4 colonists for free, generates
+power, prospects the surrounding ground, and guarantees a reachable iron
+deposit nearby, so a new colony can never get stuck without buildable ore.
+
 Place buildings on the isometric terrain and watch a real fixed-tick
 economy run: generators and consumers balance against a shared power
 budget, production buildings turn inputs into outputs on a per-building
@@ -24,9 +29,10 @@ colony end, either way followed by a one-key restart.
 
 The build menu unlocks new buildings as you build their prerequisites —
 🔒 marks what's still out of reach — so a first playthrough naturally
-walks: Solar Panel → Survey Station → Mine → Smelter → Parts Factory →
-Crystal Extractor (plus Ice Harvester → Electrolysis Plant/Hydroponics
-Farm on the side). The whole starter loop runs on robots (`workers: 0`);
+walks: Hub → Mine → Smelter → Parts Factory → Crystal Extractor (plus
+Solar Panel for extra power, Ice Harvester → Electrolysis Plant/
+Hydroponics Farm, and Survey Station to extend prospecting for copper and
+xenite). The whole starter loop runs on robots (`workers: 0`);
 colonists only become a labor requirement once you reach the
 processing/advanced tier (Smelter, Parts Factory, Crystal Extractor), so
 early pressure comes from power and resources, not headcount.
@@ -67,7 +73,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**816 assertions across 64 tests, 0 failures.**
+**835 assertions across 70 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -126,37 +132,42 @@ while being net-drained (not just life support — ore/metal/parts too), and
 newly confirmed deposits. When the colony wins or loses, press **Enter** on
 the game-over screen to start a fresh colony.
 
-## Buildings (current 10)
+## Buildings (current 11)
 
 | Building | Footprint | Cost | Power | Workers | Produces | Requires built | Terrain / deposit |
 |---|---|---|---|---|---|---|---|
-| Solar Panel | 1×1 | 10 metal | +15 | 0 | — | — | Regolith, Highlands |
-| Habitat | 2×2 | 30 metal | −2 | 0 | houses +6 colonists | — | Regolith |
-| Ice Harvester | 1×1 | 15 metal | −5 | 0 | 1 water / 4 ticks (no inputs) | — | Ice |
-| Survey Station | 2×2 | 25 metal | −3 | 0 | scans outward, ring every 2 ticks, radius 7 | Solar Panel | Regolith, Highlands |
+| Colony Hub | 2×2 | 40 metal | +15 | 0 | sustains 4 colonists free; scans; guarantees nearby iron | — | Regolith |
+| Solar Panel | 1×1 | 10 metal | +15 | 0 | — | Hub | Regolith, Highlands |
+| Habitat | 2×2 | 30 metal | −2 | 0 | houses +6 colonists | Hub | Regolith |
+| Ice Harvester | 1×1 | 15 metal | −5 | 0 | 1 water / 4 ticks (no inputs) | Hub | Ice |
+| Survey Station | 2×2 | 25 metal | −3 | 0 | scans outward, ring every 2 ticks, radius 7 | Hub | Regolith, Highlands |
 | Electrolysis Plant | 1×1 | 20 metal | −4 | 0 | water → 1 oxygen / 3 ticks | Ice Harvester | Regolith, Highlands |
 | Hydroponics Farm | 2×2 | 20 metal | −3 | 0 | water → 1 food / 3 ticks | Ice Harvester | Regolith |
-| Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore, `0.5 × richness` / tick | Survey Station | confirmed Iron or Copper |
+| Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore, `0.5 × richness` / tick | Hub | confirmed Iron or Copper |
 | Smelter | 2×2 | 25 metal | −4 | 2 | 2 iron ore → 1 metal / 2 ticks | Mine | Regolith, Highlands |
 | Parts Factory | 2×2 | 35 metal | −5 | 3 | 2 metal + 1 copper ore → 1 parts / 4 ticks | Smelter | Regolith, Highlands |
 | Crystal Extractor | 1×1 | 20 metal + 8 parts | −6 | 2 | xenite, `0.25 × richness` / tick | Parts Factory | confirmed Xenite |
 
-Defined in `data/buildings.json`. Every building has a power figure and a
-worker requirement; generators (positive power) always run, and both power
-and workforce are allocated oldest-placed-first, with the newest
-under-supplied buildings shutting down (and dimming on screen) when
-demand exceeds supply of either. Only the processing/advanced tier
-(Smelter, Parts Factory, Crystal Extractor) needs colonists to run — the
-rest of the starter loop is fully automated. Mine and Crystal Extractor
-can only be placed on a tile whose prospecting scan is CONFIRMED and whose
-hidden deposit matches; their output rate scales with that deposit's
-richness (0–100%, revealed exactly only once confirmed — a coarse scan
-gives an imprecise guess). A locked building (unmet "Requires built")
-can't be placed and shows 🔒 in the build menu until its prerequisite is
-built — the unlock persists even if that prerequisite is later demolished.
-The design plan's Geothermal Plant (a second power source, sited on a
-surface vent) is deferred — the map doesn't generate vents yet, so Solar
-Panel is the only power source for now.
+Defined in `data/buildings.json`. The Hub is the only building unlocked at
+game start and the root of the tech tree; it guarantees a mineable iron
+deposit within its scan radius on placement (injecting one if none is
+already reachable), so Mine only needs the Hub, not a separate Survey
+Station. Every building has a power figure and a worker requirement;
+generators (positive power) always run, and both power and workforce are
+allocated oldest-placed-first, with the newest under-supplied buildings
+shutting down (and dimming on screen) when demand exceeds supply of
+either. Only the processing/advanced tier (Smelter, Parts Factory, Crystal
+Extractor) needs colonists to run — the rest of the starter loop is fully
+automated. Mine and Crystal Extractor can only be placed on a tile whose
+prospecting scan is CONFIRMED and whose hidden deposit matches; their
+output rate scales with that deposit's richness (0–100%, revealed exactly
+only once confirmed — a coarse scan gives an imprecise guess). A locked
+building (unmet "Requires built") can't be placed and shows 🔒 in the
+build menu until its prerequisite is built — the unlock persists even if
+that prerequisite is later demolished. The design plan's Geothermal Plant
+(a second power source, sited on a surface vent) is deferred — the map
+doesn't generate vents yet, so Solar Panel and the Hub are the only power
+sources for now.
 
 ## Status
 
@@ -167,11 +178,14 @@ stockpile, power balance, speed controls), 4 (deposits and prospecting),
 inspector, alert ticker, status overlay), and 7 (save/load & main menu)
 are done, plus a pre-M6 fixes-and-balance pass (correct multi-tile
 building depth-sorting, a gentler early game, and the tech-unlock system
-described above) and a post-M6 UI/UX refinement pass (bigger window, a
+described above), a post-M6 UI/UX refinement pass (bigger window, a
 top glyph-based resource bar, and a sidebar where only the build list
-scrolls). The game now boots to a main menu (New Game/Continue/Load/Quit)
-and the full sim state can be saved/loaded, with autosave every ~3
-minutes. Milestone 8 (retro art pass & audio) is next. See
+scrolls), and a Colony Hub early-game rework (the game now starts with a
+single Hub that sustains the base 4 colonists for free and guarantees
+reachable iron, gating everything else behind it). The game now boots to
+a main menu (New Game/Continue/Load/Quit) and the full sim state can be
+saved/loaded, with autosave every ~3 minutes. Milestone 8 (retro art pass
+& audio) is next. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

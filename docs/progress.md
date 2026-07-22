@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **816 assertions across 64 tests, 0 failures** (`make test`).
+Current test count: **835 assertions across 70 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -45,6 +45,11 @@ Current test count: **816 assertions across 64 tests, 0 failures** (`make test`)
   API, autosave (~3 min), and an `active` gate so nothing simulates at the
   menu. New main menu (New Game/Continue/Load/Quit) is now the boot scene;
   a new in-game system menu (Escape) offers Resume/Save/Main Menu/Quit.
+- **Colony Hub rework (not a milestone) — done.** New Hub building is the
+  only thing unlocked at game start and the tech root; it sustains the
+  base 4 colonists for free, prospects, and guarantees a reachable iron
+  deposit, replacing the earlier "large starting stockpile" safety net
+  with a structural one.
 - **M8 — Retro art pass & audio — pending.** All art is currently
   procedural placeholder.
 - **M9 — Balance, polish, v2 hooks — pending.**
