@@ -232,6 +232,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Post-M6 UI/UX refinement pass** (2026-07-22)
+  - Bigger window/UI room: internal viewport 800×450→1280×720, window
+    1600×900→1920×1080 — genuine extra layout space, not just bigger
+    pixels.
+  - New top resource bar (`ui/resource_bar.gd`, data-driven from
+    `data/resources.json`'s new `glyph`/`color` fields): each stockpiled
+    resource shown as coloured glyph + amount + per-second rate (e.g.
+    `⬢ 185`, `≈ 100 -0.3`), staying hidden until the colony has some of it.
+    `power` is skipped here (a capacity balance, not a stockpiled good) —
+    still shown in the sidebar.
+  - Sidebar: only the build list scrolls now; mode/speed, a condensed
+    one-line controls hint, TILE/POWER/COLONISTS/SELECTED are static. The
+    STOCKPILE section moved to the new top bar and was removed from the
+    sidebar; `set_economy()` dropped its stockpile/rates args
+    (`set_economy(power_produced, power_consumed, speed)`).
+  - Layout/presentation only — no sim logic changed. Full suite: 800
+    assertions across 60 tests, 0 failures (`make test`).
 - Rebalanced early game: starting metal 120→200 and Solar Panel 10→15
   power, so the metal chain is reachable without a perfect build order
   (fixes an early-game dead-end). Even with the gentler-early-game numbers

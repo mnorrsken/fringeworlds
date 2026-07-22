@@ -19,7 +19,8 @@ Current test count: **800 assertions across 60 tests, 0 failures** (`make test`)
   shed), recipe production, speed controls (pause/1×/3×).
 - **UI/UX passes (not milestones).** macOS trackpad zoom fix → later
   replaced by a `Z`-toggle zoom scheme (scroll no longer zooms); scrollable
-  sidebar; faster panning; overhead minimap (`M`).
+  sidebar; faster panning; overhead minimap (`M`); post-M6: bigger window,
+  a top glyph-based resource bar, sidebar where only the build list scrolls.
 - **M4 — Deposits & prospecting — done.** Hidden deposit/richness layers,
   survey ring-scan (coarse→confirmed), prospecting overlay (`P`),
   deposit-gated mines with richness-scaled output.

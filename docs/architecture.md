@@ -644,13 +644,21 @@ is 240px wide (widened from 216px in the post-Milestone-3 UI/UX pass so a
 scrollbar doesn't clip button text). It holds no game logic — it only
 displays state pushed into it and emits signals for user intent:
 
-- Its content (`VBox`) is wrapped in a `ScrollContainer`
-  (`Margin/Scroll/VBox`, horizontal scrolling disabled), added in the same
-  pass, because the build list previously had no scrolling and buildings
-  past the sidebar's ~450px visible height (already true of the 4th
-  building) were unreachable. All the `@onready` node paths in
-  `sidebar.gd` point through `Scroll` accordingly (e.g.
-  `$Margin/Scroll/VBox/Title`).
+- As of the post-M6 UI/UX refinement pass, only the **build list**
+  scrolls, not the whole sidebar. `Margin/VBox` holds the info sections
+  (title, mode/speed, a condensed one-line controls hint, TILE, POWER,
+  COLONISTS, SELECTED/inspector) as static children, plus a
+  `ScrollContainer` (`Margin/VBox/Scroll`, `size_flags_vertical = 3` so it
+  fills the remaining height, horizontal scrolling disabled) wrapping just
+  `BuildList`, with the Demolish button pinned static above it. This
+  replaced an earlier pass where the *entire* `VBox` sat inside one
+  `ScrollContainer` (`Margin/Scroll/VBox`) — that made the info sections
+  scroll out of view along with the build list, which got worse once the
+  sidebar picked up more sections (INSPECT, COLONISTS). All the
+  `@onready` node paths in `sidebar.gd` were updated accordingly (e.g.
+  `$Margin/VBox/Title`, `$Margin/VBox/Scroll/BuildList`). The STOCKPILE
+  section was removed from the sidebar in the same pass — the stockpile
+  now lives in the top `ResourceBar` (below).
 - `populate(buildings: Dictionary)` builds one `Button` per entry in
   `Defs.buildings`, each emitting `build_requested(type_id)` when pressed.
   Buttons are single-line (`"%s  ·  %s" % [name, cost]`) with
@@ -672,13 +680,13 @@ displays state pushed into it and emits signals for user intent:
   between the terrain and occupant lines when non-empty — the prospecting
   readout ("coarse: metal traces (~40%)", "Iron Ore · richness 72%",
   etc.).
-- `set_economy(stock, rates, power_produced, power_consumed, speed)`
-  (replacing Milestone 2's `set_stockpile`) is also pushed every frame by
-  `main.gd`, not event-driven — it renders the STOCKPILE section with a
-  per-second rate suffix per resource where the rate is non-negligible
-  (`%+.1f/s`), the POWER section as `"<consumed> / <produced> used"`
-  (colored red when consumption exceeds production), and the speed label
-  as `❚❚ PAUSED` or `▶ Nx`.
+- `set_economy(power_produced, power_consumed, speed)` (replacing
+  Milestone 2's `set_stockpile`; the stockpile/rates args were dropped in
+  the post-M6 UI/UX pass once that data moved to `ResourceBar`) is also
+  pushed every frame by `main.gd`, not event-driven — it renders the
+  POWER section as `"<consumed> / <produced> used"` (colored red when
+  consumption exceeds production) and the speed label as `❚❚ PAUSED` or
+  `▶ Nx`.
 - `set_colony(population, cap, workers_used)` (Milestone 5, a new
   COLONISTS section) renders `"pop %d / %d"` and `"workers %d / %d"`
   (workers used vs. population, not capacity), turning amber when
@@ -691,6 +699,26 @@ displays state pushed into it and emits signals for user intent:
 `main.gd` connects `build_requested`/`demolish_requested` to switch its own
 `Mode` enum (`NONE`/`PLACE`/`DEMOLISH`) and never reaches into the
 sidebar's internals beyond those signals and setters.
+
+### Top resource bar (`ResourceBar`, post-M6 UI/UX pass)
+
+`ui/resource_bar.gd` (a `PanelContainer` under `UI/ResourceBar` in
+`main.tscn`, `Margin/HBox` inside) replaces the sidebar's old STOCKPILE
+section with a compact glyph-based bar spanning the top of the screen,
+anchored from the left edge to the sidebar (`offset_right = -240`). Like
+the sidebar it holds no game logic:
+
+- `populate(resources: Dictionary)` builds one hidden `Label` per entry in
+  `Defs.resources` (skipping `power`, which is a capacity balance rather
+  than a stockpiled good and stays in the sidebar's POWER section), tinted
+  from the new `color` field in `data/resources.json` (parsed with
+  `Color.html`) and remembering its `glyph` as node metadata.
+- `set_resources(stock, rates)`, pushed every frame by `main.gd` alongside
+  `sidebar.set_economy()`, shows each label as `"<glyph> <amount>"` plus a
+  `"  %+.1f"` rate suffix when the rate is non-negligible (e.g. `⬢ 185`,
+  `≈ 100 -0.3`), and hides a resource entirely while the colony has none of
+  it and no meaningful rate — so ore/parts/xenite stay hidden until the
+  production chain that makes them comes online.
 
 ## Game root
 
@@ -724,9 +752,10 @@ prospecting reading for the hovered cell, passed as `set_tile_info`'s new
 `reading` argument. It also (as of Milestone 3) reads `Sim.colony.rates()`
 — per-tick —
 and multiplies each value by `Sim.TICKS_PER_SECOND` to get a per-second
-figure before calling `sidebar.set_economy(stockpile, per_sec,
-power_produced, power_consumed, Sim.speed)`; this conversion happens here,
-in the render/UI layer, precisely so `Colony` itself never needs to know
+figure before calling `_resource_bar.set_resources(stockpile, per_sec)`
+and `sidebar.set_economy(power_produced, power_consumed, Sim.speed)`; this
+conversion happens here, in the render/UI layer, precisely so `Colony`
+itself never needs to know
 about real time or the sidebar. As of Milestone 5 it also calls
 `sidebar.set_colony(col.population, col.capacity(), col.workers_used())`
 every frame. Finally it refreshes the F1 debug label.
@@ -767,7 +796,7 @@ first thing to suspect when on-screen visuals look wrong.
 data/       JSON content definitions: resources.json, buildings.json
 sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd, alerts.gd
 render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd
-ui/         Screen-space UI: sidebar.gd / sidebar.tscn, alert_ticker.gd
+ui/         Screen-space UI: sidebar.gd / sidebar.tscn, resource_bar.gd, alert_ticker.gd
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
 main.gd / main.tscn   Current game root and controller
 ```

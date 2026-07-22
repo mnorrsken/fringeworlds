@@ -36,7 +36,7 @@ early pressure comes from power and resources, not headcount.
 - **Engine:** [Godot](https://godotengine.org/) 4.7.1
 - **Language:** GDScript
 - **Rendering:** 2D dimetric ("isometric") projection, 64×32 px tiles, low
-  internal resolution (800×450, window 1600×900) with integer scaling and
+  internal resolution (1280×720, window 1920×1080) with integer scaling and
   nearest-neighbor filtering for a crisp pixel-art look
 
 ## Getting Godot
@@ -108,11 +108,14 @@ reads sim state and never writes game rules back. See
 | F1 | Toggle debug overlay (grid coords, terrain, zoom, seed, FPS) |
 
 Mouse wheel / trackpad scroll do **not** zoom (removed — it felt twitchy on
-a trackpad); use `Z`, pinch, or `+`/`-` instead. Buildings and Demolish are
-selected from the right-hand scrollable sidebar, which also shows the
-current mode, the hovered tile's info, the stockpile with live per-second
-rates, power used/produced (red on deficit), population/housing/workforce,
-and the current speed. Clicking a building outside build/demolish mode
+a trackpad); use `Z`, pinch, or `+`/`-` instead. A top resource bar shows
+each stockpiled resource as a coloured glyph + amount + per-second rate
+(e.g. `⬢ 185`), revealing new resources as they enter the stockpile.
+Buildings and Demolish are selected from the right-hand sidebar (only the
+build list scrolls; everything else is static), which also shows the
+current mode, the hovered tile's info, power used/produced (red on
+deficit), population/housing/workforce, and the current speed. Clicking a
+building outside build/demolish mode
 inspects it in a sidebar INSPECT section (status, why it's idle if it is,
 power, workers, housing, recipe/mine progress); a fading alert ticker in
 the bottom-left corner announces power deficits, low life support, and
@@ -159,7 +162,9 @@ stockpile, power balance, speed controls), 4 (deposits and prospecting),
 5 (full production chains and colonists), and 6 (real UI — building
 inspector, alert ticker, status overlay) are done, plus a pre-M6
 fixes-and-balance pass (correct multi-tile building depth-sorting, a
-gentler early game, and the tech-unlock system described above).
+gentler early game, and the tech-unlock system described above) and a
+post-M6 UI/UX refinement pass (bigger window, a top glyph-based resource
+bar, and a sidebar where only the build list scrolls).
 Milestone 7 (save/load & main menu) is next. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
