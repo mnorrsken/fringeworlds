@@ -157,6 +157,67 @@ horizontal_alignment = 1
 text = "Press Enter to start a new colony."
 horizontal_alignment = 1
 
+[node name="SystemMenuLayer" type="CanvasLayer" parent="."]
+
+[node name="Root" type="Control" parent="SystemMenuLayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+
+[node name="Backdrop" type="ColorRect" parent="SystemMenuLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.65)
+
+[node name="Center" type="CenterContainer" parent="SystemMenuLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="SystemMenuLayer/Root/Center"]
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="SystemMenuLayer/Root/Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 22
+
+[node name="VBox" type="VBoxContainer" parent="SystemMenuLayer/Root/Center/Panel/Margin"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+theme_override_constants/separation = 9
+
+[node name="Title" type="Label" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
+theme_override_font_sizes/font_size = 24
+text = "❚❚ PAUSED"
+horizontal_alignment = 1
+
+[node name="Status" type="Label" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
+text = ""
+horizontal_alignment = 1
+
+[node name="Sep" type="HSeparator" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
+
+[node name="ResumeBtn" type="Button" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
+text = "Resume"
+
+[node name="SaveBtn" type="Button" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
+text = "Save Game"
+
+[node name="MenuBtn" type="Button" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
+text = "Main Menu"
+
+[node name="QuitBtn" type="Button" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
+text = "Quit"
+
 [node name="Debug" type="CanvasLayer" parent="."]
 
 [node name="Label" type="Label" parent="Debug"]

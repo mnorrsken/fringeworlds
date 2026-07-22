@@ -106,6 +106,33 @@ func reading_text(cell: Vector2i) -> String:
 				DEPOSIT_NAMES[dep], int(round(get_richness(cell) * 100))]
 	return ""
 
+## --- Serialization ---------------------------------------------------------
+## A JSON-safe snapshot of the whole map. The four byte layers and two float
+## layers are base64-encoded (compact and exact) rather than expanded to int
+## arrays. ColonyMap.from_dict() is the inverse.
+func to_dict() -> Dictionary:
+	return {
+		"width": width,
+		"height": height,
+		"seed": seed,
+		"cells": Marshalls.raw_to_base64(_cells),
+		"deposit": Marshalls.raw_to_base64(_deposit),
+		"scan": Marshalls.raw_to_base64(_scan),
+		"richness": Marshalls.raw_to_base64(_richness.to_byte_array()),
+		"reading_noise": Marshalls.raw_to_base64(_reading_noise.to_byte_array()),
+	}
+
+## Rebuilds a ColonyMap from a to_dict() snapshot.
+static func from_dict(d: Dictionary) -> ColonyMap:
+	var m := ColonyMap.new(int(d.width), int(d.height))
+	m.seed = int(d.seed)
+	m._cells = Marshalls.base64_to_raw(str(d.cells))
+	m._deposit = Marshalls.base64_to_raw(str(d.deposit))
+	m._scan = Marshalls.base64_to_raw(str(d.scan))
+	m._richness = Marshalls.base64_to_raw(str(d.richness)).to_float32_array()
+	m._reading_noise = Marshalls.base64_to_raw(str(d.reading_noise)).to_float32_array()
+	return m
+
 ## Generates terrain from noise. Deterministic for a given seed. Two noise
 ## fields: base elevation carves void/highlands, a feature field scatters ice
 ## across the flats and rare crystal across the highlands.

@@ -416,6 +416,96 @@ func _gain(gain: Dictionary) -> void:
 	for r in gain:
 		stockpile[r] = int(stockpile.get(r, 0)) + int(gain[r])
 
+# --- Serialization -----------------------------------------------------------
+
+## A JSON-safe snapshot of colony state (everything except `map`, which is
+## serialized separately). Vector2i fields are flattened to [x, y]. `from_dict()`
+## is the inverse; the occupancy index is rebuilt from the buildings on load.
+func to_dict() -> Dictionary:
+	var blds := []
+	for id in _ids_oldest_first():
+		blds.append(_inst_to_dict(buildings[id]))
+	return {
+		"stockpile": stockpile.duplicate(),
+		"population": population,
+		"status": status,
+		"next_id": _next_id,
+		"starve_ticks": _starve_ticks,
+		"growth_ticks": _growth_ticks,
+		"life_accum": _life_accum.duplicate(),
+		"built_types": built_types.duplicate(),
+		"buildings": blds,
+	}
+
+func _inst_to_dict(inst: Dictionary) -> Dictionary:
+	var o: Vector2i = inst.origin
+	var cells := []
+	for c in inst.cells:
+		cells.append([c.x, c.y])
+	var d := {
+		"id": int(inst.id), "type": str(inst.type),
+		"origin": [o.x, o.y], "cells": cells,
+		"active": bool(inst.active), "progress": int(inst.progress),
+		"idle_reason": str(inst.get("idle_reason", "")),
+	}
+	if inst.has("scan_ring"):
+		d["scan_ring"] = int(inst.scan_ring)
+		d["scan_progress"] = int(inst.scan_progress)
+	if inst.has("deposit_type"):
+		d["deposit_type"] = int(inst.deposit_type)
+		d["richness"] = float(inst.richness)
+		d["mine_accum"] = float(inst.mine_accum)
+	return d
+
+## Rebuilds a Colony from a to_dict() snapshot, injecting the (already
+## deserialized) map and the live building defs.
+static func from_dict(p_map: ColonyMap, p_defs: Dictionary, d: Dictionary) -> Colony:
+	var c := Colony.new(p_map, p_defs, {})
+	var stock := {}
+	for r in d.get("stockpile", {}):
+		stock[r] = int(d.stockpile[r])
+	c.stockpile = stock
+	c.population = int(d.get("population", STARTING_POPULATION))
+	c.status = int(d.get("status", Status.PLAYING))
+	c._next_id = int(d.get("next_id", 1))
+	c._starve_ticks = int(d.get("starve_ticks", 0))
+	c._growth_ticks = int(d.get("growth_ticks", 0))
+	var la: Dictionary = d.get("life_accum", {})
+	for k in c._life_accum:
+		c._life_accum[k] = float(la.get(k, 0.0))
+	var bt := {}
+	for k in d.get("built_types", {}):
+		bt[k] = true
+	c.built_types = bt
+	for bd in d.get("buildings", []):
+		var inst := _inst_from_dict(bd)
+		var id: int = inst.id
+		c.buildings[id] = inst
+		for cell in inst.cells:
+			c._occupancy[cell] = id
+	return c
+
+static func _inst_from_dict(bd: Dictionary) -> Dictionary:
+	var cells := []
+	for pair in bd.cells:
+		cells.append(Vector2i(int(pair[0]), int(pair[1])))
+	var inst := {
+		"id": int(bd.id), "type": str(bd.type),
+		"origin": Vector2i(int(bd.origin[0]), int(bd.origin[1])),
+		"cells": cells,
+		"active": bool(bd.get("active", true)),
+		"progress": int(bd.get("progress", 0)),
+		"idle_reason": str(bd.get("idle_reason", "")),
+	}
+	if bd.has("scan_ring"):
+		inst["scan_ring"] = int(bd.scan_ring)
+		inst["scan_progress"] = int(bd.scan_progress)
+	if bd.has("deposit_type"):
+		inst["deposit_type"] = int(bd.deposit_type)
+		inst["richness"] = float(bd.richness)
+		inst["mine_accum"] = float(bd.mine_accum)
+	return inst
+
 ## Removes the building covering `cell` (any of its footprint cells works).
 ## Returns the removed instance, or null if the cell was empty.
 func demolish_at(cell: Vector2i) -> Variant:

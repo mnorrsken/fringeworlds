@@ -22,6 +22,8 @@ enum Mode { NONE, PLACE, DEMOLISH }
 @onready var _gameover_root: Control = $GameOverLayer/Root
 @onready var _gameover_title: Label = $GameOverLayer/Root/Center/Panel/Margin/VBox/Title
 @onready var _gameover_subtitle: Label = $GameOverLayer/Root/Center/Panel/Margin/VBox/Subtitle
+@onready var _sysmenu_root: Control = $SystemMenuLayer/Root
+@onready var _sysmenu_status: Label = $SystemMenuLayer/Root/Center/Panel/Margin/VBox/Status
 @onready var _debug: CanvasLayer = $Debug
 @onready var _label: Label = $Debug/Label
 
@@ -31,14 +33,21 @@ var _mode := Mode.NONE
 var _place_type := ""
 var _over_ui := false
 var _selected_id := -1  # building inspected in the sidebar, -1 == none
+var _sysmenu_was_paused := false  # pause state to restore when the menu closes
+
+const MENU_SCENE := "res://menu.tscn"
 
 func _ready() -> void:
-	Sim.new_game(DEFAULT_SEED, MAP_SIZE)
+	# The menu normally sets up the colony (new_game / load_game) before switching
+	# here; only fall back to a fresh game if the scene was launched directly.
+	if Sim.colony == null:
+		Sim.new_game(DEFAULT_SEED, MAP_SIZE)
+	Sim.active = true
 	_map = Sim.colony.map
 	_terrain.render_map(_map)
 	_prospect.setup(_map)
 	_buildings.bind()
-	_camera.position = IsoGrid.grid_to_screen(Vector2i(MAP_SIZE / 2, MAP_SIZE / 2))
+	_camera.position = IsoGrid.grid_to_screen(Vector2i(_map.width / 2, _map.height / 2))
 	_ghost.visible = false
 	_sidebar.build_requested.connect(_on_build_requested)
 	_sidebar.demolish_requested.connect(func() -> void: _set_mode(Mode.DEMOLISH))
@@ -49,7 +58,15 @@ func _ready() -> void:
 	# New buildings can unlock others, so refresh the build menu's locks on place.
 	Events.building_placed.connect(func(_i): _refresh_locks())
 	_refresh_locks()
+	_wire_system_menu()
 	_set_mode(Mode.NONE)
+
+func _wire_system_menu() -> void:
+	var vbox := $SystemMenuLayer/Root/Center/Panel/Margin/VBox
+	vbox.get_node("ResumeBtn").pressed.connect(_close_system_menu)
+	vbox.get_node("SaveBtn").pressed.connect(_on_save_pressed)
+	vbox.get_node("MenuBtn").pressed.connect(_on_return_to_menu)
+	vbox.get_node("QuitBtn").pressed.connect(func() -> void: get_tree().quit())
 
 func _refresh_locks() -> void:
 	var locks := {}
@@ -86,7 +103,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if _gameover_root.visible:
 			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				# Fresh colony on the same map, then reload (which reuses it).
+				Sim.new_game(_map.seed, _map.width)
 				get_tree().reload_current_scene()
+			return
+		if _sysmenu_root.visible:
+			if event.keycode == KEY_ESCAPE:
+				_close_system_menu()
 			return
 		match event.keycode:
 			KEY_F1:
@@ -100,8 +123,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				if _minimap_root.visible:
 					_minimap_root.visible = false
-				else:
+				elif _mode != Mode.NONE:
 					_set_mode(Mode.NONE)
+				else:
+					_open_system_menu()
 			KEY_SPACE:
 				Sim.toggle_pause()
 			KEY_1:
@@ -109,7 +134,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_3:
 				Sim.set_speed(3.0)
 		return
-	if event is InputEventMouseButton and event.pressed and not _over_ui:
+	if event is InputEventMouseButton and event.pressed and not _over_ui \
+			and not _sysmenu_root.visible:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			_on_left_click()
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
@@ -163,6 +189,25 @@ func _update_inspector() -> void:
 	if rep.is_empty():
 		_selected_id = -1
 	_sidebar.set_inspector(rep)
+
+# --- System / pause menu (Save, Main Menu, Quit) ---
+
+func _open_system_menu() -> void:
+	_sysmenu_was_paused = Sim.is_paused()
+	Sim.set_paused(true)  # freeze the sim behind the menu
+	_sysmenu_status.text = ""
+	_sysmenu_root.visible = true
+
+func _close_system_menu() -> void:
+	_sysmenu_root.visible = false
+	Sim.set_paused(_sysmenu_was_paused)
+
+func _on_save_pressed() -> void:
+	_sysmenu_status.text = "Game saved." if Sim.save_game("quicksave") else "Save failed."
+
+func _on_return_to_menu() -> void:
+	Sim.active = false  # stop the sim; the menu freezes it too
+	get_tree().change_scene_to_file(MENU_SCENE)
 
 func _toggle_prospect() -> void:
 	_prospect.visible = not _prospect.visible

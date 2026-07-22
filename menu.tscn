@@ -1,0 +1,157 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0regolithmenu0"]
+
+[ext_resource type="Script" path="res://menu.gd" id="1_menu"]
+
+[node name="Menu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_menu")
+
+[node name="Bg" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.09, 0.078, 0.059, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="VBox" type="VBoxContainer" parent="Center/Panel/Margin"]
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Center/Panel/Margin/VBox"]
+layout_mode = 2
+text = "◆ REGOLITH"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Center/Panel/Margin/VBox"]
+layout_mode = 2
+text = "Prospect. Extract. Survive the alien frontier."
+horizontal_alignment = 1
+
+[node name="Sep" type="HSeparator" parent="Center/Panel/Margin/VBox"]
+layout_mode = 2
+
+[node name="Form" type="VBoxContainer" parent="Center/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="SeedRow" type="HBoxContainer" parent="Center/Panel/Margin/VBox/Form"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Center/Panel/Margin/VBox/Form/SeedRow"]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "Seed"
+
+[node name="SeedEdit" type="LineEdit" parent="Center/Panel/Margin/VBox/Form/SeedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SizeRow" type="HBoxContainer" parent="Center/Panel/Margin/VBox/Form"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Center/Panel/Margin/VBox/Form/SizeRow"]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "Map size"
+
+[node name="SizeOpt" type="OptionButton" parent="Center/Panel/Margin/VBox/Form/SizeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NewGameBtn" type="Button" parent="Center/Panel/Margin/VBox"]
+layout_mode = 2
+text = "▶  New Game"
+
+[node name="ContinueBtn" type="Button" parent="Center/Panel/Margin/VBox"]
+layout_mode = 2
+text = "Continue"
+
+[node name="LoadBtn" type="Button" parent="Center/Panel/Margin/VBox"]
+layout_mode = 2
+text = "Load…"
+
+[node name="QuitBtn" type="Button" parent="Center/Panel/Margin/VBox"]
+layout_mode = 2
+text = "Quit"
+
+[node name="LoadPanel" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Backdrop" type="ColorRect" parent="LoadPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.6)
+
+[node name="Center" type="CenterContainer" parent="LoadPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="LoadPanel/Center"]
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="LoadPanel/Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="LoadPanel/Center/Panel/Margin"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="LoadPanel/Center/Panel/Margin/VBox"]
+layout_mode = 2
+text = "LOAD GAME"
+
+[node name="SaveList" type="ItemList" parent="LoadPanel/Center/Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+
+[node name="Buttons" type="HBoxContainer" parent="LoadPanel/Center/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LoadConfirm" type="Button" parent="LoadPanel/Center/Panel/Margin/VBox/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Load"
+
+[node name="DeleteBtn" type="Button" parent="LoadPanel/Center/Panel/Margin/VBox/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Delete"
+
+[node name="BackBtn" type="Button" parent="LoadPanel/Center/Panel/Margin/VBox/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Back"
