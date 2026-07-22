@@ -249,6 +249,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     (`set_economy(power_produced, power_consumed, speed)`).
   - Layout/presentation only — no sim logic changed. Full suite: 800
     assertions across 60 tests, 0 failures (`make test`).
+  - Follow-up: smaller sidebar font (`ui/sidebar.gd` sets a `Theme` with
+    `default_font_size = 14` in `_ready()`, so labels and build buttons
+    shrink; the Title keeps its own 18px override). Resource glyphs in the
+    top bar now show a tooltip (name + one-line description) on hover, from
+    a new `desc` field per entry in `data/resources.json`. Low-resource
+    alerts broadened: `AlertMonitor` now warns on *any* resource that's both
+    net-drained (per `Colony.rates()`) and at/below the low-stock floor, not
+    just oxygen/water/food — so a smelter/parts-factory chain running the
+    colony out of ore or metal alerts too. New test:
+    `tests/test_alerts.gd::test_non_life_support_resource_low_warns`. Full
+    suite: 802 assertions across 61 tests, 0 failures (`make test`).
 - Rebalanced early game: starting metal 120→200 and Solar Panel 10→15
   power, so the metal chain is reachable without a perfect build order
   (fixes an early-game dead-end). Even with the gentler-early-game numbers

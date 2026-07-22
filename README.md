@@ -67,7 +67,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**800 assertions across 60 tests, 0 failures.**
+**802 assertions across 61 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -110,15 +110,17 @@ reads sim state and never writes game rules back. See
 Mouse wheel / trackpad scroll do **not** zoom (removed — it felt twitchy on
 a trackpad); use `Z`, pinch, or `+`/`-` instead. A top resource bar shows
 each stockpiled resource as a coloured glyph + amount + per-second rate
-(e.g. `⬢ 185`), revealing new resources as they enter the stockpile.
-Buildings and Demolish are selected from the right-hand sidebar (only the
-build list scrolls; everything else is static), which also shows the
-current mode, the hovered tile's info, power used/produced (red on
-deficit), population/housing/workforce, and the current speed. Clicking a
-building outside build/demolish mode
+(e.g. `⬢ 185`), revealing new resources as they enter the stockpile; hover
+a glyph for its name and a one-line description. Buildings and Demolish are
+selected from the right-hand sidebar (only the build list scrolls;
+everything else is static, at a slightly smaller font than before), which
+also shows the current mode, the hovered tile's info, power used/produced
+(red on deficit), population/housing/workforce, and the current speed.
+Clicking a building outside build/demolish mode
 inspects it in a sidebar INSPECT section (status, why it's idle if it is,
 power, workers, housing, recipe/mine progress); a fading alert ticker in
-the bottom-left corner announces power deficits, low life support, and
+the bottom-left corner announces power deficits, any resource running low
+while being net-drained (not just life support — ore/metal/parts too), and
 newly confirmed deposits. When the colony wins or loses, press **Enter** on
 the game-over screen to start a fresh colony.
 

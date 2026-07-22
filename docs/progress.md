@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **800 assertions across 60 tests, 0 failures** (`make test`).
+Current test count: **802 assertions across 61 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -20,7 +20,9 @@ Current test count: **800 assertions across 60 tests, 0 failures** (`make test`)
 - **UI/UX passes (not milestones).** macOS trackpad zoom fix → later
   replaced by a `Z`-toggle zoom scheme (scroll no longer zooms); scrollable
   sidebar; faster panning; overhead minimap (`M`); post-M6: bigger window,
-  a top glyph-based resource bar, sidebar where only the build list scrolls.
+  a top glyph-based resource bar, sidebar where only the build list scrolls;
+  follow-up: smaller sidebar font, resource-glyph tooltips, low-stock alerts
+  broadened to any net-drained resource (not just life support).
 - **M4 — Deposits & prospecting — done.** Hidden deposit/richness layers,
   survey ring-scan (coarse→confirmed), prospecting overlay (`P`),
   deposit-gated mines with richness-scaled output.

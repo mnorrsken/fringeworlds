@@ -460,9 +460,17 @@ not every tick, by keeping its own `_power_deficit`/`_low` state between
 calls:
 
 - **Power deficit** (`col.power_consumed > col.power_produced`) — `CRIT`.
-- **Life support running low** — a `LOW_STOCK = 8` floor on oxygen/water/
-  food while `population > 0`; `WARN`, and re-arms (fires again) after the
-  stock recovers above the floor and dips again.
+- **Any net-drained resource running low** — a `LOW_STOCK = 8` floor,
+  checked against every id in `col.rates()` whose rate is negative (i.e.
+  something is actively consuming it faster than it's produced), not just
+  oxygen/water/food — so ore/metal/parts drawn down by the production chain
+  warn too, the same as life support. `WARN`; text uses `String.capitalize()`
+  so multi-word ids read naturally ("Iron Ore", "Copper Ore"). `_low` is a
+  dynamic id→bool map (was a fixed 3-key dict for oxygen/water/food); a
+  resource re-arms (can fire again) once its rate goes non-negative or it
+  drops out of `rates()` and then goes low again later. The old
+  `population > 0` gate is gone — it's subsumed, since a resource only shows
+  a negative rate when something is actually consuming it.
 - **Deposit confirmed** — any deposit kind newly `CONFIRMED` in
   `col.scan_changes` this tick — `INFO`, one entry per kind (not per cell).
 
@@ -641,8 +649,12 @@ to canceling build mode when it's already closed.
 II"-style fixed right-hand command panel, instanced under a `CanvasLayer`
 (`UI`) in `main.tscn` so it draws in screen space above the game world. It
 is 240px wide (widened from 216px in the post-Milestone-3 UI/UX pass so a
-scrollbar doesn't clip button text). It holds no game logic — it only
-displays state pushed into it and emits signals for user intent:
+scrollbar doesn't clip button text). `_ready()` assigns the Sidebar a
+`Theme` with `default_font_size = 14` (down from the engine default 16);
+since a Theme's default size propagates to every descendant, this shrinks
+every sidebar label and build button in one place, except the Title, which
+keeps its own explicit 18px `font_size` override. It holds no game logic —
+it only displays state pushed into it and emits signals for user intent:
 
 - As of the post-M6 UI/UX refinement pass, only the **build list**
   scrolls, not the whole sidebar. `Margin/VBox` holds the info sections
@@ -712,7 +724,10 @@ the sidebar it holds no game logic:
   `Defs.resources` (skipping `power`, which is a capacity balance rather
   than a stockpiled good and stays in the sidebar's POWER section), tinted
   from the new `color` field in `data/resources.json` (parsed with
-  `Color.html`) and remembering its `glyph` as node metadata.
+  `Color.html`) and remembering its `glyph` as node metadata. Each label's
+  `tooltip_text` is set to `"<name>\n<desc>"` from `data/resources.json`'s
+  `desc` field, with `mouse_filter = Control.MOUSE_FILTER_STOP` so hovering
+  a glyph pops up its name and a one-line description.
 - `set_resources(stock, rates)`, pushed every frame by `main.gd` alongside
   `sidebar.set_economy()`, shows each label as `"<glyph> <amount>"` plus a
   `"  %+.1f"` rate suffix when the rate is non-negligible (e.g. `⬢ 185`,
@@ -869,8 +884,10 @@ recipe, running state and recipe progress, mine resource/richness/rate,
 and `{}` for a demolished/unknown id) — the
 placement/economy/camera/prospecting/colonist/tech/balance/alerts/inspector
 files are built with hand-rolled defs dictionaries or constructed
-nodes/maps, independent of `Defs`/`Sim`/a running scene. 800 assertions
-across 60 tests, 0 failures as of Milestone 6.
+nodes/maps, independent of `Defs`/`Sim`/a running scene. `test_alerts.gd`
+also covers the broadened low-stock rule (a metal-draining building on a
+non-life-support resource triggers a warning). 802 assertions across 61
+tests, 0 failures as of the post-M6 alerts/tooltip follow-up.
 
 ### Balance regression testing
 
