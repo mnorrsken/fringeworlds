@@ -67,6 +67,18 @@ text = "COLONISTS"
 [node name="ColonyInfo" type="Label" parent="Margin/Scroll/VBox"]
 text = "—"
 
+[node name="SepInspect" type="HSeparator" parent="Margin/Scroll/VBox"]
+visible = false
+
+[node name="InspectHeader" type="Label" parent="Margin/Scroll/VBox"]
+visible = false
+text = "SELECTED"
+
+[node name="InspectInfo" type="Label" parent="Margin/Scroll/VBox"]
+visible = false
+autowrap_mode = 2
+text = "—"
+
 [node name="Sep3" type="HSeparator" parent="Margin/Scroll/VBox"]
 
 [node name="BuildHeader" type="Label" parent="Margin/Scroll/VBox"]

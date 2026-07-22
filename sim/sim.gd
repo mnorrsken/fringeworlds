@@ -28,6 +28,9 @@ var colony: Colony = null
 var _accumulator: float = 0.0
 var _ended := false
 
+# Edge-triggered alert detector; reset each new_game(). Emits via Events.alert.
+var _alerts := AlertMonitor.new()
+
 ## Starts a fresh game: generates a map and resets colony state.
 func new_game(seed: int, size: int) -> void:
 	var map := ColonyMap.new(size, size)
@@ -36,6 +39,7 @@ func new_game(seed: int, size: int) -> void:
 	tick = 0
 	_accumulator = 0.0
 	_ended = false
+	_alerts = AlertMonitor.new()
 	speed = 1.0
 	_last_run_speed = 1.0
 
@@ -62,6 +66,10 @@ func demolish_at(cell: Vector2i) -> bool:
 func building_at(cell: Vector2i) -> Dictionary:
 	return colony.building_at(cell)
 
+## Inspector display data for a placed building id ({} if it no longer exists).
+func building_report(id: int) -> Dictionary:
+	return colony.building_report(id)
+
 func _process(delta: float) -> void:
 	if colony == null or speed <= 0.0 or colony.status != Colony.Status.PLAYING:
 		return
@@ -78,6 +86,8 @@ func _advance_tick() -> void:
 	colony.tick()
 	if not colony.scan_changes.is_empty():
 		Events.scan_changed.emit(colony.scan_changes)
+	for a in _alerts.check(colony):
+		Events.alert.emit(a.text, a.level)
 	Events.stockpile_changed.emit(colony.stockpile)
 	Events.ticked.emit(tick)
 

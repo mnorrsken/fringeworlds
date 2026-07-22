@@ -113,9 +113,13 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 	_next_id += 1
 	# `active` = powered/running (set each tick by power balance); `progress`
 	# counts ticks toward the next recipe completion.
+	# `active` = powered/staffed/running (set each tick by the balance passes);
+	# `progress` counts ticks toward the next recipe completion; `idle_reason` is
+	# the human-readable "why am I not running" string the inspector shows ("" ==
+	# running fine), rewritten every tick by the phase that last touched it.
 	var inst := {
 		"id": id, "type": type_id, "origin": origin, "cells": cells,
-		"active": true, "progress": 0,
+		"active": true, "progress": 0, "idle_reason": "",
 	}
 	if def.has("scan"):
 		inst["scan_ring"] = 0
@@ -180,6 +184,7 @@ func _balance_workforce() -> void:
 			available -= w
 		else:
 			inst.active = false
+			inst.idle_reason = "No workers"
 
 # Consume O2/water/food for the population; sustained shortage kills colonists,
 # sustained surplus grows them (up to capacity).
@@ -233,10 +238,12 @@ func _balance_power() -> void:
 		if p > 0:
 			power_produced += p
 			inst.active = true
+			inst.idle_reason = ""
 		elif p < 0:
 			consumers.append(id)
 		else:
 			inst.active = true
+			inst.idle_reason = ""
 
 	power_consumed = 0
 	var available := power_produced
@@ -245,10 +252,12 @@ func _balance_power() -> void:
 		var need := -int(defs[inst.type].power)
 		if available >= need:
 			inst.active = true
+			inst.idle_reason = ""
 			available -= need
 			power_consumed += need
 		else:
 			inst.active = false
+			inst.idle_reason = "No power"
 
 # Survey stations sweep an expanding circular ring outward; each visit advances
 # a tile's scan state one step (unscanned -> coarse -> confirmed). After the
@@ -302,8 +311,10 @@ func _run_production() -> void:
 			_gain(recipe.get("outputs", {}))
 			inst.progress = 0
 		else:
-			# Stalled on missing inputs: hold at the completion threshold.
+			# Stalled on missing inputs: hold at the completion threshold and
+			# name what's short so the inspector can explain the idle.
 			inst.progress = int(recipe.ticks)
+			inst.idle_reason = "Needs " + ", ".join(_short_inputs(recipe.get("inputs", {})))
 
 # Extractors yield their deposit's resource at base_rate x richness per tick,
 # accumulating fractional output so rich tiles produce visibly faster.
@@ -357,6 +368,45 @@ func _has(cost: Dictionary) -> bool:
 		if int(stockpile.get(r, 0)) < int(cost[r]):
 			return false
 	return true
+
+# The input resources a recipe can't currently afford (for the idle reason).
+func _short_inputs(inputs: Dictionary) -> Array:
+	var short := []
+	for r in inputs:
+		if int(stockpile.get(r, 0)) < int(inputs[r]):
+			short.append(r)
+	return short
+
+## Display data for the building inspector — live instance state merged with its
+## def. Returns {} if `id` isn't a placed building. Pure (no formatting): the UI
+## turns this into text.
+func building_report(id: int) -> Dictionary:
+	if not buildings.has(id):
+		return {}
+	var inst: Dictionary = buildings[id]
+	var def: Dictionary = defs[inst.type]
+	var rep := {
+		"id": id,
+		"type": inst.type,
+		"name": str(def.get("name", inst.type)),
+		"active": bool(inst.active),
+		"idle_reason": str(inst.get("idle_reason", "")),
+		"power": int(def.get("power", 0)),
+		"workers": int(def.get("workers", 0)),
+		"capacity": int(def.get("capacity", 0)),
+		"scans": def.has("scan"),
+	}
+	if def.has("recipe"):
+		rep["recipe"] = def.recipe
+		rep["progress"] = int(inst.get("progress", 0))
+	if def.has("mine"):
+		var dep := int(inst.get("deposit_type", ColonyMap.Deposit.NONE))
+		rep["mine"] = {
+			"resource": ColonyMap.DEPOSIT_RESOURCE.get(dep, ""),
+			"richness": float(inst.get("richness", 0.0)),
+			"per_tick": _mine_per_tick(inst, def),
+		}
+	return rep
 
 func _spend(cost: Dictionary) -> void:
 	for r in cost:

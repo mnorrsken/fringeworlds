@@ -10,6 +10,7 @@ enum Mode { NONE, PLACE, DEMOLISH }
 
 @onready var _terrain: TerrainView = $TerrainView
 @onready var _prospect: ProspectOverlay = $ProspectOverlay
+@onready var _status: Node2D = $StatusOverlay
 @onready var _buildings: BuildingsView = $Buildings
 @onready var _camera: IsoCamera = $Camera
 @onready var _cursor: TileCursor = $TileCursor
@@ -28,6 +29,7 @@ var _hover := Vector2i(-1, -1)
 var _mode := Mode.NONE
 var _place_type := ""
 var _over_ui := false
+var _selected_id := -1  # building inspected in the sidebar, -1 == none
 
 func _ready() -> void:
 	Sim.new_game(DEFAULT_SEED, MAP_SIZE)
@@ -91,6 +93,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_minimap_root.visible = not _minimap_root.visible
 			KEY_P:
 				_toggle_prospect()
+			KEY_O:
+				_status.toggle()
 			KEY_ESCAPE:
 				if _minimap_root.visible:
 					_minimap_root.visible = false
@@ -117,6 +121,10 @@ func _on_left_click() -> void:
 			Sim.place_building(_place_type, _hover)
 		Mode.DEMOLISH:
 			Sim.demolish_at(_hover)
+		Mode.NONE:
+			# Click a building to inspect it; click empty ground to deselect.
+			var b := Sim.building_at(_hover)
+			_selected_id = int(b.id) if not b.is_empty() else -1
 
 func _on_right_click() -> void:
 	if _mode != Mode.NONE:
@@ -142,6 +150,17 @@ func _on_game_over(won: bool) -> void:
 	_gameover_subtitle.text = ("The colony endures — victory!\n" if won
 		else "The last colonist is gone.\n") + "Press Enter to start a new colony."
 	_gameover_root.visible = true
+
+# Refreshes the sidebar inspector for the selected building; clears the
+# selection if that building no longer exists (e.g. it was demolished).
+func _update_inspector() -> void:
+	if _selected_id == -1:
+		_sidebar.set_inspector({})
+		return
+	var rep := Sim.building_report(_selected_id)
+	if rep.is_empty():
+		_selected_id = -1
+	_sidebar.set_inspector(rep)
 
 func _toggle_prospect() -> void:
 	_prospect.visible = not _prospect.visible
@@ -177,6 +196,7 @@ func _update_info() -> void:
 	_sidebar.set_economy(col.stockpile, per_sec, col.power_produced,
 		col.power_consumed, Sim.speed)
 	_sidebar.set_colony(col.population, col.capacity(), col.workers_used())
+	_update_inspector()
 	if _debug.visible:
 		_label.text = "cell (%d, %d)  %s\nzoom %dx  seed %d  FPS %d  [F1]" % [
 			_hover.x, _hover.y, terrain,

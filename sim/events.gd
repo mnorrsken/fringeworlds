@@ -23,3 +23,8 @@ signal scan_changed(cells: Array)
 ## Emitted once when the colony reaches a terminal state (won == true means the
 ## xenite beacon was launched; false means the population died out).
 signal game_over(won: bool)
+
+## Emitted for a critical event the player should be told about (power deficit,
+## life support low, deposit confirmed). `level` is an AlertMonitor.Level
+## (0 = info, 1 = warning, 2 = critical). The alert ticker renders these.
+signal alert(text: String, level: int)
