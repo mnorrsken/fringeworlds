@@ -49,18 +49,22 @@ Registered in `project.godot` under `[autoload]`, in load order:
    `ticked(tick: int)`, `stockpile_changed(stockpile: Dictionary)`,
    `building_placed(instance: Dictionary)`,
    `building_removed(instance: Dictionary)`, (Milestone 4)
-   `scan_changed(cells: Array)`, and (Milestone 5) `game_over(won: bool)`.
-   The sim emits; UI/render layers connect. UI is meant to never poke
-   `Sim` internals directly — it calls `Sim` methods and listens on
-   `Events` signals instead. The `building_placed`/`building_removed`
-   payload is the same instance dictionary `Colony.place()`/
-   `demolish_at()` returns: `{id, type, origin, cells}`. `scan_changed`'s
-   payload is the list of grid cells whose prospecting scan state changed
-   on the tick just processed; `ProspectOverlay` is the only current
-   listener, using it to repaint incrementally instead of rebuilding the
-   whole overlay every tick. `game_over` fires exactly once when the
-   colony reaches a terminal state; `main.gd` is the only listener, and
-   shows the win/loss overlay from it.
+   `scan_changed(cells: Array)`, (Milestone 5) `game_over(won: bool)`, and
+   (Milestone 6) `alert(text: String, level: int)`. The sim emits; UI/render
+   layers connect. UI is meant to never poke `Sim` internals directly — it
+   calls `Sim` methods and listens on `Events` signals instead. The
+   `building_placed`/`building_removed` payload is the same instance
+   dictionary `Colony.place()`/`demolish_at()` returns: `{id, type, origin,
+   cells}`. `scan_changed`'s payload is the list of grid cells whose
+   prospecting scan state changed on the tick just processed;
+   `ProspectOverlay` is the only current listener, using it to repaint
+   incrementally instead of rebuilding the whole overlay every tick.
+   `game_over` fires exactly once when the colony reaches a terminal state;
+   `main.gd` is the only listener, and shows the win/loss overlay from it.
+   `alert`'s `level` is an `AlertMonitor.Level` value (`INFO`/`WARN`/`CRIT`,
+   0/1/2); `Sim` emits one per entry `AlertMonitor.check()` returns each
+   tick (see "Alerts" below), and `ui/alert_ticker.gd` is the only
+   listener.
 2. **`Defs`** (`sim/defs.gd`) — loads read-only content definitions from
    `data/*.json` at startup into two dictionaries: `resources` (id →
    definition, unchanged since Milestone 0) and `buildings` (id →
@@ -96,14 +100,21 @@ Registered in `project.godot` under `[autoload]`, in load order:
    API — `can_place`, `place_building`, `demolish_at`, `building_at` —
    that delegate to `colony` and then emit the matching `Events` signal
    (`building_placed`/`building_removed`/`stockpile_changed`) on success,
-   so `Colony` itself stays free of any signal-bus dependency. The tick
-   loop runs at `TICKS_PER_SECOND = 4.0`, accumulator-driven inside
-   `_process` so ticks stay decoupled from frame rate; `_process` now also
-   checks `colony.status` both before and inside the accumulator loop
-   (Milestone 5) so once the colony reaches a terminal state, no further
-   ticks run in that frame or any later one. `_advance_tick()` calls
-   `colony.tick()` (see below) before emitting `Events.stockpile_changed`
-   and `Events.ticked`. `_end_game()` emits `Events.game_over(won)` the
+   so `Colony` itself stays free of any signal-bus dependency.
+   `building_report(id)` (Milestone 6) is the same pattern without a
+   signal — a plain pass-through to `colony.building_report(id)`, since the
+   inspector is pulled every frame by `main.gd` rather than pushed on an
+   event. `Sim` also owns an `AlertMonitor` (`_alerts`, Milestone 6), reset
+   alongside `colony` in `new_game()`. The tick loop runs at
+   `TICKS_PER_SECOND = 4.0`, accumulator-driven inside `_process` so ticks
+   stay decoupled from frame rate; `_process` now also checks
+   `colony.status` both before and inside the accumulator loop (Milestone
+   5) so once the colony reaches a terminal state, no further ticks run in
+   that frame or any later one. `_advance_tick()` calls `colony.tick()`
+   (see below), then emits `Events.stockpile_changed` and `Events.ticked`,
+   and (Milestone 6) calls `_alerts.check(colony)` and emits
+   `Events.alert(entry.text, entry.level)` for each returned entry.
+   `_end_game()` emits `Events.game_over(won)` the
    first time `colony.status != PLAYING` is observed, guarded by an
    `_ended` flag so it never fires twice for the same game. Speed control:
    `speed: float` is a multiplier (`0.0` = paused, `1.0` = normal, `3.0` =
@@ -407,6 +418,72 @@ after `colony.tick()`, but only when the list is non-empty, so idle ticks
 (no active survey buildings, or a survey mid-ring with nothing left to
 reveal) don't spam the signal.
 
+## Building inspector (`Colony`/`Sim`/sidebar, Milestone 6)
+
+Every building instance dict carries `idle_reason: String` (initialized `""`
+in `place()`), rewritten each tick by whichever balance/production phase last
+touched that building's `active` flag: `_balance_power()` sets `"No power"`
+on a shed consumer (and clears it to `""` for anything that stays/becomes
+active), `_balance_workforce()` sets `"No workers"` on an understaffed
+building, and `_run_production()`'s recipe branch sets `"Needs <res, ...>"`
+(via `_short_inputs()`) when a recipe is stalled on missing inputs. `""`
+always means "running fine" — the inspector's running/idle line is just
+`rep.active and idle_reason == ""`.
+
+`Colony.building_report(id) -> Dictionary` (pure, no formatting) merges an
+instance's live state with its def into a display-ready dict: `name`,
+`active`, `idle_reason`, `power`, `workers`, `capacity`, `scans` (bool), plus
+`recipe` (with the instance's `progress`) or `mine` (resource/richness/
+per-tick rate) when applicable. Returns `{}` if `id` is no longer a placed
+building — the caller's cue to deselect. `Sim.building_report(id)` is a bare
+pass-through (no signal, since it's polled, not pushed).
+
+On the render/UI side: `main.gd` tracks `_selected_id` (`-1` = none). In
+`Mode.NONE` (the same mode used for hovering/nothing-active — there's no
+separate "select" mode), a left click on a building sets `_selected_id` to
+its id, or `-1` on empty ground. `_update_inspector()`, called every frame,
+pushes `Sim.building_report(_selected_id)` to `sidebar.set_inspector(rep)`;
+an empty dict (demolished-while-selected) both clears `_selected_id` and
+hides the sidebar section. `ui/sidebar.gd`'s `set_inspector(rep)` toggles
+visibility of a new INSPECT section (`SepInspect`/`InspectHeader`/
+`InspectInfo` in `ui/sidebar.tscn`, hidden by default) and renders the
+report as plain text lines, colored green when running / red when idle.
+
+## Alerts (`AlertMonitor`, Milestone 6)
+
+`sim/alerts.gd` (`AlertMonitor`, `class_name`, `RefCounted`) is an
+edge-triggered detector, following the same pure/testable pattern as
+`Colony`/`ColonyMap` — no autoload or `Events` dependency. `check(col:
+Colony) -> Array` returns `[{text, level}]` for conditions that just became
+true this tick (rising edges only), so a sustained problem announces once,
+not every tick, by keeping its own `_power_deficit`/`_low` state between
+calls:
+
+- **Power deficit** (`col.power_consumed > col.power_produced`) — `CRIT`.
+- **Life support running low** — a `LOW_STOCK = 8` floor on oxygen/water/
+  food while `population > 0`; `WARN`, and re-arms (fires again) after the
+  stock recovers above the floor and dips again.
+- **Deposit confirmed** — any deposit kind newly `CONFIRMED` in
+  `col.scan_changes` this tick — `INFO`, one entry per kind (not per cell).
+
+`Sim` owns one `AlertMonitor`, resets it in `new_game()`, and calls
+`check(colony)` at the end of `_advance_tick()`, emitting `Events.alert`
+once per returned entry. `ui/alert_ticker.gd` is the sole listener: a
+`VBoxContainer` on the UI `CanvasLayer`, bottom-left, that pushes a new
+color-coded (by level), dark-outlined label onto a stack (capped at 4,
+newest on top), fading and freeing each after ~5s.
+
+## Status overlay (`render/status_overlay.gd`, Milestone 6)
+
+Power in this game is a global capacity balance, not a spatial network (see
+the power-balance section above), so there's no coverage radius to draw.
+`StatusOverlay` (`Node2D`, `z_index = 6`, hidden by default) instead marks
+every placed building with a dot at its front cell (`IsoGrid.grid_to_screen`
+of the max-`x+y` cell, matching `BuildingSprite`'s anchor) — green
+(`inst.active`) or red (idle, any reason). Toggled by `O` via
+`main.gd` calling `_status.toggle()`; redraws every frame while visible so
+it tracks the tick loop live.
+
 ## Rendering and camera
 
 - `render/terrain_view.gd` (`TerrainView`) builds its own placeholder iso
@@ -515,6 +592,8 @@ Draw order is controlled two ways, set on the nodes in `main.tscn`:
   `z_index = 5`, so buildings sort against each other by their front-tile
   screen Y (via `BuildingSprite`'s position), and sit above the terrain
   and the prospecting overlay.
+- `StatusOverlay` sits at `z_index = 6`, just above `Buildings`, so its
+  running/idle dots draw on top of building sprites.
 - `Ghost` (`BuildingSprite`, the placement preview) sits at `z_index = 50`.
 - `TileCursor` sits at `z_index = 100`, the highest in the scene, so the
   hover border always draws on top of terrain and buildings. This fixed a
@@ -604,6 +683,9 @@ displays state pushed into it and emits signals for user intent:
   COLONISTS section) renders `"pop %d / %d"` and `"workers %d / %d"`
   (workers used vs. population, not capacity), turning amber when
   `population >= cap` to flag a crowded colony.
+- `set_inspector(rep: Dictionary)` (Milestone 6, see "Building inspector"
+  above) shows/hides the INSPECT section and renders `Colony.building_report()`'s
+  output as text, pushed every frame by `main.gd`.
 - A Demolish button emits `demolish_requested()`.
 
 `main.gd` connects `build_requested`/`demolish_requested` to switch its own
@@ -683,9 +765,9 @@ first thing to suspect when on-screen visuals look wrong.
 
 ```
 data/       JSON content definitions: resources.json, buildings.json
-sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd
-render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd
-ui/         Screen-space UI: sidebar.gd / sidebar.tscn
+sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd, alerts.gd
+render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd
+ui/         Screen-space UI: sidebar.gd / sidebar.tscn, alert_ticker.gd
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
 main.gd / main.tscn   Current game root and controller
 ```
@@ -749,11 +831,17 @@ a two-step prerequisite chain unlocks in order), `tests/test_balance.gd`
 minimal self-sustaining bootstrap build order and asserts it fits inside
 `Sim.STARTING_STOCKPILE`'s starting metal with headroom to spare; see
 "Balance regression testing" below for why it reads `sim.gd` as text
-instead of loading it) — the
-placement/economy/camera/prospecting/colonist/tech/balance files are built
-with hand-rolled defs dictionaries or constructed nodes/maps, independent
-of `Defs`/`Sim`/a running scene. 773 assertions across 49 tests, 0
-failures as of the metal-cliff balance fix.
+instead of loading it), `tests/test_alerts.gd` (`AlertMonitor`: power
+deficit fires once on the edge and doesn't repeat while sustained, a low
+life-support resource warns and re-arms after recovery, a confirmed
+deposit announces once per kind), `tests/test_inspector.gd`
+(`Colony.building_report()`: idle reasons for no-power/no-workers/stalled
+recipe, running state and recipe progress, mine resource/richness/rate,
+and `{}` for a demolished/unknown id) — the
+placement/economy/camera/prospecting/colonist/tech/balance/alerts/inspector
+files are built with hand-rolled defs dictionaries or constructed
+nodes/maps, independent of `Defs`/`Sim`/a running scene. 800 assertions
+across 60 tests, 0 failures as of Milestone 6.
 
 ### Balance regression testing
 

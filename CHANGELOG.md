@@ -8,6 +8,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 6 — Real UI** (2026-07-22)
+  - Building inspector: click a building in SELECT mode to inspect it in the
+    sidebar (name, running/idle status with the reason — "No power", "No
+    workers", "Needs <inputs>" — power, workers, housing, recipe progress,
+    and for extractors the mined resource/richness/rate); click empty
+    ground to deselect; a demolished selection auto-clears. `Colony` now
+    tracks `idle_reason` per building instance and exposes
+    `building_report(id) -> Dictionary`; `Sim.building_report()` wraps it.
+    New sidebar INSPECT section in `ui/sidebar.gd`/`ui/sidebar.tscn`.
+  - Alert ticker: a pure `AlertMonitor` (`sim/alerts.gd`) edge-detects power
+    deficits, life-support resources running low, and newly confirmed
+    deposits, firing once per rising edge. New `Events.alert(text, level)`
+    signal, emitted from `Sim`'s tick loop. New `ui/alert_ticker.gd` renders
+    a fading, color-coded stack (bottom-left, capped at 4).
+  - Status overlay (`O` toggle): `render/status_overlay.gd` marks every
+    building with a green/red dot (running/idle) at its front cell, since
+    power here is a global balance rather than a spatial network.
+  - Sidebar hint updated to "LMB place / inspect" / "P prospect · O status
+    · M map".
+  - Tests: `tests/test_alerts.gd`, `tests/test_inspector.gd`. Full suite:
+    800 assertions across 60 tests, 0 failures (`make test`).
+
 - Tech unlocks: buildings gated behind prerequisites (e.g. solar → survey
   → mine → smelter → parts → crystal; ice harvester → electrolysis/
   hydroponics), shown in the build menu. `Colony` tracks `built_types`

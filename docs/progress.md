@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **773 assertions across 49 tests, 0 failures** (`make test`).
+Current test count: **800 assertions across 60 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -34,9 +34,9 @@ Current test count: **773 assertions across 49 tests, 0 failures** (`make test`)
   advanced buildings); tech-unlock gating on the build menu; starting
   metal and Solar Panel power raised to fix an early bootstrap dead-end
   ("metal cliff").
-- **M6 — Real UI — pending.** Sidebar already covers some ground (rates,
-  power, colonists); still missing an alert ticker, building inspector,
-  overlay toggles.
+- **M6 — Real UI — done.** Building inspector (click to inspect, shows
+  running/idle + why), alert ticker (power deficit, low life support,
+  confirmed deposits), status overlay (`O`, running/idle dot per building).
 - **M7 — Save/load & main menu — pending.**
 - **M8 — Retro art pass & audio — pending.** All art is currently
   procedural placeholder.

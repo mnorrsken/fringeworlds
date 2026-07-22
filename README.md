@@ -67,7 +67,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**773 assertions across 49 tests, 0 failures.**
+**800 assertions across 60 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -98,7 +98,8 @@ reads sim state and never writes game rules back. See
 | Pinch, `+`/`-` | Fine zoom (secondary controls, up to 4×) |
 | M | Toggle the overhead map (terrain, buildings, camera view; click to jump) |
 | P | Toggle the prospecting overlay (tints tiles by scan state / deposit type) |
-| Left click | Place selected building, or demolish (in demolish mode) |
+| O | Toggle the status overlay (green/red dot per building: running/idle) |
+| Left click | Place selected building, demolish (in demolish mode), or inspect a building (in select mode) |
 | Right click | Demolish at cursor, or cancel current mode |
 | Esc | Close the overhead map if open, otherwise cancel current mode |
 | Space | Pause / unpause (resumes at whatever speed was running) |
@@ -111,7 +112,11 @@ a trackpad); use `Z`, pinch, or `+`/`-` instead. Buildings and Demolish are
 selected from the right-hand scrollable sidebar, which also shows the
 current mode, the hovered tile's info, the stockpile with live per-second
 rates, power used/produced (red on deficit), population/housing/workforce,
-and the current speed. When the colony wins or loses, press **Enter** on
+and the current speed. Clicking a building outside build/demolish mode
+inspects it in a sidebar INSPECT section (status, why it's idle if it is,
+power, workers, housing, recipe/mine progress); a fading alert ticker in
+the bottom-left corner announces power deficits, low life support, and
+newly confirmed deposits. When the colony wins or loses, press **Enter** on
 the game-over screen to start a fresh colony.
 
 ## Buildings (current 10)
@@ -151,10 +156,11 @@ Panel is the only power source for now.
 Milestones 0 (project skeleton), 1 (isometric terrain rendering and
 camera), 2 (building placement), 3 (simulation core: tick economy,
 stockpile, power balance, speed controls), 4 (deposits and prospecting),
-and 5 (full production chains and colonists) are done, plus a pre-M6
+5 (full production chains and colonists), and 6 (real UI — building
+inspector, alert ticker, status overlay) are done, plus a pre-M6
 fixes-and-balance pass (correct multi-tile building depth-sorting, a
 gentler early game, and the tech-unlock system described above).
-Milestone 6 (a real UI pass) is next. See
+Milestone 7 (save/load & main menu) is next. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 
