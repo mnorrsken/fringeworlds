@@ -8,12 +8,13 @@ extends RefCounted
 
 enum Level { INFO, WARN, CRIT }
 
-# A life-support resource at or below this stock counts as "running low" — early
-# enough to warn before starvation, since STARVE_TICKS only starts after zero.
+# A resource at or below this stock, while being net-drained, counts as "running
+# low" — early enough to warn before it hits zero (for life support, before
+# starvation, since STARVE_TICKS only starts after zero).
 const LOW_STOCK := 8
 
 var _power_deficit := false
-var _low := {"oxygen": false, "water": false, "food": false}
+var _low := {}  # resource id -> was-low last tick (edge-trigger state)
 
 ## Returns [{text: String, level: int}] for conditions newly true this tick.
 func check(col: Colony) -> Array:
@@ -25,12 +26,19 @@ func check(col: Colony) -> Array:
 		out.append({"text": "⚡ Power deficit — buildings shutting down", "level": Level.CRIT})
 	_power_deficit = deficit
 
-	# Life support: warn once per resource as it dips low (only with colonists).
-	for res in _low:
-		var low: bool = col.population > 0 and int(col.stockpile.get(res, 0)) <= LOW_STOCK
-		if low and not _low[res]:
+	# Any resource that's being net-drained and has dipped low warns once (this
+	# covers life support consumed by colonists, but also metal/parts/ore drawn
+	# down by the production chain). Rearms once it recovers.
+	var rates := col.rates()
+	for res in rates:
+		var low: bool = float(rates[res]) < -0.0001 and int(col.stockpile.get(res, 0)) <= LOW_STOCK
+		if low and not bool(_low.get(res, false)):
 			out.append({"text": "⚠ %s running low" % _cap(res), "level": Level.WARN})
 		_low[res] = low
+	# A resource no longer draining rearms so it can warn again later.
+	for res in _low:
+		if not rates.has(res):
+			_low[res] = false
 
 	# Prospecting: announce each deposit kind confirmed on this tick.
 	var kinds := {}
@@ -47,5 +55,6 @@ func check(col: Colony) -> Array:
 
 	return out
 
+# "iron_ore" -> "Iron Ore" (Godot's capitalize() splits underscores into words).
 func _cap(s: String) -> String:
-	return s.substr(0, 1).to_upper() + s.substr(1)
+	return s.capitalize()

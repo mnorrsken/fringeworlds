@@ -30,6 +30,13 @@ const RED := Color("d65a4a")
 @onready var _hint: Label = $Margin/VBox/Hint
 
 func _ready() -> void:
+	# Slightly smaller default text across the whole sidebar (Title keeps its own
+	# larger override). A Theme's default_font_size propagates to all descendants,
+	# including the build buttons created later.
+	var th := Theme.new()
+	th.default_font_size = 14
+	theme = th
+
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color("17140f")
 	sb.border_color = Color("4a4038")

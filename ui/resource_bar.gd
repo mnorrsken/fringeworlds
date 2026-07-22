@@ -33,7 +33,9 @@ func populate(resources: Dictionary) -> void:
 		var lbl := Label.new()
 		lbl.add_theme_font_size_override("font_size", 17)
 		lbl.add_theme_color_override("font_color", Color.html(str(def.get("color", "ffffff"))))
-		lbl.tooltip_text = str(def.get("name", id))
+		lbl.mouse_filter = Control.MOUSE_FILTER_STOP  # so the tooltip shows on hover
+		var desc := str(def.get("desc", ""))
+		lbl.tooltip_text = str(def.get("name", id)) + ("\n" + desc if desc != "" else "")
 		lbl.set_meta("glyph", str(def.get("glyph", "•")))
 		lbl.visible = false
 		_hbox.add_child(lbl)

@@ -1,11 +1,11 @@
 [
-  { "id": "water",      "name": "Water",      "category": "life_support", "unit": "u", "glyph": "≈", "color": "7cc7d6" },
-  { "id": "oxygen",     "name": "Oxygen",     "category": "life_support", "unit": "u", "glyph": "○", "color": "5ac4b0" },
-  { "id": "food",       "name": "Food",       "category": "life_support", "unit": "u", "glyph": "✿", "color": "6bbf59" },
-  { "id": "power",      "name": "Power",      "category": "utility",      "unit": "MW", "glyph": "⚡", "color": "e0b64a" },
-  { "id": "iron_ore",   "name": "Iron Ore",   "category": "raw",          "unit": "u", "glyph": "◆", "color": "b0623a" },
-  { "id": "copper_ore", "name": "Copper Ore", "category": "raw",          "unit": "u", "glyph": "◇", "color": "c4844a" },
-  { "id": "metal",      "name": "Metal",      "category": "refined",      "unit": "u", "glyph": "⬢", "color": "b8b8c0" },
-  { "id": "parts",      "name": "Parts",      "category": "refined",      "unit": "u", "glyph": "⚙", "color": "8a8f9a" },
-  { "id": "xenite",     "name": "Xenite",     "category": "special",      "unit": "u", "glyph": "✦", "color": "9a5ac4" }
+  { "id": "water",      "name": "Water",      "category": "life_support", "unit": "u", "glyph": "≈", "color": "7cc7d6", "desc": "Melted from ice fields. Feeds oxygen and food production." },
+  { "id": "oxygen",     "name": "Oxygen",     "category": "life_support", "unit": "u", "glyph": "○", "color": "5ac4b0", "desc": "Breathable air. Electrolysed from water; colonists consume it." },
+  { "id": "food",       "name": "Food",       "category": "life_support", "unit": "u", "glyph": "✿", "color": "6bbf59", "desc": "Grown in hydroponics from water. Colonists consume it." },
+  { "id": "power",      "name": "Power",      "category": "utility",      "unit": "MW", "glyph": "⚡", "color": "e0b64a", "desc": "Electricity capacity. Generators supply it; buildings draw it." },
+  { "id": "iron_ore",   "name": "Iron Ore",   "category": "raw",          "unit": "u", "glyph": "◆", "color": "b0623a", "desc": "Mined from confirmed iron deposits. Smelted into metal." },
+  { "id": "copper_ore", "name": "Copper Ore", "category": "raw",          "unit": "u", "glyph": "◇", "color": "c4844a", "desc": "Mined from confirmed copper deposits. Used to make parts." },
+  { "id": "metal",      "name": "Metal",      "category": "refined",      "unit": "u", "glyph": "⬢", "color": "b8b8c0", "desc": "Refined from iron ore. The main building material." },
+  { "id": "parts",      "name": "Parts",      "category": "refined",      "unit": "u", "glyph": "⚙", "color": "8a8f9a", "desc": "Built from metal and copper. Needed for advanced buildings." },
+  { "id": "xenite",     "name": "Xenite",     "category": "special",      "unit": "u", "glyph": "✦", "color": "9a5ac4", "desc": "Rare crystal. Accumulate it to launch the beacon and win." }
 ]

@@ -39,6 +39,24 @@ func test_life_support_low_warns(t: Object) -> void:
 	t.ok("Oxygen" in str(out[0].text), "the warning names oxygen")
 	t.eq(mon.check(c).size(), 0, "still-low resource does not re-warn")
 
+func test_non_life_support_resource_low_warns(t: Object) -> void:
+	# A building that drains metal (recipe input, no output) pulls the stock down;
+	# the low-stock alert covers any net-drained resource, not just life support.
+	var defs := {
+		"burner": {
+			"name": "Burner", "size": 1, "cost": {}, "power": 0, "workers": 0,
+			"recipe": {"inputs": {"metal": 1}, "outputs": {}, "ticks": 1},
+			"allowed_terrain_ids": [ColonyMap.Terrain.REGOLITH],
+		},
+	}
+	var c := Colony.new(ColonyMap.new(16, 16), defs, {"metal": 6})
+	c.population = 0
+	c.place("burner", Vector2i(1, 1))
+	c.tick()  # burner consumes metal; rates() reports metal net-negative
+	var out := AlertMonitor.new().check(c)
+	t.eq(out.size(), 1, "a drained low resource warns")
+	t.ok("Metal" in str(out[0].text), "the warning names metal")
+
 func test_no_low_warning_without_colonists(t: Object) -> void:
 	var mon := AlertMonitor.new()
 	var c := _colony({"oxygen": 0, "water": 0, "food": 0})
