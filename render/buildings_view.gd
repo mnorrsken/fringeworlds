@@ -24,14 +24,26 @@ func _on_ticked(_tick: int) -> void:
 			spr.set_dimmed(not inst.active)
 
 func _on_placed(inst: Dictionary) -> void:
-	var color: Color = Defs.buildings[inst.type].get("color_value", Color.WHITE)
+	var def: Dictionary = Defs.buildings[inst.type]
+	var color: Color = def.get("color_value", Color.WHITE)
+	# Industrial buildings emit smoke — but only from the front-most cell, so a
+	# multi-tile building has one plume, not one per tile.
+	var smoke: bool = def.get("smoke", false)
+	var front := _front_cell(inst.cells)
 	var sprites := []
 	for cell in inst.cells:
 		var spr := BuildingSprite.new()
 		add_child(spr)
-		spr.configure(color, [cell], false)
+		spr.configure(color, [cell], false, smoke and cell == front)
 		sprites.append(spr)
 	_sprites[inst.id] = sprites
+
+func _front_cell(cells: Array) -> Vector2i:
+	var front: Vector2i = cells[0]
+	for c in cells:
+		if c.x + c.y > front.x + front.y:
+			front = c
+	return front
 
 func _on_removed(inst: Dictionary) -> void:
 	for spr in _sprites.get(inst.id, []):

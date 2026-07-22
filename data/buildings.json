@@ -2,7 +2,7 @@
   {
     "id": "hub", "name": "Colony Hub", "size": 2,
     "cost": { "metal": 40 }, "power": 15, "workers": 0,
-    "capacity": 4, "life_support": 4,
+    "capacity": 4, "life_support": 4, "smoke": true,
     "scan": { "max_radius": 6, "ticks_per_ring": 2 },
     "guarantees_deposit": "IRON",
     "allowed_terrain": ["REGOLITH"],
@@ -73,7 +73,7 @@
   },
   {
     "id": "smelter", "name": "Smelter", "size": 2,
-    "cost": { "metal": 25 }, "power": -4, "workers": 2,
+    "cost": { "metal": 25 }, "power": -4, "workers": 2, "smoke": true,
     "requires_built": ["mine"],
     "recipe": { "inputs": { "iron_ore": 2 }, "outputs": { "metal": 1 }, "ticks": 2 },
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
@@ -82,7 +82,7 @@
   },
   {
     "id": "parts_factory", "name": "Parts Factory", "size": 2,
-    "cost": { "metal": 35 }, "power": -5, "workers": 3,
+    "cost": { "metal": 35 }, "power": -5, "workers": 3, "smoke": true,
     "requires_built": ["smelter"],
     "recipe": { "inputs": { "metal": 2, "copper_ore": 1 }, "outputs": { "parts": 1 }, "ticks": 4 },
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
