@@ -16,6 +16,7 @@ enum Mode { NONE, PLACE, DEMOLISH }
 @onready var _cursor: TileCursor = $TileCursor
 @onready var _ghost: BuildingSprite = $Ghost
 @onready var _sidebar := $UI/Sidebar
+@onready var _resource_bar := $UI/ResourceBar
 @onready var _minimap_root: Control = $MinimapLayer/Root
 @onready var _minimap: Minimap = $MinimapLayer/Root/Center/Panel/Margin/VBox/Minimap
 @onready var _gameover_root: Control = $GameOverLayer/Root
@@ -42,6 +43,7 @@ func _ready() -> void:
 	_sidebar.build_requested.connect(_on_build_requested)
 	_sidebar.demolish_requested.connect(func() -> void: _set_mode(Mode.DEMOLISH))
 	_sidebar.populate(Defs.buildings)
+	_resource_bar.populate(Defs.resources)
 	_minimap.setup(_map, _camera)
 	Events.game_over.connect(_on_game_over)
 	# New buildings can unlock others, so refresh the build menu's locks on place.
@@ -193,8 +195,8 @@ func _update_info() -> void:
 	var per_sec := {}
 	for r in per_tick:
 		per_sec[r] = per_tick[r] * Sim.TICKS_PER_SECOND
-	_sidebar.set_economy(col.stockpile, per_sec, col.power_produced,
-		col.power_consumed, Sim.speed)
+	_resource_bar.set_resources(col.stockpile, per_sec)
+	_sidebar.set_economy(col.power_produced, col.power_consumed, Sim.speed)
 	_sidebar.set_colony(col.population, col.capacity(), col.workers_used())
 	_update_inspector()
 	if _debug.visible:

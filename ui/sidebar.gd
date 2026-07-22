@@ -12,24 +12,22 @@ const DIM := Color("7a6f5f")
 const GREEN := Color("6bbf59")
 const RED := Color("d65a4a")
 
-@onready var _title: Label = $Margin/Scroll/VBox/Title
-@onready var _mode: Label = $Margin/Scroll/VBox/ModeLabel
-@onready var _speed: Label = $Margin/Scroll/VBox/SpeedLabel
-@onready var _tile_header: Label = $Margin/Scroll/VBox/TileHeader
-@onready var _tile_info: Label = $Margin/Scroll/VBox/TileInfo
-@onready var _stock_header: Label = $Margin/Scroll/VBox/StockHeader
-@onready var _stock_info: Label = $Margin/Scroll/VBox/StockInfo
-@onready var _power_header: Label = $Margin/Scroll/VBox/PowerHeader
-@onready var _power_info: Label = $Margin/Scroll/VBox/PowerInfo
-@onready var _colony_header: Label = $Margin/Scroll/VBox/ColonyHeader
-@onready var _colony_info: Label = $Margin/Scroll/VBox/ColonyInfo
-@onready var _inspect_sep: HSeparator = $Margin/Scroll/VBox/SepInspect
-@onready var _inspect_header: Label = $Margin/Scroll/VBox/InspectHeader
-@onready var _inspect_info: Label = $Margin/Scroll/VBox/InspectInfo
-@onready var _build_header: Label = $Margin/Scroll/VBox/BuildHeader
-@onready var _build_list: VBoxContainer = $Margin/Scroll/VBox/BuildList
-@onready var _demolish: Button = $Margin/Scroll/VBox/DemolishBtn
-@onready var _hint: Label = $Margin/Scroll/VBox/Hint
+@onready var _title: Label = $Margin/VBox/Title
+@onready var _mode: Label = $Margin/VBox/ModeLabel
+@onready var _speed: Label = $Margin/VBox/SpeedLabel
+@onready var _tile_header: Label = $Margin/VBox/TileHeader
+@onready var _tile_info: Label = $Margin/VBox/TileInfo
+@onready var _power_header: Label = $Margin/VBox/PowerHeader
+@onready var _power_info: Label = $Margin/VBox/PowerInfo
+@onready var _colony_header: Label = $Margin/VBox/ColonyHeader
+@onready var _colony_info: Label = $Margin/VBox/ColonyInfo
+@onready var _inspect_sep: HSeparator = $Margin/VBox/SepInspect
+@onready var _inspect_header: Label = $Margin/VBox/InspectHeader
+@onready var _inspect_info: Label = $Margin/VBox/InspectInfo
+@onready var _build_header: Label = $Margin/VBox/BuildHeader
+@onready var _build_list: VBoxContainer = $Margin/VBox/Scroll/BuildList
+@onready var _demolish: Button = $Margin/VBox/DemolishBtn
+@onready var _hint: Label = $Margin/VBox/Hint
 
 func _ready() -> void:
 	var sb := StyleBoxFlat.new()
@@ -41,7 +39,7 @@ func _ready() -> void:
 
 	_title.add_theme_color_override("font_color", AMBER)
 	_title.add_theme_font_size_override("font_size", 18)
-	for h in [_tile_header, _stock_header, _power_header, _colony_header,
+	for h in [_tile_header, _power_header, _colony_header,
 			_inspect_header, _build_header]:
 		h.add_theme_color_override("font_color", AMBER)
 	_mode.add_theme_color_override("font_color", SAND)
@@ -49,7 +47,7 @@ func _ready() -> void:
 	_hint.add_theme_color_override("font_color", DIM)
 
 	_demolish.pressed.connect(func() -> void: demolish_requested.emit())
-	_hint.text = "LMB place / inspect\nRMB demolish / cancel\nWASD pan  ·  Z / pinch zoom\nP prospect · O status · M map\nSpace pause · 1/3 speed · F1"
+	_hint.text = "LMB place/inspect · RMB demolish · WASD pan · Z zoom · P/O/M overlays · Space,1,3 speed · F1"
 
 var _build_buttons: Dictionary = {}  # building id -> Button
 
@@ -101,19 +99,9 @@ func set_tile_info(cell: Vector2i, terrain: String, occupant: String,
 		t += "\n▶ %s" % occupant
 	_tile_info.text = t
 
-## Pushes the live economy each frame: stockpile with per-second rates, power
-## supply vs. demand, and the current speed.
-func set_economy(stock: Dictionary, rates: Dictionary, power_produced: int,
-		power_consumed: int, speed: float) -> void:
-	var lines := []
-	for r in stock:
-		var rate: float = rates.get(r, 0.0)
-		var suffix := ""
-		if absf(rate) > 0.001:
-			suffix = "  %+.1f/s" % rate
-		lines.append("%s  %d%s" % [r, int(stock[r]), suffix])
-	_stock_info.text = "\n".join(lines) if not lines.is_empty() else "—"
-
+## Pushes the live power balance and speed each frame. The stockpile lives in the
+## top resource bar now, not here.
+func set_economy(power_produced: int, power_consumed: int, speed: float) -> void:
 	var deficit := power_consumed > power_produced
 	_power_info.text = "%d / %d used" % [power_consumed, power_produced]
 	_power_info.add_theme_color_override("font_color",
