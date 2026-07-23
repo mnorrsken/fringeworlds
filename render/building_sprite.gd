@@ -19,14 +19,18 @@ var _ghost := false
 var _valid := true
 var _smoke := false
 var _dimmed := false
+var _texture: Texture2D = null   # when set, drawn instead of the procedural block
 var _t := 0.0            # animation clock (seconds)
 var _redraw_accum := 0.0
 
-func configure(color: Color, cells: Array, ghost := false, smoke := false) -> void:
+func configure(color: Color, cells: Array, ghost := false, smoke := false,
+		texture: Texture2D = null) -> void:
 	_color = color
 	_ghost = ghost
-	_smoke = smoke and not ghost
-	set_process(not ghost)  # placed buildings animate; the ghost is static
+	_texture = texture
+	# Textured buildings are static (no procedural lamps/smoke to animate).
+	_smoke = smoke and not ghost and texture == null
+	set_process(not ghost and texture == null)
 	_update_modulate()
 	set_cells(cells)
 
@@ -74,11 +78,22 @@ func _update_modulate() -> void:
 		modulate = Color.WHITE
 
 func _draw() -> void:
+	if _texture != null:
+		_draw_texture_sprite()
+		return
 	# Back-to-front within this sprite (matters only for the multi-cell ghost).
 	var ordered := _cells.duplicate()
 	ordered.sort_custom(func(a, b): return (a.x + a.y) < (b.x + b.y))
 	for c in ordered:
 		_draw_block(c)
+
+# Draws the art anchored so its bottom-centre footprint diamond sits on the tile
+# (position is already the front cell's centre). The structure rises upward into
+# the transparent space above, and the y-sorted parent handles occlusion.
+func _draw_texture_sprite() -> void:
+	var off := -Vector2(_texture.get_width() / 2.0,
+		_texture.get_height() - IsoGrid.TILE_H / 2.0)
+	draw_texture(_texture, off)
 
 func _draw_block(cell: Vector2i) -> void:
 	var hw := IsoGrid.TILE_W / 2.0

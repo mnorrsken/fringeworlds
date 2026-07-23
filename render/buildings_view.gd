@@ -4,7 +4,8 @@ extends Node2D
 ## sprite per footprint cell, so the y-sorted parent depth-sorts each tile
 ## individually. This is only a view — it holds no game state.
 
-var _sprites: Dictionary = {}  # building instance id -> Array[BuildingSprite]
+var _sprites: Dictionary = {}   # building instance id -> Array[BuildingSprite]
+var _textures: Dictionary = {}  # sprite path -> Texture2D (cached)
 
 ## Connect to sim events and spawn sprites for any buildings already placed.
 func bind() -> void:
@@ -26,17 +27,34 @@ func _on_ticked(_tick: int) -> void:
 func _on_placed(inst: Dictionary) -> void:
 	var def: Dictionary = Defs.buildings[inst.type]
 	var color: Color = def.get("color_value", Color.WHITE)
-	# Industrial buildings emit smoke — but only from the front-most cell, so a
-	# multi-tile building has one plume, not one per tile.
-	var smoke: bool = def.get("smoke", false)
-	var front := _front_cell(inst.cells)
+	var tex := _load_texture(str(def.get("sprite", "")))
 	var sprites := []
-	for cell in inst.cells:
+	if tex != null:
+		# Art-backed building: one sprite for the whole footprint, anchored at the
+		# front cell; the y-sorted parent occludes buildings behind it.
 		var spr := BuildingSprite.new()
 		add_child(spr)
-		spr.configure(color, [cell], false, smoke and cell == front)
+		spr.configure(color, inst.cells, false, false, tex)
 		sprites.append(spr)
+	else:
+		# Procedural fallback: one block per footprint cell (per-tile depth sort);
+		# smoke only from the front cell so a multi-tile building has one plume.
+		var smoke: bool = def.get("smoke", false)
+		var front := _front_cell(inst.cells)
+		for cell in inst.cells:
+			var spr := BuildingSprite.new()
+			add_child(spr)
+			spr.configure(color, [cell], false, smoke and cell == front)
+			sprites.append(spr)
 	_sprites[inst.id] = sprites
+
+# Loads (and caches) a building's art texture, or null if it has none / is missing.
+func _load_texture(path: String) -> Texture2D:
+	if path == "":
+		return null
+	if not _textures.has(path):
+		_textures[path] = load(path) if ResourceLoader.exists(path) else null
+	return _textures[path]
 
 func _front_cell(cells: Array) -> Vector2i:
 	var front: Vector2i = cells[0]

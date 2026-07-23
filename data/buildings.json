@@ -2,9 +2,10 @@
   {
     "id": "hub", "name": "Colony Hub", "size": 2,
     "cost": { "metal": 40 }, "power": 15, "workers": 0,
-    "capacity": 4, "life_support": 4, "smoke": true,
+    "capacity": 4, "life_support": 4,
     "scan": { "max_radius": 6, "ticks_per_ring": 2 },
     "guarantees_deposit": "IRON",
+    "sprite": "res://assets/hub.png",
     "allowed_terrain": ["REGOLITH"],
     "color": "e8c15a",
     "desc": "The colony's heart. Sustains its first 4 colonists, generates power, surveys the area, and guarantees nearby iron ore. Build this first."
@@ -39,6 +40,7 @@
     "cost": { "metal": 20 }, "power": -4, "workers": 0,
     "requires_built": ["ice_harvester"],
     "recipe": { "inputs": { "water": 1 }, "outputs": { "oxygen": 1 }, "ticks": 3 },
+    "sprite": "res://assets/electrolyzer.png",
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "5ac4b0",
     "desc": "Water into oxygen. Automated. 4 power."
@@ -48,6 +50,7 @@
     "cost": { "metal": 20 }, "power": -3, "workers": 0,
     "requires_built": ["ice_harvester"],
     "recipe": { "inputs": { "water": 1 }, "outputs": { "food": 1 }, "ticks": 3 },
+    "sprite": "res://assets/hydroponics.png",
     "allowed_terrain": ["REGOLITH"],
     "color": "6bbf59",
     "desc": "Water into food. Automated. 3 power."
@@ -67,15 +70,17 @@
     "requires_built": ["hub"],
     "requires_deposit": ["IRON", "COPPER"],
     "mine": { "base_per_tick": 0.5 },
+    "sprite": "res://assets/miner.png",
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "b0623a",
     "desc": "On a confirmed ore deposit. Automated. Faster on richer tiles."
   },
   {
-    "id": "smelter", "name": "Smelter", "size": 2,
-    "cost": { "metal": 25 }, "power": -4, "workers": 2, "smoke": true,
+    "id": "smelter", "name": "Smelter", "size": 1,
+    "cost": { "metal": 25 }, "power": -4, "workers": 2,
     "requires_built": ["mine"],
     "recipe": { "inputs": { "iron_ore": 2 }, "outputs": { "metal": 1 }, "ticks": 2 },
+    "sprite": "res://assets/smelter.png",
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "c4693a",
     "desc": "Iron ore into metal. Needs 2 colonists, 4 power."
