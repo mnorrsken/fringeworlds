@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cnl0i22w0nrvt"
-path="res://.godot/imported/hub.png-8a46d3cb78dec7a5b41fb65e99523ce0.ctex"
+uid="uid://ca134igc8fd6p"
+path="res://.godot/imported/habitat.png-6de8cbe5c79abf28305d8cdcf2b414ec.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/hub.png"
-dest_files=["res://.godot/imported/hub.png-8a46d3cb78dec7a5b41fb65e99523ce0.ctex"]
+source_file="res://assets/habitat.png"
+dest_files=["res://.godot/imported/habitat.png-6de8cbe5c79abf28305d8cdcf2b414ec.ctex"]
 
 [params]
 

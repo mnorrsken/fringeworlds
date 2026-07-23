@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cnl0i22w0nrvt"
-path="res://.godot/imported/hub.png-8a46d3cb78dec7a5b41fb65e99523ce0.ctex"
+uid="uid://dugoonlenfyjl"
+path="res://.godot/imported/prospector.png-c25c78102f84166035ca9f0abfc6c15e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/hub.png"
-dest_files=["res://.godot/imported/hub.png-8a46d3cb78dec7a5b41fb65e99523ce0.ctex"]
+source_file="res://assets/prospector.png"
+dest_files=["res://.godot/imported/prospector.png-c25c78102f84166035ca9f0abfc6c15e.ctex"]
 
 [params]
 
