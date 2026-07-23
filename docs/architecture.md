@@ -205,7 +205,14 @@ far:
   block is used): `hub`, `mine`, `smelter`, `electrolysis_plant`, and
   `hydroponics_farm` have art so far, the other six buildings don't yet.
   `smelter`'s `size` also shrank 2→1 to match its 1×1 art
-  (cost/workers/power/recipe unchanged). Adding a
+  (cost/workers/power/recipe unchanged). A second wave wired the
+  remaining six (`solar_panel`, `survey_station`, `crystal_extractor`,
+  `habitat`, `parts_factory`, `ice_harvester`), so **all 11 buildings now
+  have `sprite`** — `survey_station`'s `size` shrank 2→1 the same way as
+  `smelter`'s did, so `hub`, `habitat`, and `hydroponics_farm` are now the
+  only 2×2 buildings left. The last `smoke: true` flag (`parts_factory`)
+  was removed once its art shipped its own smokestacks — no building
+  declares `smoke` anymore. Adding a
   building, or a recipe/scan/mine/requires_built block to an existing one,
   is a matter of editing JSON — no script changes needed, since
   `Colony.tick()`, `BuildingsView`, and the sidebar's build menu all read
@@ -742,6 +749,15 @@ same map.
   irrelevant for a textured sprite (see `BuildingSprite` above) so it's
   passed `false`.
 
+  Since the second Milestone 8 asset-integration wave gave every one of
+  the 11 shipped buildings a `sprite`, the **procedural block path**
+  described above (dithered blocks, roof panel, blinking lamps, smoke
+  puffs, and `BuildingsView`'s per-footprint-cell spawning) is no longer
+  exercised by any shipped building — it remains only as a fallback for
+  robustness, or for any future building added without art. Terrain
+  rendering is unaffected: `TerrainView`'s dithered/animated atlas and
+  `Palette` are still fully procedural and very much live.
+
 The placement ghost is the one place still using a single multi-cell
 `BuildingSprite`: `main.gd`'s `_ghost` is configured with the *entire*
 `Sim.colony.footprint(type_id, origin)` array in one `configure()`/
@@ -1011,18 +1027,20 @@ main.gd / main.tscn   In-game scene and controller
 menu.gd / menu.tscn   Main menu (project's run/main_scene): new/continue/load/quit
 ```
 
-`assets/` (Milestone 8 asset-integration step) now holds the project's
-first committed art: 5 PixelLab-made building PNGs (`hub`, `miner`,
-`smelter`, `electrolyzer`, `hydroponics`) plus their Godot `.png.import`
-sidecars — the sidecars aren't gitignored (only `.godot/` is) since Godot
-needs them to know how to import each texture. Authoring convention: the
-footprint diamond sits at the **bottom** of the canvas, horizontally
-centred, with the structure rising into transparent space above (matches
+`assets/` (Milestone 8 asset-integration step) holds the project's
+committed art: PixelLab-made PNGs for **all 11 buildings** — `hub`,
+`mine`, `smelter`, `electrolysisplant`, `hydroponics` (first wave) plus
+`solar`, `prospector`, `crystalextractor`, `habitat`, `partsfactory`,
+`iceharvester` (second wave) — plus their Godot `.png.import` sidecars;
+the sidecars aren't gitignored (only `.godot/` is) since Godot needs them
+to know how to import each texture. Authoring convention: the footprint
+diamond sits at the **bottom** of the canvas, horizontally centred, with
+the structure rising into transparent space above (matches
 `BuildingSprite`'s bottom-vertex anchoring — see "Rendering and camera"
 below); RGBA PNG at the tile's native pixel size (64×64 for a 1×1
 footprint, 128×128 for 2×2), since the project runs nearest-neighbor
-filtering with pixel snap. The other six buildings, and audio, still
-render/play procedurally — see `docs/progress.md`.
+filtering with pixel snap. Only audio still remains outside this pass —
+see `docs/progress.md`.
 
 ## Running and testing
 

@@ -50,11 +50,9 @@ Current test count: **835 assertions across 70 tests, 0 failures** (`make test`)
   base 4 colonists for free, prospects, and guarantees a reachable iron
   deposit, replacing the earlier "large starting stockpile" safety net
   with a structural one.
-- **M8 — Retro art pass & audio — in progress.** Procedural pass done: a
-  shared warm palette (`render/palette.gd`), dithered/raised/animated
-  terrain tiles, and buildings with roof detail + blinking lamps + smoke.
-  Asset integration started: `BuildingSprite`/`BuildingsView` can render a
-  real texture per building, and 5 of 11 buildings (hub, mine, smelter,
-  electrolysis plant, hydroponics farm) now use custom PixelLab art under
-  `assets/`. Remaining six buildings and audio still pending.
+- **M8 — Retro art pass & audio — in progress.** Terrain and building art
+  both done: a shared warm palette (`render/palette.gd`),
+  dithered/raised/animated terrain tiles, and all 11 buildings render
+  custom PixelLab art under `assets/` (procedural block rendering remains
+  only as a fallback). Audio is the only piece still pending.
 - **M9 — Balance, polish, v2 hooks — pending.**

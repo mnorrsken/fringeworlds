@@ -140,7 +140,7 @@ the game-over screen to start a fresh colony.
 | Solar Panel | 1×1 | 10 metal | +15 | 0 | — | Hub | Regolith, Highlands |
 | Habitat | 2×2 | 30 metal | −2 | 0 | houses +6 colonists | Hub | Regolith |
 | Ice Harvester | 1×1 | 15 metal | −5 | 0 | 1 water / 4 ticks (no inputs) | Hub | Ice |
-| Survey Station | 2×2 | 25 metal | −3 | 0 | scans outward, ring every 2 ticks, radius 7 | Hub | Regolith, Highlands |
+| Survey Station | 1×1 | 25 metal | −3 | 0 | scans outward, ring every 2 ticks, radius 7 | Hub | Regolith, Highlands |
 | Electrolysis Plant | 1×1 | 20 metal | −4 | 0 | water → 1 oxygen / 3 ticks | Ice Harvester | Regolith, Highlands |
 | Hydroponics Farm | 2×2 | 20 metal | −3 | 0 | water → 1 food / 3 ticks | Ice Harvester | Regolith |
 | Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore, `0.5 × richness` / tick | Hub | confirmed Iron or Copper |
@@ -187,10 +187,9 @@ a main menu (New Game/Continue/Load/Quit) and the full sim state can be
 saved/loaded, with autosave every ~3 minutes. Milestone 8's visual half is
 done — a retro art pass gives terrain dithered, raised, animated tiles and
 buildings idle lamp/smoke animation, all in one warm palette
-(`render/palette.gd`); five buildings (Hub, Mine, Smelter, Electrolysis
-Plant, Hydroponics Farm) now render custom PixelLab sprites instead of the
-procedural block, with the rest still pending art — audio also still
-pending. See
+(`render/palette.gd`), and all 11 buildings now render custom PixelLab
+sprites instead of the procedural block (the procedural path remains only
+as a fallback). Audio is the only piece of Milestone 8 still pending. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

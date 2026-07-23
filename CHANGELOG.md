@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 8 — Building art integration, part 2** (2026-07-23)
+  - `data/buildings.json`: the remaining six buildings — solar panel,
+    survey station, crystal extractor, habitat, parts factory, ice
+    harvester — gained a `sprite` field, so **all 11 buildings now render
+    custom PixelLab art**. Refreshed `hub.png` art. `survey_station`
+    footprint reduced 2×2→1×1 to match its art (cost/power/scan/prereqs
+    unchanged); the only remaining 2×2 buildings are `hub`, `habitat`,
+    `hydroponics_farm`. Removed the last `smoke: true` flag
+    (`parts_factory`) — its art carries its own smokestacks.
+  - New `assets/`: `solar.png`, `iceharvester.png`, `crystalextractor.png`
+    (64×64), `habitat.png`, `partsfactory.png` (128×128), plus `.import`
+    sidecars.
+  - The procedural building-block path (dithered blocks, blinking lamps,
+    smoke puffs) is now a fallback exercised by no shipped building — kept
+    for robustness / future spriteless buildings.
+  - Only audio remains pending for Milestone 8. No sim/test changes — full
+    suite still 835 assertions across 70 tests, 0 failures (`make test`).
+
 - **Milestone 8 — Building art integration** (2026-07-23)
   - `render/building_sprite.gd`: `BuildingSprite`/`configure()` gained an
     optional `Texture2D` arg; when set, it draws that texture instead of
