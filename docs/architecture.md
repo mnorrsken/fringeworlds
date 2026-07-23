@@ -197,9 +197,15 @@ far:
   (`workers`/`capacity`/`life_support`/`requires_built` need no
   preprocessing — `Colony` reads them as plain ints/arrays). The
   Milestone 8 art pass added `smoke` (bool, purely cosmetic — read only
-  by `BuildingsView`, not `Colony`; `true` on `hub`, `smelter`, and
-  `parts_factory`, the industrial buildings) for the exhaust-puff
-  animation described under "Rendering and camera" below. Adding a
+  by `BuildingsView`, not `Colony`; procedural buildings only — cleared
+  from any building that later gained real art) for the exhaust-puff
+  animation described under "Rendering and camera" below. The Milestone 8
+  asset-integration step added `sprite` (a `res://assets/*.png` path,
+  optional — read only by `BuildingsView`; unset means the procedural
+  block is used): `hub`, `mine`, `smelter`, `electrolysis_plant`, and
+  `hydroponics_farm` have art so far, the other six buildings don't yet.
+  `smelter`'s `size` also shrank 2→1 to match its 1×1 art
+  (cost/workers/power/recipe unchanged). Adding a
   building, or a recipe/scan/mine/requires_built block to an existing one,
   is a matter of editing JSON — no script changes needed, since
   `Colony.tick()`, `BuildingsView`, and the sidebar's build menu all read
@@ -693,6 +699,17 @@ same map.
   the lamps and stops the smoke, so a shut-down building reads as
   visibly "off". The ghost stays flat and static (no `_process`, no
   lamps/smoke) since it never carries `smoke: true`.
+
+  **Textured path (Milestone 8 asset integration)**: `configure()` takes a
+  5th optional arg, `texture: Texture2D`. When set, `_draw()` calls
+  `_draw_texture_sprite()` instead of the procedural block path entirely —
+  no roof panel, edge lines, lamps, or smoke; `set_process(false)` so it
+  never redraw-animates. The art is anchored so its **bottom-centre sits
+  on the front cell's bottom vertex**: `offset = -(width/2, height -
+  IsoGrid.TILE_H/2)`. This one formula works for any footprint size
+  because a footprint diamond's bottom vertex is shared with its front
+  (max `x+y`) cell's bottom vertex, so both a 1×1 (64×64 art) and a 2×2
+  (128×128 art) building seat correctly with no per-size branching.
 - `render/buildings_view.gd` (`BuildingsView`, extends `Node2D`) — also
   updated in the same pass: `_on_placed(inst)` now spawns **one
   `BuildingSprite` per footprint cell** (`spr.configure(color, [cell],
@@ -712,6 +729,18 @@ same map.
   passes it to `configure()` only for the sprite at the footprint's
   front-most cell (`_front_cell`, largest `x + y`), so a multi-tile
   building emits a single smoke plume rather than one per tile.
+
+  **Textured path (Milestone 8 asset integration)**: `_on_placed` also
+  reads the def's `sprite` field through a cached `_load_texture(path)`
+  (`_textures: Dictionary`, path → `Texture2D`; returns `null` — the
+  procedural-fallback signal — for an empty path or a missing file, via
+  `ResourceLoader.exists`). When a texture is found, `_on_placed` spawns a
+  **single** `BuildingSprite` for the whole footprint (`configure(color,
+  inst.cells, false, false, tex)`) instead of one sprite per cell;
+  occlusion against neighboring buildings still comes for free from the
+  `Buildings` layer's y-sort, same as the procedural path. `smoke` is
+  irrelevant for a textured sprite (see `BuildingSprite` above) so it's
+  passed `false`.
 
 The placement ghost is the one place still using a single multi-cell
 `BuildingSprite`: `main.gd`'s `_ghost` is configured with the *entire*
@@ -976,14 +1005,24 @@ data/       JSON content definitions: resources.json, buildings.json
 sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd, alerts.gd
 render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd, palette.gd
 ui/         Screen-space UI: sidebar.gd / sidebar.tscn, resource_bar.gd, alert_ticker.gd
+assets/     Committed art (PNG + Godot .import sidecars)
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
 main.gd / main.tscn   In-game scene and controller
 menu.gd / menu.tscn   Main menu (project's run/main_scene): new/continue/load/quit
 ```
 
-`assets/` from the plan's suggested layout doesn't exist yet — it arrives
-with Milestone 8 (custom art/audio); all art through Milestone 2 is drawn
-procedurally in code.
+`assets/` (Milestone 8 asset-integration step) now holds the project's
+first committed art: 5 PixelLab-made building PNGs (`hub`, `miner`,
+`smelter`, `electrolyzer`, `hydroponics`) plus their Godot `.png.import`
+sidecars — the sidecars aren't gitignored (only `.godot/` is) since Godot
+needs them to know how to import each texture. Authoring convention: the
+footprint diamond sits at the **bottom** of the canvas, horizontally
+centred, with the structure rising into transparent space above (matches
+`BuildingSprite`'s bottom-vertex anchoring — see "Rendering and camera"
+below); RGBA PNG at the tile's native pixel size (64×64 for a 1×1
+footprint, 128×128 for 2×2), since the project runs nearest-neighbor
+filtering with pixel snap. The other six buildings, and audio, still
+render/play procedurally — see `docs/progress.md`.
 
 ## Running and testing
 

@@ -144,7 +144,7 @@ the game-over screen to start a fresh colony.
 | Electrolysis Plant | 1×1 | 20 metal | −4 | 0 | water → 1 oxygen / 3 ticks | Ice Harvester | Regolith, Highlands |
 | Hydroponics Farm | 2×2 | 20 metal | −3 | 0 | water → 1 food / 3 ticks | Ice Harvester | Regolith |
 | Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore, `0.5 × richness` / tick | Hub | confirmed Iron or Copper |
-| Smelter | 2×2 | 25 metal | −4 | 2 | 2 iron ore → 1 metal / 2 ticks | Mine | Regolith, Highlands |
+| Smelter | 1×1 | 25 metal | −4 | 2 | 2 iron ore → 1 metal / 2 ticks | Mine | Regolith, Highlands |
 | Parts Factory | 2×2 | 35 metal | −5 | 3 | 2 metal + 1 copper ore → 1 parts / 4 ticks | Smelter | Regolith, Highlands |
 | Crystal Extractor | 1×1 | 20 metal + 8 parts | −6 | 2 | xenite, `0.25 × richness` / tick | Parts Factory | confirmed Xenite |
 
@@ -187,7 +187,10 @@ a main menu (New Game/Continue/Load/Quit) and the full sim state can be
 saved/loaded, with autosave every ~3 minutes. Milestone 8's visual half is
 done — a retro art pass gives terrain dithered, raised, animated tiles and
 buildings idle lamp/smoke animation, all in one warm palette
-(`render/palette.gd`) — audio is still pending. See
+(`render/palette.gd`); five buildings (Hub, Mine, Smelter, Electrolysis
+Plant, Hydroponics Farm) now render custom PixelLab sprites instead of the
+procedural block, with the rest still pending art — audio also still
+pending. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

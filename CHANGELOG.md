@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 8 — Building art integration** (2026-07-23)
+  - `render/building_sprite.gd`: `BuildingSprite`/`configure()` gained an
+    optional `Texture2D` arg; when set, it draws that texture instead of
+    the procedural block, anchored so the art's bottom-centre sits on the
+    front footprint cell's bottom vertex (one formula, works at any
+    footprint size). Textured sprites are static — no lamps/smoke.
+  - `render/buildings_view.gd`: loads/caches each building's `sprite` def
+    path and spawns one sprite for the whole footprint when art exists,
+    falling back to the procedural per-cell blocks otherwise. Occlusion
+    still comes from the existing y-sorted `Buildings` layer.
+  - `data/buildings.json`: new `sprite` field on 5 of 11 buildings — hub,
+    mine, smelter, electrolysis plant, hydroponics farm now render custom
+    PixelLab art (`assets/*.png`). Smelter's footprint reduced 2×2→1×1 to
+    match its art (cost/workers/power/recipe unchanged). Six buildings
+    (solar panel, habitat, ice harvester, survey station, parts factory,
+    crystal extractor) still render procedurally, pending art.
+  - New `assets/` folder: 5 PNGs + Godot `.import` sidecars.
+  - No sim/test changes — full suite still 835 assertions across 70
+    tests, 0 failures (`make test`).
+
 - **Milestone 8 (visual half) — Retro art pass** (2026-07-22)
   - New `render/palette.gd` (`Palette`): one shared warm "regolith"
     dusty-brown/ochre colour family with amber highlights, plus cool cyan
