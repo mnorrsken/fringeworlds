@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **835 assertions across 70 tests, 0 failures** (`make test`).
+Current test count: **991 assertions across 76 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -54,5 +54,7 @@ Current test count: **835 assertions across 70 tests, 0 failures** (`make test`)
   both done: a shared warm palette (`render/palette.gd`),
   dithered/raised/animated terrain tiles, and all 11 buildings render
   custom PixelLab art under `assets/` (procedural block rendering remains
-  only as a fallback). Audio is the only piece still pending.
+  only as a fallback), each now with data-driven `BuildingFX` overlays
+  (particle plumes/vents/dust/sparks/shimmer, blinking lamps, glows) so the
+  static art reads as alive. Audio is the only piece still pending.
 - **M9 — Balance, polish, v2 hooks — pending.**

@@ -8,6 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Building FX overlays** (2026-07-25)
+  - New `render/building_fx.gd` (`BuildingFX`): data-driven decorative
+    overlays anchored on building art, so static sprites feel alive without
+    animating the art itself. Seven kinds (`BuildingFX.TYPES`): `smoke`,
+    `steam`, `dust`, `sparks`, `shimmer` (CPUParticles2D, sharing one
+    procedurally-built puff texture) plus drawn `lamp` (blinking beacon,
+    `lamp_intensity(t, period, duty)` gives the blink curve) and `glow`
+    (pulsing bloom). `set_active(false)` stops emitters and darkens lamps.
+  - `data/buildings.json`: new optional `fx` array per building (`at` is a
+    pixel offset from the sprite's anchor, plus per-entry color/rate/scale/
+    alpha/period/duty/radius overrides). All 11 buildings now have fx —
+    beacon/status lamps, smokestack plumes, vent steam, ground dust, furnace
+    embers and glow, crystal shimmer.
+  - `sim/defs.gd`: preprocesses each fx entry's `color` hex into
+    `color_value` (Defs doesn't validate effect kinds — the renderer owns
+    those).
+  - `render/buildings_view.gd`: `_attach_fx()` parents a `BuildingFX` to an
+    art-backed building's sprite, phase-offset by building id so identical
+    buildings don't blink/puff in lockstep. `render/building_sprite.gd`:
+    `attach_fx()`; `set_dimmed()` now also stops/darkens the fx, so a
+    shut-down building stops venting and its lights go dark.
+  - New `tests/test_building_fx.gd`: fx JSON contract (known types, anchors
+    land on the sprite, valid hex colors/positive periods, fx only on
+    buildings with art) and the lamp blink curve. Full suite: 991
+    assertions across 76 tests, 0 failures (`make test`).
+
 - **Milestone 8 — Building art integration, part 2** (2026-07-23)
   - `data/buildings.json`: the remaining six buildings — solar panel,
     survey station, crystal extractor, habitat, parts factory, ice

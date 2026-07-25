@@ -73,7 +73,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**835 assertions across 70 tests, 0 failures.**
+**991 assertions across 76 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make clean` (remove the generated
@@ -189,7 +189,10 @@ done — a retro art pass gives terrain dithered, raised, animated tiles and
 buildings idle lamp/smoke animation, all in one warm palette
 (`render/palette.gd`), and all 11 buildings now render custom PixelLab
 sprites instead of the procedural block (the procedural path remains only
-as a fallback). Audio is the only piece of Milestone 8 still pending. See
+as a fallback), each now dressed with data-driven FX overlays (plumes,
+vents, dust, sparks, shimmer, blinking lamps, glows —
+`render/building_fx.gd`) that go dark when the building shuts down. Audio
+is the only piece of Milestone 8 still pending. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

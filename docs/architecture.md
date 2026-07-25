@@ -212,9 +212,15 @@ far:
   `smelter`'s did, so `hub`, `habitat`, and `hydroponics_farm` are now the
   only 2×2 buildings left. The last `smoke: true` flag (`parts_factory`)
   was removed once its art shipped its own smokestacks — no building
-  declares `smoke` anymore. Adding a
-  building, or a recipe/scan/mine/requires_built block to an existing one,
-  is a matter of editing JSON — no script changes needed, since
+  declares `smoke` anymore. The building-FX pass added an optional `fx`
+  array (see "`BuildingFX` — decorative overlays" below): each entry is
+  `{type, at, ...}` where `type` is one of `BuildingFX.TYPES` and `at` is a
+  `[x, y]` pixel offset from the sprite's anchor; `Defs` only preprocesses
+  an entry's `color` hex into `color_value` (mirroring the top-level
+  `color`/`color_value` pattern) and does not validate `type` — the
+  renderer owns that. All 11 buildings now declare `fx`. Adding a
+  building, or a recipe/scan/mine/requires_built/fx block to an existing
+  one, is a matter of editing JSON — no script changes needed, since
   `Colony.tick()`, `BuildingsView`, and the sidebar's build menu all read
   generically off the def dictionary.
 
@@ -757,6 +763,55 @@ same map.
   robustness, or for any future building added without art. Terrain
   rendering is unaffected: `TerrainView`'s dithered/animated atlas and
   `Palette` are still fully procedural and very much live.
+
+### `BuildingFX` — decorative overlays on art-backed buildings
+
+`render/building_fx.gd` (`BuildingFX`, `Node2D`) is how a static, textured
+building sprite still reads as alive: smokestack plumes, vent steam,
+ground dust, ember sparks, crystal shimmer, blinking warning lamps, and
+soft pulsing glows, all driven by a building def's optional `fx` array
+(see "Data-driven content" above) rather than hand-authored per building.
+
+- **`configure(specs: Array, phase := 0.0)`** builds one node per spec.
+  `smoke`/`steam`/`dust`/`sparks`/`shimmer` become `CPUParticles2D`
+  emitters (`_make_emitter`), each a tuned preset (direction, spread,
+  velocity, gravity, scale-over-life curve, color) that every entry's
+  optional `color`/`rate`/`scale`/`alpha`/`life_scale` overrides; all five
+  share one 8×8 procedurally-drawn soft-disc puff texture (`_puff()`,
+  built once, cached in a `static var`) rather than an asset file. `lamp`
+  and `glow` aren't particles — cheap enough to just draw directly in
+  `_draw()` each frame — and are stored as plain dictionaries in `_lamps`/
+  `_glows` instead. `phase` (seconds) offsets every emitter/lamp/glow's
+  cycle so identical buildings in a row don't blink or puff in lockstep;
+  `BuildingsView` derives it from the building's instance id.
+- **Anchoring**: a `BuildingFX` is parented directly onto the building's
+  `BuildingSprite` (see `attach_fx()` below), which already sits at the
+  sprite's own anchor — the bottom-centre of its front footprint cell (see
+  the textured-path anchoring formula above). So an `fx` entry's `at` is
+  simply a pixel position measured in the source PNG minus that same
+  anchor offset: `at = pixel_in_png - (tex_w/2, tex_h - IsoGrid.TILE_H/2)`.
+  `tests/test_building_fx.gd` checks every shipped `at` lands within the
+  sprite's declared `size` in pixels, catching a mis-measured offset.
+- **`lamp_intensity(t, period, duty)`** (`static`) is the blink curve: a
+  `smoothstep`-shaped bump that peaks at the middle of the `duty` fraction
+  of each `period` and is fully dark for the rest of the cycle — reads as
+  a ramping beacon flash rather than a hard on/off toggle. `_draw_lamp`
+  layers a soft halo under the bulb when lit; `_draw_glow` layers three
+  nested discs pulsing on a `sin` cycle for a furnace-mouth/crystal-hopper
+  bloom.
+- **`set_active(active: bool)`** stops/resumes emitter `emitting` and
+  darkens/relights lamps and glows (glows simply don't draw while
+  inactive). `render/building_sprite.gd`'s `attach_fx(fx)` parents a
+  `BuildingFX` as a child (so it shares the sprite's y-sort depth), and
+  `set_dimmed(dimmed)` now also calls `fx.set_active(not dimmed)` — the
+  same shut-down signal that greys out the sprite also stops its vents and
+  darkens its lights.
+- **`render/buildings_view.gd`**'s `_attach_fx(spr, def, id)` reads the
+  def's `fx` array and, if non-empty, builds one `BuildingFX`,
+  `spr.attach_fx()`s it, then `configure()`s it with `phase = id * 0.37`.
+  It's only called on the textured (art-backed) path — the procedural
+  block fallback keeps its own built-in lamps/smoke instead, so a building
+  never gets both.
 
 The placement ghost is the one place still using a single multi-cell
 `BuildingSprite`: `main.gd`'s `_ghost` is configured with the *entire*
