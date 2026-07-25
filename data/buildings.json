@@ -6,6 +6,10 @@
     "scan": { "max_radius": 6, "ticks_per_ring": 2 },
     "guarantees_deposit": "IRON",
     "sprite": "res://assets/hub.png",
+    "fx": [
+      { "type": "lamp", "at": [0, -81], "color": "ff4a3a", "period": 1.8, "duty": 0.22, "radius": 1.8 },
+      { "type": "lamp", "at": [31, -60], "color": "ffd97a", "period": 2.6, "duty": 0.3 }
+    ],
     "allowed_terrain": ["REGOLITH"],
     "color": "e8c15a",
     "desc": "The colony's heart. Sustains its first 4 colonists, generates power, surveys the area, and guarantees nearby iron ore. Build this first."
@@ -15,6 +19,9 @@
     "cost": { "metal": 10 }, "power": 15, "workers": 0,
     "requires_built": ["hub"],
     "sprite": "res://assets/solar.png",
+    "fx": [
+      { "type": "lamp", "at": [20, -14], "color": "7ee06a", "period": 3.2, "duty": 0.12, "radius": 1.3 }
+    ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "e0b64a",
     "desc": "Generates 15 power. Cheap and steady. Automated."
@@ -24,6 +31,10 @@
     "cost": { "metal": 30 }, "power": -2, "workers": 0, "capacity": 6,
     "requires_built": ["hub"],
     "sprite": "res://assets/habitat.png",
+    "fx": [
+      { "type": "steam", "at": [-6, -70], "rate": 6, "scale": 0.8, "alpha": 0.45 },
+      { "type": "lamp", "at": [13, -64], "color": "ffd97a", "period": 2.6, "duty": 0.25 }
+    ],
     "allowed_terrain": ["REGOLITH"],
     "color": "5a86c4",
     "desc": "Houses +6 colonists. Uses 2 power."
@@ -34,6 +45,10 @@
     "requires_built": ["hub"],
     "recipe": { "inputs": {}, "outputs": { "water": 1 }, "ticks": 4 },
     "sprite": "res://assets/iceharvester.png",
+    "fx": [
+      { "type": "steam", "at": [-1, -41], "rate": 8 },
+      { "type": "glow", "at": [-1, -16], "color": "ff8a3a", "radius": 7, "alpha": 0.5, "period": 1.4 }
+    ],
     "allowed_terrain": ["ICE"],
     "color": "7cc7d6",
     "desc": "Water from ice. Automated. 5 power."
@@ -44,6 +59,10 @@
     "requires_built": ["ice_harvester"],
     "recipe": { "inputs": { "water": 1 }, "outputs": { "oxygen": 1 }, "ticks": 3 },
     "sprite": "res://assets/electrolyzer.png",
+    "fx": [
+      { "type": "steam", "at": [-13, -29], "rate": 6, "scale": 0.85 },
+      { "type": "steam", "at": [11, -29], "rate": 6, "scale": 0.85 }
+    ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "5ac4b0",
     "desc": "Water into oxygen. Automated. 4 power."
@@ -54,6 +73,10 @@
     "requires_built": ["ice_harvester"],
     "recipe": { "inputs": { "water": 1 }, "outputs": { "food": 1 }, "ticks": 3 },
     "sprite": "res://assets/hydroponics.png",
+    "fx": [
+      { "type": "steam", "at": [30, -28], "color": "cfe8d2", "rate": 5, "scale": 1.0, "life_scale": 1.4, "alpha": 0.4 },
+      { "type": "glow", "at": [-8, -45], "color": "ff6ad5", "radius": 14, "alpha": 0.4, "period": 4.0 }
+    ],
     "allowed_terrain": ["REGOLITH"],
     "color": "6bbf59",
     "desc": "Water into food. Automated. 3 power."
@@ -64,6 +87,9 @@
     "requires_built": ["hub"],
     "scan": { "max_radius": 7, "ticks_per_ring": 2 },
     "sprite": "res://assets/prospector.png",
+    "fx": [
+      { "type": "lamp", "at": [-2, -43], "color": "ff4a3a", "period": 1.4, "duty": 0.2, "radius": 1.8 }
+    ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "d98a3a",
     "desc": "Extends prospecting past the hub — find copper and xenite farther out. Scan again to confirm. Automated."
@@ -75,6 +101,10 @@
     "requires_deposit": ["IRON", "COPPER"],
     "mine": { "base_per_tick": 0.5 },
     "sprite": "res://assets/miner.png",
+    "fx": [
+      { "type": "dust", "at": [0, 2], "rate": 10, "scale": 1.4 },
+      { "type": "smoke", "at": [-8, -42], "rate": 5, "scale": 0.8 }
+    ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "b0623a",
     "desc": "On a confirmed ore deposit. Automated. Faster on richer tiles."
@@ -85,6 +115,11 @@
     "requires_built": ["mine"],
     "recipe": { "inputs": { "iron_ore": 2 }, "outputs": { "metal": 1 }, "ticks": 2 },
     "sprite": "res://assets/smelter.png",
+    "fx": [
+      { "type": "smoke", "at": [-9, -38], "rate": 4 },
+      { "type": "sparks", "at": [21, -2], "color": "ffd27a", "rate": 9 },
+      { "type": "glow", "at": [16, -6], "color": "ff7a3a", "radius": 5, "alpha": 0.4, "period": 1.1 }
+    ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "c4693a",
     "desc": "Iron ore into metal. Needs 2 colonists, 4 power."
@@ -95,6 +130,12 @@
     "requires_built": ["smelter"],
     "recipe": { "inputs": { "metal": 2, "copper_ore": 1 }, "outputs": { "parts": 1 }, "ticks": 4 },
     "sprite": "res://assets/partsfactory.png",
+    "fx": [
+      { "type": "smoke", "at": [-34, -80], "color": "8a7e70", "rate": 4 },
+      { "type": "smoke", "at": [-20, -86], "color": "8a7e70", "rate": 3.5, "scale": 0.9 },
+      { "type": "steam", "at": [34, -59], "rate": 4, "scale": 0.8 },
+      { "type": "lamp", "at": [-40, -45], "color": "ff4a3a", "period": 2.2, "duty": 0.18 }
+    ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "8a8f9a",
     "desc": "Metal + copper into parts. Needs 3 colonists, 5 power."
@@ -106,6 +147,10 @@
     "requires_deposit": ["XENITE"],
     "mine": { "base_per_tick": 0.25 },
     "sprite": "res://assets/crystalextractor.png",
+    "fx": [
+      { "type": "shimmer", "at": [12, -18], "rate": 8, "scale": 1.2 },
+      { "type": "glow", "at": [12, -9], "color": "a774c6", "radius": 6, "alpha": 0.55, "period": 2.2 }
+    ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "9a5ac4",
     "desc": "On confirmed xenite. Needs 2 colonists. Yields the beacon resource."

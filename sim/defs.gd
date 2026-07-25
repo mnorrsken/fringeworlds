@@ -34,6 +34,11 @@ func _load_buildings(path: String) -> Dictionary:
 				push_warning("[Defs] building '%s' unknown terrain '%s'" % [id, name])
 		def["allowed_terrain_ids"] = ids
 		def["color_value"] = Color.html(str(def.get("color", "ffffff")))
+		# Decorative overlay effects (render/building_fx.gd) — only the hex
+		# colours are preprocessed here; the renderer owns the effect kinds.
+		for fx in def.get("fx", []):
+			if fx is Dictionary and fx.has("color"):
+				fx["color_value"] = Color.html(str(fx.color))
 		if def.has("requires_deposit"):
 			var deps: Array[int] = []
 			for name in def.requires_deposit:

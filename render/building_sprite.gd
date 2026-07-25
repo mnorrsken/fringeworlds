@@ -20,6 +20,7 @@ var _valid := true
 var _smoke := false
 var _dimmed := false
 var _texture: Texture2D = null   # when set, drawn instead of the procedural block
+var _fx: BuildingFX = null       # optional overlay effects (plumes, lamps)
 var _t := 0.0            # animation clock (seconds)
 var _redraw_accum := 0.0
 
@@ -39,6 +40,12 @@ func set_cells(cells: Array) -> void:
 	_reposition()
 	queue_redraw()
 
+## Parents a BuildingFX overlay to this sprite, so the effects share its depth
+## sort (and its shut-down dimming) instead of sorting as a separate node.
+func attach_fx(fx: BuildingFX) -> void:
+	_fx = fx
+	add_child(fx)
+
 func set_valid(valid: bool) -> void:
 	if valid == _valid:
 		return
@@ -52,6 +59,8 @@ func set_dimmed(dimmed: bool) -> void:
 		return
 	_dimmed = dimmed
 	modulate = Color(0.5, 0.5, 0.55) if dimmed else Color.WHITE
+	if _fx != null:
+		_fx.set_active(not dimmed)
 
 func _process(delta: float) -> void:
 	# Throttle redraws to ~12 fps — plenty for blinking lamps and drifting smoke.

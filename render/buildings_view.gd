@@ -35,6 +35,7 @@ func _on_placed(inst: Dictionary) -> void:
 		var spr := BuildingSprite.new()
 		add_child(spr)
 		spr.configure(color, inst.cells, false, false, tex)
+		_attach_fx(spr, def, int(inst.id))
 		sprites.append(spr)
 	else:
 		# Procedural fallback: one block per footprint cell (per-tile depth sort);
@@ -47,6 +48,19 @@ func _on_placed(inst: Dictionary) -> void:
 			spr.configure(color, [cell], false, smoke and cell == front)
 			sprites.append(spr)
 	_sprites[inst.id] = sprites
+
+# Hangs the def's decorative fx (plumes, dust, blinking lamps) on the sprite.
+# Offsets in the def are relative to the sprite's anchor, so this only applies to
+# art-backed buildings — the procedural block has its own built-in lamps/smoke.
+# The building id seeds the cycle phase so a row of the same building blinks and
+# puffs out of step.
+func _attach_fx(spr: BuildingSprite, def: Dictionary, id: int) -> void:
+	var specs: Array = def.get("fx", [])
+	if specs.is_empty():
+		return
+	var fx := BuildingFX.new()
+	spr.attach_fx(fx)
+	fx.configure(specs, float(id) * 0.37)
 
 # Loads (and caches) a building's art texture, or null if it has none / is missing.
 func _load_texture(path: String) -> Texture2D:
