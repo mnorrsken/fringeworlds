@@ -32,7 +32,7 @@ func test_life_support_consumed(t: Object) -> void:
 func test_starvation_kills_colonists(t: Object) -> void:
 	var c := _colony({})  # no life support at all
 	var start := c.population
-	for i in Colony.STARVE_TICKS + 2:
+	for i in c.balance.starve_ticks + 2:
 		c.tick()
 	t.ok(c.population < start, "colonists die when starved")
 
@@ -40,15 +40,15 @@ func test_growth_when_fed_and_housed(t: Object) -> void:
 	var c := _colony({"oxygen": 100000, "water": 100000, "food": 100000})
 	c.place("hab", Vector2i(1, 1))  # capacity now 4 + 6 = 10
 	var start := c.population
-	for i in Colony.GROWTH_TICKS + 4:
+	for i in c.balance.growth_ticks + 4:
 		c.tick()
 	t.ok(c.population > start, "colonists grow when all needs are met and housed")
 
 func test_no_growth_past_capacity(t: Object) -> void:
-	# No habitat: capacity == BASE_CAPACITY == starting population, so no growth.
+	# No habitat: capacity == base_capacity == starting population, so no growth.
 	var c := _colony({"oxygen": 100000, "water": 100000, "food": 100000})
 	var start := c.population
-	for i in Colony.GROWTH_TICKS * 2:
+	for i in c.balance.growth_ticks * 2:
 		c.tick()
 	t.eq(c.population, start, "no growth when already at capacity")
 
@@ -63,13 +63,14 @@ func test_workforce_idles_understaffed(t: Object) -> void:
 	t.eq(c.workers_used(), 3, "only the staffed factory's workers count")
 
 func test_victory_on_xenite(t: Object) -> void:
-	var c := _colony({"oxygen": 100000, "water": 100000, "food": 100000, "xenite": Colony.VICTORY_XENITE})
+	var c := _colony({"oxygen": 100000, "water": 100000, "food": 100000,
+		"xenite": Balance.new().victory_xenite})
 	c.tick()
 	t.eq(c.status, Colony.Status.WON, "reaching the xenite target wins")
 
 func test_defeat_on_zero_population(t: Object) -> void:
 	var c := _colony({})  # starve to death
-	for i in Colony.STARVE_TICKS * (Colony.STARTING_POPULATION + 1):
+	for i in c.balance.starve_ticks * (c.balance.starting_population + 1):
 		c.tick()
 	t.eq(c.population, 0, "population reaches zero")
 	t.eq(c.status, Colony.Status.LOST, "empty colony is a loss")

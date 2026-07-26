@@ -10,19 +10,21 @@ extends Node
 ## Milestone 3.
 
 ## Simulation ticks per real second at 1x speed.
-const TICKS_PER_SECOND := 4.0
+## Simulation rate — read from data/balance.json at startup (see Balance).
+## Recipe `ticks` and every per-tick rate are relative to this.
+var ticks_per_second := Balance.new().ticks_per_second
 
 ## Save files live here as `<name>.json`. Autosave overwrites `autosave`.
 const SAVE_DIR := "user://saves/"
 const SAVE_EXT := ".json"
 const SAVE_VERSION := 1
 const AUTOSAVE_NAME := "autosave"
-const AUTOSAVE_SECONDS := 180.0  # ~3 minutes of real time
+var autosave_seconds := Balance.new().autosave_seconds  # real seconds
 
 ## Resources the colony starts a new game with. Metal covers the hub plus the
 ## first metal-chain buildings; the oxygen/water/food buffer only has to last
 ## until the hub is placed (it then sustains the base 4 colonists for free).
-const STARTING_STOCKPILE := {"metal": 120, "oxygen": 60, "water": 60, "food": 60}
+# Starting resources come from data/balance.json (Balance.starting_stockpile).
 
 ## Speed multiplier: 0.0 = paused, 1.0 = normal, 3.0 = fast.
 var speed: float = 1.0
@@ -48,15 +50,23 @@ var _alerts := AlertMonitor.new()
 func new_game(seed: int, size: int) -> void:
 	var map := ColonyMap.new(size, size)
 	map.generate(seed)
-	colony = Colony.new(map, Defs.buildings, STARTING_STOCKPILE)
+	_apply_balance(map)
+	colony = Colony.new(map, Defs.buildings, Defs.balance.starting_stockpile, Defs.balance)
 	tick = 0
 	_accumulator = 0.0
 	_autosave_accum = 0.0
 	_ended = false
-	_alerts = AlertMonitor.new()
+	_alerts = AlertMonitor.new(Defs.balance)
 	speed = 1.0
 	_last_run_speed = 1.0
 	active = true
+
+# Pushes the loaded tuning into the pieces that aren't handed a Balance
+# directly — currently just the map's prospecting noise.
+func _apply_balance(map: ColonyMap) -> void:
+	ticks_per_second = Defs.balance.ticks_per_second
+	autosave_seconds = Defs.balance.autosave_seconds
+	map.reading_jitter = Defs.balance.reading_jitter
 
 # --- Save / load -------------------------------------------------------------
 
@@ -96,7 +106,8 @@ func load_game(name: String) -> bool:
 	if typeof(data) != TYPE_DICTIONARY or not data.has("map") or not data.has("colony"):
 		return false
 	var map := ColonyMap.from_dict(data.map)
-	colony = Colony.from_dict(map, Defs.buildings, data.colony)
+	_apply_balance(map)
+	colony = Colony.from_dict(map, Defs.buildings, data.colony, Defs.balance)
 	tick = int(data.get("tick", 0))
 	speed = float(data.get("speed", 1.0))
 	_last_run_speed = float(data.get("last_run_speed", 1.0))
@@ -105,7 +116,7 @@ func load_game(name: String) -> bool:
 	_accumulator = 0.0
 	_autosave_accum = 0.0
 	_ended = colony.status != Colony.Status.PLAYING
-	_alerts = AlertMonitor.new()
+	_alerts = AlertMonitor.new(Defs.balance)
 	active = true
 	return true
 
@@ -171,13 +182,13 @@ func _process(delta: float) -> void:
 	# Autosave runs on real time, regardless of pause, while the game is live.
 	if colony.status == Colony.Status.PLAYING:
 		_autosave_accum += delta
-		if _autosave_accum >= AUTOSAVE_SECONDS:
+		if _autosave_accum >= autosave_seconds:
 			_autosave_accum = 0.0
 			save_game(AUTOSAVE_NAME)
 	if speed <= 0.0 or colony.status != Colony.Status.PLAYING:
 		return
 	_accumulator += delta * speed
-	var step := 1.0 / TICKS_PER_SECOND
+	var step := 1.0 / ticks_per_second
 	while _accumulator >= step and colony.status == Colony.Status.PLAYING:
 		_accumulator -= step
 		_advance_tick()

@@ -10,13 +10,17 @@ enum Level { INFO, WARN, CRIT }
 
 # A resource at or below this stock, while being net-drained, counts as "running
 # low" — early enough to warn before it hits zero (for life support, before
-# starvation, since STARVE_TICKS only starts after zero).
-const LOW_STOCK := 8
+# starvation, which only starts counting after zero). From data/balance.json.
+var low_stock := Balance.new().low_stock
 
 var _power_deficit := false
 var _low := {}  # resource id -> was-low last tick (edge-trigger state)
 
 ## Returns [{text: String, level: int}] for conditions newly true this tick.
+func _init(p_balance: Balance = null) -> void:
+	if p_balance != null:
+		low_stock = p_balance.low_stock
+
 func check(col: Colony) -> Array:
 	var out := []
 
@@ -31,7 +35,7 @@ func check(col: Colony) -> Array:
 	# down by the production chain). Rearms once it recovers.
 	var rates := col.rates()
 	for res in rates:
-		var low: bool = float(rates[res]) < -0.0001 and int(col.stockpile.get(res, 0)) <= LOW_STOCK
+		var low: bool = float(rates[res]) < -0.0001 and int(col.stockpile.get(res, 0)) <= low_stock
 		if low and not bool(_low.get(res, false)):
 			out.append({"text": "⚠ %s running low" % _cap(res), "level": Level.WARN})
 		_low[res] = low

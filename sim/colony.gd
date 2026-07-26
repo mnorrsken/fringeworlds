@@ -7,22 +7,14 @@ extends RefCounted
 
 enum Status { PLAYING, WON, LOST }
 
-const STARTING_POPULATION := 4
-const BASE_CAPACITY := 0               # housing now comes from the hub, not a phantom ship
-const STARVE_TICKS := 24               # ticks of unmet needs before a death (~6s)
-const GROWTH_TICKS := 80               # ticks of met needs before a birth (~20s)
-const VICTORY_XENITE := 50             # xenite needed to "launch the beacon"
-const GUARANTEED_RICHNESS := 0.6       # richness of a hub-injected iron deposit
-
-# Life support consumed per colonist per tick (kept gentle — the early base runs
-# on robots, so colonists are a slow-burning pressure, not an immediate crisis).
-const LIFE_SUPPORT := {"oxygen": 0.02, "water": 0.02, "food": 0.015}
-
 var map: ColonyMap
 var defs: Dictionary                  # building id -> def (needs size, cost, allowed_terrain_ids)
+## Tunable numbers (data/balance.json). Injected like defs; defaults to the
+## shipped values so a Colony can be built bare in tests.
+var balance: Balance
 var stockpile: Dictionary = {}        # resource id -> amount
 
-var population := STARTING_POPULATION
+var population := 0
 var status: int = Status.PLAYING
 
 # Fractional life-support carryover, and streak counters for growth/starvation.
@@ -45,10 +37,13 @@ var power_consumed := 0
 # Cells whose scan state changed during the most recent tick (for the overlay).
 var scan_changes: Array = []
 
-func _init(p_map: ColonyMap, p_defs: Dictionary, p_stockpile: Dictionary = {}) -> void:
+func _init(p_map: ColonyMap, p_defs: Dictionary, p_stockpile: Dictionary = {},
+		p_balance: Balance = null) -> void:
 	map = p_map
 	defs = p_defs
+	balance = p_balance if p_balance != null else Balance.new()
 	stockpile = p_stockpile.duplicate()
+	population = balance.starting_population
 
 ## Cells a building of `type_id` anchored at `origin` (its min corner) covers.
 func footprint(type_id: String, origin: Vector2i) -> Array:
@@ -140,7 +135,7 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 	if def.has("guarantees_deposit_id") and def.has("scan"):
 		var center: Vector2i = origin + Vector2i(int(def.size) / 2, int(def.size) / 2)
 		_ensure_deposit_in_range(center, int(def.scan.max_radius),
-			int(def.guarantees_deposit_id), GUARANTEED_RICHNESS)
+			int(def.guarantees_deposit_id), balance.guaranteed_richness)
 	return inst
 
 # Ensures at least one *mineable* deposit of `dep` sits within `radius` of
@@ -181,7 +176,7 @@ func building_at(cell: Vector2i) -> Dictionary:
 
 ## Housing capacity: the colony ship base plus every habitat.
 func capacity() -> int:
-	var c := BASE_CAPACITY
+	var c := balance.base_capacity
 	for id in buildings:
 		c += int(defs[buildings[id].type].get("capacity", 0))
 	return c
@@ -239,8 +234,9 @@ func _run_life_support() -> void:
 	# The hub covers the first N colonists for free; only the rest draw stock.
 	var effective: int = max(0, population - life_support_covered())
 	var met := true
-	for res in LIFE_SUPPORT:
-		_life_accum[res] = float(_life_accum[res]) + effective * float(LIFE_SUPPORT[res])
+	for res in balance.life_support:
+		_life_accum[res] = float(_life_accum[res]) \
+			+ effective * float(balance.life_support[res])
 		var whole := int(_life_accum[res])
 		var have := int(stockpile.get(res, 0))
 		if whole > 0:
@@ -255,14 +251,14 @@ func _run_life_support() -> void:
 	if not met:
 		_growth_ticks = 0
 		_starve_ticks += 1
-		if _starve_ticks >= STARVE_TICKS:
+		if _starve_ticks >= balance.starve_ticks:
 			_starve_ticks = 0
 			population -= 1
 	else:
 		_starve_ticks = 0
 		if population < capacity():
 			_growth_ticks += 1
-			if _growth_ticks >= GROWTH_TICKS:
+			if _growth_ticks >= balance.growth_ticks:
 				_growth_ticks = 0
 				population += 1
 
@@ -271,7 +267,7 @@ func _check_status() -> void:
 		return
 	if population <= 0:
 		status = Status.LOST
-	elif int(stockpile.get("xenite", 0)) >= VICTORY_XENITE:
+	elif int(stockpile.get("xenite", 0)) >= balance.victory_xenite:
 		status = Status.WON
 
 # Generators always run. Consumers are switched on oldest-first (by id) while
@@ -402,8 +398,9 @@ func rates() -> Dictionary:
 	# Life support drains O2/water/food — but only for colonists the hub doesn't cover.
 	var effective: int = max(0, population - life_support_covered())
 	if effective > 0:
-		for res in LIFE_SUPPORT:
-			r[res] = float(r.get(res, 0.0)) - effective * float(LIFE_SUPPORT[res])
+		for res in balance.life_support:
+			r[res] = float(r.get(res, 0.0)) \
+				- effective * float(balance.life_support[res])
 	return r
 
 func _ids_oldest_first() -> Array:
@@ -508,13 +505,14 @@ func _inst_to_dict(inst: Dictionary) -> Dictionary:
 
 ## Rebuilds a Colony from a to_dict() snapshot, injecting the (already
 ## deserialized) map and the live building defs.
-static func from_dict(p_map: ColonyMap, p_defs: Dictionary, d: Dictionary) -> Colony:
-	var c := Colony.new(p_map, p_defs, {})
+static func from_dict(p_map: ColonyMap, p_defs: Dictionary, d: Dictionary,
+		p_balance: Balance = null) -> Colony:
+	var c := Colony.new(p_map, p_defs, {}, p_balance)
 	var stock := {}
 	for r in d.get("stockpile", {}):
 		stock[r] = int(d.stockpile[r])
 	c.stockpile = stock
-	c.population = int(d.get("population", STARTING_POPULATION))
+	c.population = int(d.get("population", c.balance.starting_population))
 	c.status = int(d.get("status", Status.PLAYING))
 	c._next_id = int(d.get("next_id", 1))
 	c._starve_ticks = int(d.get("starve_ticks", 0))

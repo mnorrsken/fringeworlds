@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "Every tunable number the simulation runs on (Milestone 9). Building costs,",
+    "power, recipes and yields live in buildings.json; this file is the pacing",
+    "and pressure dial. Anything omitted falls back to the default in",
+    "sim/balance.gd. Ticks are simulation ticks: 4 per second at 1x speed."
+  ],
+
+  "colony": {
+    "starting_population": 4,
+    "base_capacity": 0,
+    "starve_ticks": 24,
+    "growth_ticks": 80,
+    "guaranteed_richness": 0.6
+  },
+
+  "victory": {
+    "xenite": 50
+  },
+
+  "sim": {
+    "ticks_per_second": 4.0,
+    "autosave_seconds": 180.0,
+    "low_stock": 8,
+    "reading_jitter": 0.25
+  },
+
+  "life_support": {
+    "oxygen": 0.02,
+    "water": 0.02,
+    "food": 0.015
+  },
+
+  "starting_stockpile": {
+    "metal": 120,
+    "oxygen": 60,
+    "water": 60,
+    "food": 60
+  }
+}

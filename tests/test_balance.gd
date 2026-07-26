@@ -10,18 +10,14 @@ func _buildings() -> Dictionary:
 		out[e.id] = e
 	return out
 
-# Read the constant from source text — loading sim.gd here would recompile it
-# without the autoload identifiers it references, which fails headlessly.
+# Straight from the tuning file the game loads (Milestone 9) — no autoloads
+# needed, so this stays headless.
 func _starting_metal() -> int:
-	var text := FileAccess.get_file_as_string("res://sim/sim.gd")
-	for line in text.split("\n"):
-		if line.contains("STARTING_STOCKPILE"):
-			var rx := RegEx.new()
-			rx.compile('"metal"\\s*:\\s*(\\d+)')
-			var m := rx.search(line)
-			if m != null:
-				return int(m.get_string(1))
-	return 0
+	return int(_balance().starting_stockpile.get("metal", 0))
+
+func _balance() -> Balance:
+	return Balance.from_dict(JSON.parse_string(
+		FileAccess.get_file_as_string("res://data/balance.json")))
 
 func test_metal_chain_affordable_from_start(t: Object) -> void:
 	var defs := _buildings()

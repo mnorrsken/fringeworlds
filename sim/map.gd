@@ -40,8 +40,10 @@ const DEPOSIT_CATEGORY := {
 	Deposit.XENITE: "crystal",
 }
 
-# Coarse readings jitter the true richness by up to this fraction.
-const READING_JITTER := 0.25
+## Coarse readings jitter the true richness by up to this fraction. Set from
+## data/balance.json by Sim; the default matches the shipped balance so a map
+## built bare (in tests) reads the same as in game.
+var reading_jitter := Balance.new().reading_jitter
 
 var width: int
 var height: int
@@ -95,7 +97,7 @@ func set_scan(cell: Vector2i, s: int) -> void:
 ## The richness a coarse scan reports (true value + deterministic jitter).
 func coarse_richness(cell: Vector2i) -> float:
 	var noise := _reading_noise[cell.y * width + cell.x]
-	return clampf(get_richness(cell) + noise * READING_JITTER, 0.05, 1.0)
+	return clampf(get_richness(cell) + noise * reading_jitter, 0.05, 1.0)
 
 ## Human-readable prospecting reading for the sidebar; "" if unscanned.
 func reading_text(cell: Vector2i) -> String:

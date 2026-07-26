@@ -15,6 +15,9 @@ var resources: Dictionary = {}
 ## never re-parses terrain names or hex strings.
 var buildings: Dictionary = {}
 
+## Tunable simulation numbers from data/balance.json (see sim/balance.gd).
+var balance: Balance = Balance.new()
+
 ## cue id (String) -> sound definition (Dictionary: file, bus, volume_db, ...).
 ## Read by the Audio autoload; see AudioCues for the cue vocabulary.
 var audio: Dictionary = {}
@@ -26,6 +29,21 @@ func _ready() -> void:
 	print("[Defs] loaded %d building definitions" % buildings.size())
 	audio = _load_json(DATA_DIR + "audio.json")
 	print("[Defs] loaded %d sound definitions" % audio.size())
+	balance = _load_balance(DATA_DIR + "balance.json")
+
+## Loads the tuning file. Unlike the other data files this is a single object,
+## not a list of id'd entries, and a missing/broken file falls back to the
+## defaults in sim/balance.gd rather than breaking the game.
+func _load_balance(path: String) -> Balance:
+	if not FileAccess.file_exists(path):
+		push_error("[Defs] missing data file: %s" % path)
+		return Balance.new()
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary):
+		push_error("[Defs] expected a JSON object at top level: %s" % path)
+		return Balance.new()
+	print("[Defs] loaded balance (%d sections)" % parsed.size())
+	return Balance.from_dict(parsed)
 
 ## Loads buildings.json and pre-processes each entry for fast use at runtime.
 func _load_buildings(path: String) -> Dictionary:

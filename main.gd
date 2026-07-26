@@ -257,7 +257,7 @@ func _update_info() -> void:
 	var per_tick := col.rates()
 	var per_sec := {}
 	for r in per_tick:
-		per_sec[r] = per_tick[r] * Sim.TICKS_PER_SECOND
+		per_sec[r] = per_tick[r] * Sim.ticks_per_second
 	_resource_bar.set_resources(col.stockpile, per_sec)
 	_sidebar.set_economy(col.power_produced, col.power_consumed, Sim.speed)
 	_sidebar.set_colony(col.population, col.capacity(), col.workers_used())
