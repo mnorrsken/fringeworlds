@@ -41,9 +41,14 @@ This split is why the sim can be tested headlessly (see `tests/`) without
 booting any rendering — `test_map.gd` instantiates `ColonyMap` directly and
 never touches a scene, and `test_placement.gd` does the same for `Colony`.
 
-## The three autoloads
+## The autoloads
 
-Registered in `project.godot` under `[autoload]`, in load order:
+Registered in `project.godot` under `[autoload]`, in load order. Three are
+the sim/signal-bus trio described in the plan; a fourth, `Audio` (Milestone
+8), is view-layer-only — it listens on `Events` and never touches sim
+state, and is a singleton solely so the ambient music survives the menu↔
+game scene switch (see "Audio" below). Don't add a fifth without a similarly
+good reason.
 
 1. **`Events`** (`sim/events.gd`) — a global signal bus. Defines
    `ticked(tick: int)`, `stockpile_changed(stockpile: Dictionary)`,
@@ -66,9 +71,11 @@ Registered in `project.godot` under `[autoload]`, in load order:
    tick (see "Alerts" below), and `ui/alert_ticker.gd` is the only
    listener.
 2. **`Defs`** (`sim/defs.gd`) — loads read-only content definitions from
-   `data/*.json` at startup into two dictionaries: `resources` (id →
-   definition, unchanged since Milestone 0) and `buildings` (id →
-   definition). `_load_buildings` post-processes each building entry after
+   `data/*.json` at startup into three dictionaries: `resources` (id →
+   definition, unchanged since Milestone 0), `buildings` (id →
+   definition), and (Milestone 8) `audio` (cue id → sound definition,
+   loaded straight from `data/audio.json` with no preprocessing — see
+   "Audio" below). `_load_buildings` post-processes each building entry after
    the generic `_load_json` pass, adding two derived fields so downstream
    code never re-parses raw JSON: `allowed_terrain_ids` (an
    `Array[int]`, the entry's `allowed_terrain` name strings resolved
@@ -152,8 +159,10 @@ a building's front tile and to compute its footprint diamond's corners in
 ## Data-driven content
 
 Per the plan's architecture principles, building/resource/recipe content is
-meant to live in JSON under `data/`, not in engine code. Two files exist so
-far:
+meant to live in JSON under `data/`, not in engine code. `data/audio.json`
+(the sound cue manifest, loaded into `Defs.audio`) follows the same pattern
+— see "Audio" below — but is described there rather than here since it's
+consumed by the view layer, not `Colony`. Building/resource content:
 
 - `data/resources.json` — an array of 9 objects (`id`, `name`, `category`,
   `unit`), loaded into `Defs.resources`.
@@ -637,6 +646,48 @@ now calls `Sim.new_game(_map.seed, _map.width)` before
 colony object — a fresh one must be created first for a true restart on the
 same map.
 
+## Audio (`audio/`, Milestone 8)
+
+Sound follows the same one-way-read discipline as rendering: the `Audio`
+autoload (`audio/audio.gd`) only listens on `Events` and reads `Defs.audio`;
+it never reaches into `Sim`/`Colony`, so muting or removing it changes
+nothing about the simulation.
+
+- **Cue vocabulary** (`audio/audio_cues.gd`, `class_name AudioCues`) is a
+  pure, dependency-free class listing every cue name and the event→cue
+  mapping (`for_alert(level)`, clamped so an out-of-range alert level still
+  gets a sound rather than falling silent; `for_game_over(won)`). Headlessly
+  tested (`tests/test_audio.gd`) the same way `AlertMonitor` is.
+- **Manifest** (`data/audio.json`, loaded into `Defs.audio`): one entry per
+  cue — `file`, `bus` (`Music` or `SFX`), `volume_db`, optional
+  `pitch_min`/`pitch_max` jitter, and `loop`. Adding a sound is a WAV file
+  plus a manifest entry, no script changes — the same data-driven pattern as
+  buildings/resources.
+- **Playback** (`audio/audio.gd`): two audio buses (`Music`, `SFX`) created
+  at runtime rather than via a binary bus-layout resource; an 8-voice
+  one-shot `AudioStreamPlayer` pool with voice stealing for SFX, a separate
+  looping player for the ambient bed, a same-cue repeat guard (40ms) so a
+  cue fired twice in one frame doesn't double up, and mute + music/SFX
+  volume persisted to `user://settings.cfg`. `shutdown()` stops everything
+  before quit so a still-playing stream isn't reported as a leaked resource.
+  In headless runs (`DisplayServer.get_name() == "headless"` — tests,
+  `make import`) it validates the manifest but loads and plays nothing, since
+  there's no audio device.
+- **Event hooks**: `building_placed`/`building_removed`/`alert`/`game_over`
+  each play their matching cue (see `AudioCues`); `main.gd` plays `denied`
+  on a refused placement/demolition; every sidebar/menu button calls
+  `Audio.ui_click()`. A pause-menu "Sound: On/Off" button calls
+  `Audio.toggle_mute()`.
+- **Assets**: `assets/audio/*.wav` (plus Godot `.import` sidecars, committed
+  — looping is set as an asset property, `edit/loop_mode`, on `ambient.wav`
+  rather than patched in code). None are hand-recorded or downloaded —
+  `tools/gen_audio.py` (stdlib-only Python, run via `make audio`)
+  synthesizes all of them: nine short chiptune-ish SFX plus a 32-second
+  ambient bed (drone, pad, filtered wind, bell motes) built to loop
+  seamlessly by quantizing every oscillator to a whole number of cycles
+  over the bed's length. Changing an `.import` parameter needs
+  `godot --headless --import` — `make import` alone won't re-run it.
+
 ## Rendering and camera
 
 - `render/palette.gd` (`Palette`, `class_name`, static colour constants
@@ -1072,11 +1123,13 @@ first thing to suspect when on-screen visuals look wrong.
 ## Folder layout
 
 ```
-data/       JSON content definitions: resources.json, buildings.json
+data/       JSON content definitions: resources.json, buildings.json, audio.json
 sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd, alerts.gd
 render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd, palette.gd
 ui/         Screen-space UI: sidebar.gd / sidebar.tscn, resource_bar.gd, alert_ticker.gd
-assets/     Committed art (PNG + Godot .import sidecars)
+audio/      View-layer sound: audio.gd (Audio autoload), audio_cues.gd (AudioCues)
+tools/      Asset generators: gen_audio.py (run via `make audio`)
+assets/     Committed art (PNG + Godot .import sidecars) and audio/ (WAV + .import sidecars)
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
 main.gd / main.tscn   In-game scene and controller
 menu.gd / menu.tscn   Main menu (project's run/main_scene): new/continue/load/quit
@@ -1094,8 +1147,7 @@ the structure rising into transparent space above (matches
 `BuildingSprite`'s bottom-vertex anchoring — see "Rendering and camera"
 below); RGBA PNG at the tile's native pixel size (64×64 for a 1×1
 footprint, 128×128 for 2×2), since the project runs nearest-neighbor
-filtering with pixel snap. Only audio still remains outside this pass —
-see `docs/progress.md`.
+filtering with pixel snap.
 
 ## Running and testing
 
@@ -1106,6 +1158,8 @@ see `docs/progress.md`.
 - `make test` — runs the headless test suite
   (`godot --headless --path . --script res://tests/run_tests.gd`) and exits
   non-zero on any failure, so it's CI-friendly.
+- `make audio` — regenerates every WAV under `assets/audio/`
+  (`python3 tools/gen_audio.py`, stdlib-only, no downloaded assets).
 - `make clean` — removes the `.godot` generated cache.
 
 All targets wrap the `godot` binary; override the binary path with
@@ -1176,8 +1230,13 @@ iron deposit when none is reachable within its scan radius, and an
 already-reachable deposit isn't duplicated. `tests/test_balance.gd` was
 updated for the new bootstrap (Hub + Mine + Smelter now fits the reduced
 120 starting metal with headroom) and gained a check that every
-non-`hub` building's `requires_built` chain roots at `hub`. 835 assertions
-across 70 tests, 0 failures.
+non-`hub` building's `requires_built` chain roots at `hub`.
+`tests/test_building_fx.gd` (Milestone 8 art) covers the `fx` JSON contract
+and the lamp blink curve. `tests/test_audio.gd` (Milestone 8 audio) covers
+the cue manifest contract (every required cue defined, files exist, valid
+bus/volume/pitch ranges, only the ambient bed loops) and the alert/
+game-over cue mapping, including out-of-range level clamping. 1068
+assertions across 83 tests, 0 failures.
 
 ### Balance regression testing
 

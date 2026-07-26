@@ -73,19 +73,22 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**991 assertions across 76 tests, 0 failures.**
+**1068 assertions across 83 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
-on script/asset errors — good for CI), `make clean` (remove the generated
-`.godot/` cache).
+on script/asset errors — good for CI), `make audio` (regenerates every WAV
+under `assets/audio/` via `tools/gen_audio.py` — Python stdlib only, no
+downloaded assets), `make clean` (remove the generated `.godot/` cache).
 
 ## Folder structure
 
 ```
-data/       JSON content definitions: resources.json, buildings.json (recipes live inline per building)
+data/       JSON content definitions: resources.json, buildings.json (recipes live inline per building), audio.json
 sim/        Pure simulation logic and state — no rendering dependency
 render/     Views of sim state: tilemap, buildings, camera, hover cursor, shared palette
 ui/         Screen-space UI: the sidebar
+audio/      Sound layer (Audio autoload + cue vocabulary) — view-layer only, never touches sim state
+tools/      Asset generators (`gen_audio.py`, run via `make audio`)
 tests/      Headless tests for sim logic
 main.gd / main.tscn   In-game scene and controller
 menu.gd / menu.tscn   Main menu (new/continue/load/quit) — the project's main scene
@@ -114,6 +117,10 @@ reads sim state and never writes game rules back. See
 | 3 | Set speed to 3× |
 | F1 | Toggle debug overlay (grid coords, terrain, zoom, seed, FPS) |
 | Esc (nothing else to close) | Open the in-game system menu: Resume, Save Game, Main Menu, Quit |
+
+The game has sound: an ambient bed plus SFX for placing/demolishing
+buildings, denied actions, alerts, and win/lose. The pause menu's "Sound:
+On/Off" button mutes/unmutes, persisted across sessions.
 
 Mouse wheel / trackpad scroll do **not** zoom (removed — it felt twitchy on
 a trackpad); use `Z`, pinch, or `+`/`-` instead. A top resource bar shows
@@ -184,17 +191,18 @@ scrolls), and a Colony Hub early-game rework (the game now starts with a
 single Hub that sustains the base 4 colonists for free and guarantees
 reachable iron, gating everything else behind it). The game now boots to
 a main menu (New Game/Continue/Load/Quit) and the full sim state can be
-saved/loaded, with autosave every ~3 minutes. Milestone 8's visual half is
-done — a retro art pass gives terrain dithered, raised, animated tiles and
+saved/loaded, with autosave every ~3 minutes. Milestone 8 is now complete —
+a retro art pass gives terrain dithered, raised, animated tiles and
 buildings idle lamp/smoke animation, all in one warm palette
 (`render/palette.gd`), and all 11 buildings now render custom PixelLab
 sprites instead of the procedural block (the procedural path remains only
 as a fallback), each now dressed with data-driven FX overlays (plumes,
 vents, dust, sparks, shimmer, blinking lamps, glows —
-`render/building_fx.gd`) that go dark when the building shuts down. Audio
-is the only piece of Milestone 8 still pending. See
+`render/building_fx.gd`) that go dark when the building shuts down; and a
+new `Audio` autoload plays a data-driven, synthesized sound set (ambient
+bed + SFX, `make audio` regenerates the WAVs). See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
-verified by test vs. eyeballed on screen, and what's next.
+verified by test vs. eyeballed on screen, and what's next (Milestone 9).
 
 ## Documentation
 

@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **991 assertions across 76 tests, 0 failures** (`make test`).
+Current test count: **1068 assertions across 83 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -50,11 +50,16 @@ Current test count: **991 assertions across 76 tests, 0 failures** (`make test`)
   base 4 colonists for free, prospects, and guarantees a reachable iron
   deposit, replacing the earlier "large starting stockpile" safety net
   with a structural one.
-- **M8 — Retro art pass & audio — in progress.** Terrain and building art
-  both done: a shared warm palette (`render/palette.gd`),
-  dithered/raised/animated terrain tiles, and all 11 buildings render
-  custom PixelLab art under `assets/` (procedural block rendering remains
-  only as a fallback), each now with data-driven `BuildingFX` overlays
-  (particle plumes/vents/dust/sparks/shimmer, blinking lamps, glows) so the
-  static art reads as alive. Audio is the only piece still pending.
-- **M9 — Balance, polish, v2 hooks — pending.**
+- **M8 — Retro art pass & audio — done.** Terrain and building art: a shared
+  warm palette (`render/palette.gd`), dithered/raised/animated terrain
+  tiles, and all 11 buildings render custom PixelLab art under `assets/`
+  (procedural block rendering remains only as a fallback), each now with
+  data-driven `BuildingFX` overlays (particle plumes/vents/dust/sparks/
+  shimmer, blinking lamps, glows) so the static art reads as alive. Audio:
+  a new view-layer `Audio` autoload (listens on `Events` only, never
+  touches sim state) plays a data-driven cue set (`data/audio.json`) —
+  nine SFX plus a looping ambient bed, all synthesized by
+  `tools/gen_audio.py`/`make audio` rather than downloaded — with an
+  8-voice pool, pitch jitter, mute/volume persisted to
+  `user://settings.cfg`, and a new pause-menu Sound toggle.
+- **M9 — Balance, polish, v2 hooks — next.**

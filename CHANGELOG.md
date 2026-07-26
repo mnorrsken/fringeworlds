@@ -8,6 +8,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 8 — Audio (M8 complete)** (2026-07-27)
+  - New `Audio` autoload (`audio/audio.gd`), a fourth (view-layer-only)
+    autoload alongside `Sim`/`Defs`/`Events` — listens on `Events`, never
+    touches sim state, and is a singleton solely so the ambient bed
+    survives the menu↔game scene switch. Two runtime-created buses
+    (Music, SFX), an 8-voice one-shot pool with voice stealing, per-cue
+    pitch jitter, a 40ms same-cue repeat guard, mute + music/SFX volume
+    persisted to `user://settings.cfg`, and `shutdown()`. Validates the
+    cue manifest but plays nothing in headless runs (no audio device).
+  - New `audio/audio_cues.gd` (`AudioCues`): the pure cue vocabulary and
+    event→cue mapping (`for_alert(level)` clamps so an alert can never go
+    silent; `for_game_over(won)`).
+  - New `data/audio.json` (loaded into `Defs.audio`): the cue manifest —
+    file, bus, volume_db, optional pitch range, loop. Adding a sound is a
+    WAV plus a manifest entry, no engine code.
+  - New `tools/gen_audio.py` + `make audio`: synthesizes every WAV with
+    Python's stdlib only (no deps, no downloaded assets) — nine
+    chiptune-ish SFX (ui_click, place, denied, demolish, alert tiers,
+    win, lose) and a 32-second, mathematically seamless ambient bed.
+  - New `assets/audio/*.wav` (+ `.import` sidecars, committed): lossless
+    PCM; `ambient.wav` loops via the `edit/loop_mode` import property.
+  - Event hooks: place/demolish/alert/game-over play their matching cue;
+    `main.gd` plays `denied` on a refused action; every sidebar/menu/
+    pause-menu button plays `ui_click`. New pause-menu "Sound: On/Off"
+    toggle, persisted.
+  - New `tests/test_audio.gd`: manifest contract (every required cue
+    defined, files exist, valid bus/volume/pitch ranges, only the bed
+    loops) and the alert/game-over cue mapping including out-of-range
+    clamping. Full suite: 1068 assertions across 83 tests, 0 failures
+    (`make test`). This completes Milestone 8.
+
 - **Building FX overlays** (2026-07-25)
   - New `render/building_fx.gd` (`BuildingFX`): data-driven decorative
     overlays anchored on building art, so static sprites feel alive without

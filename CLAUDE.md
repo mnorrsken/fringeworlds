@@ -32,17 +32,20 @@ Override the binary if needed: `make test GODOT=/path/to/godot`.
   and `Colony` (`sim/colony.gd`, placement + tick economy + prospecting). This is
   what makes the sim headlessly testable. The `Sim` autoload wraps `Colony` and
   adds `Events` signal emission.
-- **Three autoloads only:** `Sim` (state + fixed tick loop), `Defs` (loads
+- **Three sim autoloads only:** `Sim` (state + fixed tick loop), `Defs` (loads
   `data/*.json`), `Events` (signal bus). UI never pokes sim internals — it calls
-  Sim methods and listens on `Events`.
+  Sim methods and listens on `Events`. Plus one view-layer autoload, `Audio`
+  (M8): it only *listens* on `Events`, and is a singleton solely so the music
+  survives the menu↔game scene switch. Don't add a fifth.
 - **Grid math in one place:** `IsoGrid` (`sim/iso_grid.gd`) owns all
   grid↔screen conversion, matched to Godot's isometric TileMapLayer (tested).
 - **Content is data-driven:** buildings/resources live in `data/*.json`. Adding
   content = editing JSON, not engine code. `Defs` preprocesses defs at load
   (terrain/deposit name→id, hex→Color).
 
-Folders: `sim/` (logic), `render/` (views), `ui/` (HUD/sidebar), `data/` (JSON),
-`tests/` (headless tests), `assets/`.
+Folders: `sim/` (logic), `render/` (views), `ui/` (HUD/sidebar), `audio/` (sound
+layer), `data/` (JSON), `tests/` (headless tests), `assets/`, `tools/` (asset
+generators — `make audio` regenerates every WAV).
 
 ## Development flow (follow this loop)
 
