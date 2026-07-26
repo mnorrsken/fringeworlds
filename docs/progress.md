@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1101 assertions across 90 tests, 0 failures** (`make test`).
+Current test count: **1118 assertions across 94 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -67,5 +67,8 @@ Current test count: **1101 assertions across 90 tests, 0 failures** (`make test`
   guaranteed richness, life support, starting stockpile, tick rate,
   autosave interval, low-stock floor, reading jitter) is now data-driven
   via `Balance`/`data/balance.json` (see `docs/architecture.md`) — a pure
-  extraction, shipped numbers unchanged. Pacing verification (actually
-  tuning those numbers) and the v2 hooks list still to come.
+  extraction, shipped numbers unchanged. Pacing is now measured, not
+  eyeballed: `ColonyBot`/`make playtest` (see `docs/architecture.md`) bot-
+  plays the real sim, and 5/5 seeds win in 11.1–19.4 minutes of game time
+  (average 15.8). Still open: acting on that data (actually tuning the
+  numbers) and the v2 hooks list.

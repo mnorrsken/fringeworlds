@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 9 — Pacing harness (`ColonyBot`, `make playtest`)** (2026-07-27)
+  - New `tools/colony_bot.gd` (`ColonyBot`): a scripted reference player
+    driving the real `Colony`/`ColonyMap` classes headlessly (no autoloads,
+    no rendering) — follows the intended build order (metal loop → power →
+    life support → housing → prospect outward → parts chain → crystal
+    extractor), buying the instant it can afford to, so its times are a
+    *floor* on session length, not a prediction of human play. Reports a
+    first-appearance timeline per resource and the full build order.
+    `ColonyBot.load_defs()` preprocesses `buildings.json` the way `Defs`
+    does, for headless scripts with no autoloads.
+  - New `tools/playtest.gd` + `make playtest`: runs 5 seeds, prints
+    outcome/ticks/minutes/timeline/build order per seed and a summary;
+    exits non-zero if any seed fails to win. Currently 5/5 seeds win,
+    11.1–19.4 min of game time (average 15.8).
+  - New `tests/test_pacing.gd`: every seed wins, no seed starves the
+    colony, the full ore→metal→parts→xenite chain is exercised, and a
+    session isn't trivially short (CI guard against an unwinnable or
+    degenerate balance change).
 - **Milestone 9 — Tuning layer (`Balance`/`data/balance.json`)** (2026-07-27)
   - New `sim/balance.gd` (`Balance`, `class_name`, `RefCounted`): every
     tunable sim number in one injectable object (starting population/

@@ -73,12 +73,15 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1101 assertions across 90 tests, 0 failures.**
+**1118 assertions across 94 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
 under `assets/audio/` via `tools/gen_audio.py` — Python stdlib only, no
-downloaded assets), `make clean` (remove the generated `.godot/` cache).
+downloaded assets), `make playtest` (bot-plays several seeds headlessly and
+prints win/loss, timing, and build order — see
+[`docs/architecture.md`](docs/architecture.md#pacing-harness-colonybot-milestone-9)),
+`make clean` (remove the generated `.godot/` cache).
 
 ## Folder structure
 
@@ -88,7 +91,9 @@ sim/        Pure simulation logic and state — no rendering dependency
 render/     Views of sim state: tilemap, buildings, camera, hover cursor, shared palette
 ui/         Screen-space UI: the sidebar
 audio/      Sound layer (Audio autoload + cue vocabulary) — view-layer only, never touches sim state
-tools/      Asset generators (`gen_audio.py`, run via `make audio`)
+tools/      Asset generators (`gen_audio.py`, run via `make audio`) and the
+            headless pacing harness (`colony_bot.gd`, `playtest.gd`, run via
+            `make playtest`)
 tests/      Headless tests for sim logic
 main.gd / main.tscn   In-game scene and controller
 menu.gd / menu.tscn   Main menu (new/continue/load/quit) — the project's main scene
@@ -204,7 +209,11 @@ bed + SFX, `make audio` regenerates the WAVs). Milestone 9 (balance,
 polish, v2 hooks) is now in progress: every tunable simulation number has
 been extracted into `data/balance.json` (see
 [`docs/architecture.md`](docs/architecture.md#tuning-balance-milestone-9)),
-with the actual pacing pass and the v2 hooks list still to come. See
+and a headless pacing harness (`ColonyBot`, `make playtest`, see
+[`docs/architecture.md`](docs/architecture.md#pacing-harness-colonybot-milestone-9))
+bot-plays the real sim to confirm every seed is completable — 5/5 seeds
+currently win in 11–19 minutes of game time — with tuning decisions and the
+v2 hooks list still to come. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

@@ -284,6 +284,58 @@ guards on the shipped values (`growth_ticks > starve_ticks`, so a failing
 colony can't grow out of trouble; every life-support resource is stocked at
 game start).
 
+## Pacing harness (`ColonyBot`, Milestone 9)
+
+Tuning numbers only matter if someone plays the game long enough to feel
+them, and a human playtest isn't repeatable or CI-guardable. `tools/colony_bot.gd`
+(`class_name ColonyBot`) is a scripted reference player driving the real
+`Colony`/`ColonyMap` classes directly — no autoloads, no rendering, fully
+deterministic per seed — so "is the game completable, and how long does it
+take" is a headless, automatable question instead of a manual one.
+
+The bot follows the intended build order (widen the metal loop → power →
+life support → housing → prospect outward → parts chain → crystal
+extractor) and buys the instant it can afford to; that makes its times a
+**floor** on session length, not a prediction of how a person actually
+plays. It acts once per game-second (`ACT_EVERY` ticks) and records a
+timeline of when each tracked resource (`ColonyBot.TRACKED`) first appears
+plus the full build order with timestamps. `ColonyBot.load_defs()`
+preprocesses `data/buildings.json` the same way `Defs._load_buildings`
+does, so a headless script with no autoloads can still construct a real
+`Colony`.
+
+- **`tools/playtest.gd`** (`make playtest`) runs several seeds, prints each
+  one's outcome/ticks/minutes/timeline/build order plus a summary, and
+  exits non-zero if any seed fails to win — a manual/CI pacing report.
+- **`tests/test_pacing.gd`** is the automated acceptance check: every seed
+  wins, no seed starves the colony, the full ore→metal→parts→xenite chain
+  is exercised (not just the win condition), and a session isn't trivially
+  short. This is the kind of regression no single-building unit test would
+  ever catch — a balance change can leave every building individually
+  correct while making the colony as a whole unwinnable.
+
+Measured result at time of writing: 5/5 seeds win, 11.1–19.4 minutes of
+game time, average 15.8.
+
+Building the bot surfaced real balance findings, not just infrastructure:
+
+- **The metal loop must widen *before* the parts factory turns on.** A
+  running Parts Factory consumes 2 metal per 4 ticks — roughly the entire
+  output of two smelters — so a colony that switches one on too early pins
+  metal at ~0 forever and can never afford the Crystal Extractor's 20
+  metal. Demolition doesn't refund cost, so the only way out is tearing the
+  factory back down. Three of five seeds failed this way before the bot
+  was taught to expand first (4 iron mines + 3 smelters,
+  `IRON_MINES_BEFORE_FACTORY`/`SMELTERS_BEFORE_FACTORY`) before building
+  the factory.
+- **One Ice Harvester doesn't cover both an Electrolysis Plant and a
+  Hydroponics Farm** — 0.25 water/tick produced vs. 0.67 consumed by the
+  two together — so the water chain has to widen as the colony grows or it
+  starves.
+- **Xenite is common** and often sits within a few tiles of the hub, so a
+  careless base can literally pave over its own win condition before ever
+  surveying for it.
+
 ## The tick economy (`Colony.tick()`)
 
 As of Milestone 3, `Colony` (in `sim/colony.gd`) does more than hold
