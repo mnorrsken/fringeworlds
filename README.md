@@ -73,7 +73,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1068 assertions across 83 tests, 0 failures.**
+**1101 assertions across 90 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
@@ -83,7 +83,7 @@ downloaded assets), `make clean` (remove the generated `.godot/` cache).
 ## Folder structure
 
 ```
-data/       JSON content definitions: resources.json, buildings.json (recipes live inline per building), audio.json
+data/       JSON content definitions: resources.json, buildings.json (recipes live inline per building), audio.json, balance.json (tuning — see docs/architecture.md)
 sim/        Pure simulation logic and state — no rendering dependency
 render/     Views of sim state: tilemap, buildings, camera, hover cursor, shared palette
 ui/         Screen-space UI: the sidebar
@@ -200,9 +200,13 @@ as a fallback), each now dressed with data-driven FX overlays (plumes,
 vents, dust, sparks, shimmer, blinking lamps, glows —
 `render/building_fx.gd`) that go dark when the building shuts down; and a
 new `Audio` autoload plays a data-driven, synthesized sound set (ambient
-bed + SFX, `make audio` regenerates the WAVs). See
+bed + SFX, `make audio` regenerates the WAVs). Milestone 9 (balance,
+polish, v2 hooks) is now in progress: every tunable simulation number has
+been extracted into `data/balance.json` (see
+[`docs/architecture.md`](docs/architecture.md#tuning-balance-milestone-9)),
+with the actual pacing pass and the v2 hooks list still to come. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
-verified by test vs. eyeballed on screen, and what's next (Milestone 9).
+verified by test vs. eyeballed on screen, and what's next.
 
 ## Documentation
 

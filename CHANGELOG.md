@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 9 — Tuning layer (`Balance`/`data/balance.json`)** (2026-07-27)
+  - New `sim/balance.gd` (`Balance`, `class_name`, `RefCounted`): every
+    tunable sim number in one injectable object (starting population/
+    capacity, starve/growth ticks, victory xenite, guaranteed-deposit
+    richness, life support, starting stockpile, tick rate, autosave
+    interval, low-stock floor, prospecting reading jitter), with the
+    shipped values as defaults so a bare `Balance.new()`/`Colony` behaves
+    exactly as before. `Balance.from_dict()` applies a partial or missing
+    file over those defaults.
+  - New `data/balance.json`: the pacing/pressure dial, separate from
+    `data/buildings.json` (costs/power/recipes/yields). Loaded by
+    `Defs._load_balance()` into `Defs.balance`.
+  - `Colony`, `ColonyMap`, `AlertMonitor`, and `Sim` now take/read an
+    injected `Balance` instead of hard-coded constants
+    (`STARTING_POPULATION`, `STARVE_TICKS`, `LIFE_SUPPORT`,
+    `READING_JITTER`, `LOW_STOCK`, `TICKS_PER_SECOND`, `AUTOSAVE_SECONDS`,
+    `STARTING_STOCKPILE`, etc. are gone). Pure extraction — no shipped
+    number changed.
+  - New `tests/test_tuning.gd`: the tuning contract itself (shipped file
+    parses, empty/partial overrides behave correctly, JSON numeric types
+    are preserved, a tuned `Balance` actually reaches `Colony`, sanity
+    guards on the shipped numbers).
+
 - **Milestone 8 — Audio (M8 complete)** (2026-07-27)
   - New `Audio` autoload (`audio/audio.gd`), a fourth (view-layer-only)
     autoload alongside `Sim`/`Defs`/`Events` — listens on `Events`, never

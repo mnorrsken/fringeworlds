@@ -91,19 +91,21 @@ good reason.
    Hub) similarly gets `guarantees_deposit_id` resolved through
    `ColonyMap.Deposit` — see "Colony Hub and guaranteed deposits" below.
 3. **`Sim`** (`sim/sim.gd`) — game state and the fixed tick loop, plus the
-   live `Colony` (since Milestone 2). `new_game(seed, size)` generates a
-   `ColonyMap`, constructs `colony := Colony.new(map, Defs.buildings,
-   STARTING_STOCKPILE)`, and resets the tick counter. `STARTING_STOCKPILE`
-   is currently `{metal: 120, oxygen: 60, water: 60, food: 60}` (metal
-   peaked at 200 in the pre-M6 metal-cliff fix, then dropped to 120 in the
-   Colony Hub rework once the Hub started sustaining the base 4 colonists
-   for free — see "Colony Hub and guaranteed deposits" below and the
-   balance notes in `docs/progress.md`) — the buffer only needs to cover
-   metal for the hub+mine+smelter bootstrap and life support for the time
-   until the Hub is placed, since the Hub then covers the base 4 at no
-   stockpile cost — and `new_game()` also resets `_ended`, the tick
-   accumulator, and `speed` back to `1.0`, so restarting after a game-over
-   isn't left
+   live `Colony` (since Milestone 2). `new_game(seed, size)` calls
+   `_apply_balance(map)` (Milestone 9 — pushes `Defs.balance` into the
+   pieces that don't take it as a constructor arg, currently just
+   `map.reading_jitter`) then constructs `colony := Colony.new(map,
+   Defs.buildings, Defs.balance.starting_stockpile, Defs.balance)`, and
+   resets the tick counter. The starting stockpile is currently `{metal:
+   120, oxygen: 60, water: 60, food: 60}` (metal peaked at 200 in the pre-M6
+   metal-cliff fix, then dropped to 120 in the Colony Hub rework once the
+   Hub started sustaining the base 4 colonists for free — see "Colony Hub
+   and guaranteed deposits" below and the balance notes in
+   `docs/progress.md`) — the buffer only needs to cover metal for the
+   hub+mine+smelter bootstrap and life support for the time until the Hub is
+   placed, since the Hub then covers the base 4 at no stockpile cost — and
+   `new_game()` also resets `_ended`, the tick accumulator, and `speed` back
+   to `1.0`, so restarting after a game-over isn't left
    paused or fast-forwarded. `colony` is `null` until `new_game()` is
    called. `Sim` exposes thin wrapper methods over `Colony`'s placement
    API — `can_place`, `place_building`, `demolish_at`, `building_at` —
@@ -113,10 +115,12 @@ good reason.
    `building_report(id)` (Milestone 6) is the same pattern without a
    signal — a plain pass-through to `colony.building_report(id)`, since the
    inspector is pulled every frame by `main.gd` rather than pushed on an
-   event. `Sim` also owns an `AlertMonitor` (`_alerts`, Milestone 6), reset
+   event. `Sim` also owns an `AlertMonitor` (`_alerts`, Milestone 6,
+   constructed `AlertMonitor.new(Defs.balance)` since Milestone 9), reset
    alongside `colony` in `new_game()`. The tick loop runs at
-   `TICKS_PER_SECOND = 4.0`, accumulator-driven inside `_process` so ticks
-   stay decoupled from frame rate; `_process` now also checks
+   `ticks_per_second` (a var, default `4.0`, set from `Defs.balance` by
+   `_apply_balance` — see "Tuning" below), accumulator-driven inside
+   `_process` so ticks stay decoupled from frame rate; `_process` now also checks
    `colony.status` both before and inside the accumulator loop (Milestone
    5) so once the colony reaches a terminal state, no further ticks run in
    that frame or any later one. `_advance_tick()` calls `colony.tick()`
@@ -238,6 +242,48 @@ building that runs them, one recipe per building, which is enough for the
 single-tier production so far. A dedicated recipes file may still arrive if
 buildings need to switch between multiple recipes later.
 
+## Tuning (`Balance`, Milestone 9)
+
+`data/buildings.json` is content (what exists); `data/balance.json` is
+pacing (how hard it presses) — starting population/capacity,
+starve/growth tick counts, the xenite victory target, the hub's
+guaranteed-deposit richness, life-support draw per colonist, the starting
+stockpile, sim tick rate, autosave interval, the low-stock alert floor, and
+prospecting reading jitter. Tuning the game means editing that file, not
+engine code.
+
+`sim/balance.gd` (`Balance`, `class_name`, `RefCounted`) holds every one of
+those numbers as a field with the shipped value as its default, plus
+`static func from_dict(d)` which applies a parsed `balance.json` over those
+defaults — a section/key absent from the JSON keeps its default, so a
+partial or missing file degrades to sane numbers rather than zeroes.
+`Defs._load_balance()` loads `data/balance.json` (a single JSON object, not
+a list of id'd entries like the other data files) into `Defs.balance` at
+startup, falling back to `Balance.new()` if the file is missing or
+malformed.
+
+`Balance` is injected the same way `defs` is: `Colony._init()` takes an
+optional fourth `Balance` argument (`null` defaults to `Balance.new()`,
+i.e. the shipped numbers), exposed as `colony.balance`, and
+`Colony.from_dict()` takes one too. `ColonyMap.reading_jitter` and
+`AlertMonitor.low_stock` are plain fields defaulting to `Balance.new()`'s
+values, set from the real `Balance` by `Sim._apply_balance()`/
+`AlertMonitor.new(balance)`. `Sim.ticks_per_second`/`Sim.autosave_seconds`
+are vars (no longer consts) read from `Defs.balance` the same way. Because
+every default matches the shipped JSON, a bare `Colony.new(map, defs,
+stockpile)` — the pattern every existing headless test already uses — still
+behaves exactly like the real game; nothing needed to change to keep the
+old tests passing.
+
+`tests/test_tuning.gd` covers the layer itself: the shipped file parses; an
+empty override reproduces every default; a partial override touches only
+the key it names; JSON numbers keep their int/float type (stock amounts are
+whole, life-support rates aren't); a tuned `Balance` actually reaches a
+`Colony` (custom population and victory threshold take effect); and sanity
+guards on the shipped values (`growth_ticks > starve_ticks`, so a failing
+colony can't grow out of trouble; every life-support resource is stocked at
+game start).
+
 ## The tick economy (`Colony.tick()`)
 
 As of Milestone 3, `Colony` (in `sim/colony.gd`) does more than hold
@@ -305,27 +351,30 @@ second) summed across only currently-active buildings — `{resource_id:
 float}`, positive for net production, negative for net consumption. It
 covers recipe-based production, (Milestone 4) extractor output
 (`_mine_per_tick`, the same formula `_run_mine` uses), and (Milestone 5)
-life-support consumption (`population * LIFE_SUPPORT[res]`, subtracted for
-oxygen/water/food whenever `population > 0`) — so the HUD's per-resource
-rate is the true net figure, not just what buildings are doing. Callers
-that want a per-second figure for display multiply by
-`Sim.TICKS_PER_SECOND` themselves (see `main.gd` below); `Colony` has no
+life-support consumption (`population * balance.life_support[res]`,
+subtracted for oxygen/water/food whenever `population > 0`) — so the HUD's
+per-resource rate is the true net figure, not just what buildings are doing.
+Callers that want a per-second figure for display multiply by
+`Sim.ticks_per_second` themselves (see `main.gd` below); `Colony` has no
 concept of real time, only ticks.
 
 ## Colonists, life support, and win/lose (`Colony`, Milestone 5)
 
-`Colony` tracks `population: int` (starts at `STARTING_POPULATION = 4`)
-and `status: int` (`enum Status { PLAYING, WON, LOST }`). Related
-constants: `BASE_CAPACITY = 0` (the Colony Hub rework dropped this from
-`4` — housing no longer comes from an implicit colony ship, only from
-placed buildings' `capacity` fields, of which the Hub is now one),
-`STARVE_TICKS = 24` (~6s of real time at 1× speed — raised from `16` in
-the pre-M6 balance pass, for a more forgiving grace period),
-`GROWTH_TICKS = 80` (~20s), `VICTORY_XENITE = 50`, and `LIFE_SUPPORT =
-{oxygen: 0.02, water: 0.02, food: 0.015}` (consumption per colonist per
-tick — also reduced from `{0.03, 0.03, 0.02}` in the pre-M6 pass).
+`Colony` tracks `population: int` (starts at `balance.starting_population`,
+default `4`) and `status: int` (`enum Status { PLAYING, WON, LOST }`). The
+tuning numbers below moved off `Colony` and onto the injected `Balance` in
+Milestone 9 (see "Tuning" above) — the values are unchanged, only where they
+live: `balance.base_capacity` (`0` — the Colony Hub rework dropped this from
+`4`; housing no longer comes from an implicit colony ship, only from placed
+buildings' `capacity` fields, of which the Hub is now one),
+`balance.starve_ticks` (`24`, ~6s of real time at 1× speed — raised from
+`16` in the pre-M6 balance pass, for a more forgiving grace period),
+`balance.growth_ticks` (`80`, ~20s), `balance.victory_xenite` (`50`), and
+`balance.life_support` (`{oxygen: 0.02, water: 0.02, food: 0.015}`,
+consumption per colonist per tick — also reduced from `{0.03, 0.03, 0.02}`
+in the pre-M6 pass).
 
-- **`capacity()`** — `BASE_CAPACITY` plus every placed building's
+- **`capacity()`** — `balance.base_capacity` plus every placed building's
   `capacity` field (`habitat` at `6`, and — Colony Hub rework — `hub` at
   `4`, so a fresh colony reaches its starting population of 4 as soon as
   the Hub is placed). Not cached; recomputed on call by summing over
@@ -337,27 +386,27 @@ tick — also reduced from `{0.03, 0.03, 0.02}` in the pre-M6 pass).
   stays powered.
 - **`_run_life_support()`** — computes `effective := max(0, population -
   life_support_covered())` (Colony Hub rework) and, for each of
-  oxygen/water/food, adds `effective * LIFE_SUPPORT[res]` (not
-  `population * LIFE_SUPPORT[res]` — the covered colonists draw nothing)
-  to a per-resource fractional accumulator (`_life_accum`, mirroring the
-  pattern `_run_mine` uses for fractional ore output), then withdraws
-  whatever whole units it can afford from the stockpile (never going
-  negative — it takes `min(whole, have)`). If it couldn't take the full
-  amount, the tick counts as unmet; an empty stockpile for a resource only
-  counts as an unmet shortage when `effective > 0` (uncovered colonists
-  actually need it) — so with `effective == 0` (e.g. the Hub covering all
-  4 starting colonists) an empty reserve is not a crisis. A fully-met tick
-  resets `_starve_ticks` to `0` and, if `population < capacity()`,
-  increments `_growth_ticks` — reaching `GROWTH_TICKS` resets it and adds
-  one colonist. An unmet tick resets `_growth_ticks` to `0` and increments
-  `_starve_ticks` — reaching `STARVE_TICKS` resets it and removes one
-  colonist. Both are streak counters, not cumulative totals: a single
-  good/bad tick doesn't immediately grow or kill anyone, but breaks the
-  *other* streak.
+  oxygen/water/food, adds `effective * balance.life_support[res]` (not
+  `population * balance.life_support[res]` — the covered colonists draw
+  nothing) to a per-resource fractional accumulator (`_life_accum`,
+  mirroring the pattern `_run_mine` uses for fractional ore output), then
+  withdraws whatever whole units it can afford from the stockpile (never
+  going negative — it takes `min(whole, have)`). If it couldn't take the
+  full amount, the tick counts as unmet; an empty stockpile for a resource
+  only counts as an unmet shortage when `effective > 0` (uncovered
+  colonists actually need it) — so with `effective == 0` (e.g. the Hub
+  covering all 4 starting colonists) an empty reserve is not a crisis. A
+  fully-met tick resets `_starve_ticks` to `0` and, if `population <
+  capacity()`, increments `_growth_ticks` — reaching `balance.growth_ticks`
+  resets it and adds one colonist. An unmet tick resets `_growth_ticks` to
+  `0` and increments `_starve_ticks` — reaching `balance.starve_ticks`
+  resets it and removes one colonist. Both are streak counters, not
+  cumulative totals: a single good/bad tick doesn't immediately grow or
+  kill anyone, but breaks the *other* streak.
 - **`_check_status()`** — a no-op once `status` has already left
   `PLAYING`. Otherwise: `population <= 0` → `Status.LOST`; stockpiled
-  `xenite >= VICTORY_XENITE` → `Status.WON`. Checked last in `tick()`,
-  after production and life support have both run for that tick.
+  `xenite >= balance.victory_xenite` → `Status.WON`. Checked last in
+  `tick()`, after production and life support have both run for that tick.
 - **`rates()`** (Colony Hub rework) — the same `effective` figure gates
   the life-support subtraction in `rates()` too, so the HUD's per-second
   rate for oxygen/water/food shows zero drain while the Hub covers every
@@ -425,7 +474,9 @@ until surveyed, and extraction is gated on a confirmed reading.
 - `_reading_noise` (`PackedFloat32Array`) — a fixed per-cell random value
   in `-1.0..1.0`, generated once at map creation from a seeded
   `RandomNumberGenerator`. `coarse_richness(cell)` adds
-  `noise * READING_JITTER` (`0.25`) to the true richness and clamps to
+  `noise * reading_jitter` (a field, default `0.25`, set from
+  `data/balance.json` since Milestone 9 — see "Tuning" above) to the true
+  richness and clamps to
   `0.05..1.0`, so a coarse scan reports a plausible-but-imprecise number
   that's deterministic (not re-rolled) for a given cell and seed.
 - `_scan` (`PackedByteArray`) — one of `enum Scan { UNSCANNED, COARSE,
@@ -491,8 +542,10 @@ same pattern as `requires_deposit_ids`. `Colony.place()` checks, right
 after placement, whether the new instance's def has both
 `guarantees_deposit_id` and a `scan` block; if so it calls
 `_ensure_deposit_in_range(center, def.scan.max_radius,
-def.guarantees_deposit_id, GUARANTEED_RICHNESS)` (`GUARANTEED_RICHNESS =
-0.6`). That method first scans every cell within `radius` of `center` for
+def.guarantees_deposit_id, balance.guaranteed_richness)`
+(`balance.guaranteed_richness`, default `0.6`, from `data/balance.json`
+since Milestone 9). That method first scans every cell within `radius` of
+`center` for
 an existing deposit of that type that isn't sitting under a building (a
 buried-under-a-building deposit can't be mined, so it doesn't count as
 reachable); if one exists, it does nothing. Otherwise it scans outward
@@ -553,8 +606,10 @@ not every tick, by keeping its own `_power_deficit`/`_low` state between
 calls:
 
 - **Power deficit** (`col.power_consumed > col.power_produced`) — `CRIT`.
-- **Any net-drained resource running low** — a `LOW_STOCK = 8` floor,
-  checked against every id in `col.rates()` whose rate is negative (i.e.
+- **Any net-drained resource running low** — a `low_stock` floor (field,
+  default `8`, from `data/balance.json` since Milestone 9 — `AlertMonitor`
+  takes an optional `Balance` in `_init`), checked against every id in
+  `col.rates()` whose rate is negative (i.e.
   something is actively consuming it faster than it's produced), not just
   oxygen/water/food — so ore/metal/parts drawn down by the production chain
   warn too, the same as life support. `WARN`; text uses `String.capitalize()`
@@ -607,7 +662,8 @@ pure/testable pattern as everything else in `sim/`:
   it directly. Both classes stay free of any autoload/rendering dependency.
 
 **`Sim`** (`sim/sim.gd`) exposes the save API: `SAVE_DIR = "user://saves/"`,
-`SAVE_VERSION = 1`, `AUTOSAVE_NAME = "autosave"`, `AUTOSAVE_SECONDS = 180`.
+`SAVE_VERSION = 1`, `AUTOSAVE_NAME = "autosave"`, `autosave_seconds` (a var,
+default `180.0`, from `data/balance.json` since Milestone 9).
 `save_game(name)` writes `{version, saved_at, tick, speed, last_run_speed,
 map, colony}` as JSON under `SAVE_DIR`; `load_game(name)` reconstructs the
 map and colony via the `from_dict` methods (injecting `Defs.buildings`),
@@ -1081,7 +1137,7 @@ info — including (Milestone 4) `_map.reading_text(_hover)`, the
 prospecting reading for the hovered cell, passed as `set_tile_info`'s new
 `reading` argument. It also (as of Milestone 3) reads `Sim.colony.rates()`
 — per-tick —
-and multiplies each value by `Sim.TICKS_PER_SECOND` to get a per-second
+and multiplies each value by `Sim.ticks_per_second` to get a per-second
 figure before calling `_resource_bar.set_resources(stockpile, per_sec)`
 and `sidebar.set_economy(power_produced, power_consumed, Sim.speed)`; this
 conversion happens here, in the render/UI layer, precisely so `Colony`
@@ -1123,8 +1179,8 @@ first thing to suspect when on-screen visuals look wrong.
 ## Folder layout
 
 ```
-data/       JSON content definitions: resources.json, buildings.json, audio.json
-sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd, alerts.gd
+data/       JSON content definitions: resources.json, buildings.json, audio.json, balance.json
+sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd, alerts.gd, balance.gd
 render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd, palette.gd
 ui/         Screen-space UI: sidebar.gd / sidebar.tscn, resource_bar.gd, alert_ticker.gd
 audio/      View-layer sound: audio.gd (Audio autoload), audio_cues.gd (AudioCues)
@@ -1204,9 +1260,8 @@ correctly before/after; an unlock survives demolishing the prerequisite;
 a two-step prerequisite chain unlocks in order), `tests/test_balance.gd`
 (a regression guard for the metal-cliff fix — sums the metal cost of a
 minimal self-sustaining bootstrap build order and asserts it fits inside
-`Sim.STARTING_STOCKPILE`'s starting metal with headroom to spare; see
-"Balance regression testing" below for why it reads `sim.gd` as text
-instead of loading it), `tests/test_alerts.gd` (`AlertMonitor`: power
+the real `data/balance.json`'s starting metal with headroom to spare; see
+"Balance regression testing" below), `tests/test_alerts.gd` (`AlertMonitor`: power
 deficit fires once on the edge and doesn't repeat while sustained, a low
 life-support resource warns and re-arms after recovery, a confirmed
 deposit announces once per kind), `tests/test_inspector.gd`
@@ -1235,26 +1290,26 @@ non-`hub` building's `requires_built` chain roots at `hub`.
 and the lamp blink curve. `tests/test_audio.gd` (Milestone 8 audio) covers
 the cue manifest contract (every required cue defined, files exist, valid
 bus/volume/pitch ranges, only the ambient bed loops) and the alert/
-game-over cue mapping, including out-of-range level clamping. 1068
-assertions across 83 tests, 0 failures.
+game-over cue mapping, including out-of-range level clamping.
+`tests/test_tuning.gd` (Milestone 9, see "Tuning" above) covers the
+`Balance`/`balance.json` contract: the shipped file parses; an empty
+override reproduces the defaults; a partial override touches only what it
+names; JSON numbers keep their int/float type; a tuned `Balance` reaches a
+`Colony`; and sanity guards on the shipped values. 1101 assertions across
+90 tests, 0 failures.
 
 ### Balance regression testing
 
 `tests/test_balance.gd` is a different shape from the other test files:
 instead of constructing a `Colony`/`ColonyMap` with hand-rolled defs, it
 reads the *real* `data/buildings.json` (via `FileAccess` + `JSON.parse_string`,
-the same way `Defs._load_json` does) and the *real*
-`sim/sim.gd`'s `STARTING_STOCKPILE` constant, then asserts a fact about
-actual shipped balance numbers (a specific bootstrap build order's total
-metal cost fits inside the actual starting metal, with headroom). Reading
-`STARTING_STOCKPILE` is done by scanning `sim.gd`'s source text with a
-regex for the `"metal": <number>` pattern inside the line that declares
-the constant, rather than `load("res://sim/sim.gd")`-ing the script and
-reading the constant off it directly. This is deliberate: `Sim` is an
-autoload `Node` script that references other autoloads (`Defs`, `Events`)
-implicitly through the autoload system; `load()`-ing it standalone in a
-headless test (outside the autoload environment `run_tests.gd` runs in)
-recompiles it in a context where those identifiers don't resolve, which
-fails. Text-scanning sidesteps that entirely at the cost of being a bit
-more fragile to unrelated formatting changes in `sim.gd` — a tradeoff
-noted in a comment in the test file itself.
+the same way `Defs._load_json` does) and the *real* `data/balance.json`
+(parsed the same way, through `Balance.from_dict`), then asserts a fact
+about actual shipped balance numbers (a specific bootstrap build order's
+total metal cost fits inside the actual starting metal, with headroom).
+Before Milestone 9 this had to scrape the starting-metal figure out of
+`sim.gd`'s source text with a regex, since `STARTING_STOCKPILE` lived in an
+autoload script that can't be `load()`-ed standalone in a headless test
+(it references other autoloads that don't resolve outside the autoload
+environment `run_tests.gd` runs in); now that the number lives in a plain
+JSON file, the test reads it directly with no such workaround needed.

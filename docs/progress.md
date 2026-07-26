@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1068 assertions across 83 tests, 0 failures** (`make test`).
+Current test count: **1101 assertions across 90 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -62,4 +62,10 @@ Current test count: **1068 assertions across 83 tests, 0 failures** (`make test`
   `tools/gen_audio.py`/`make audio` rather than downloaded — with an
   8-voice pool, pitch jitter, mute/volume persisted to
   `user://settings.cfg`, and a new pause-menu Sound toggle.
-- **M9 — Balance, polish, v2 hooks — next.**
+- **M9 — Balance, polish, v2 hooks — in progress.** Every tunable sim
+  number (population/capacity, starve/growth ticks, victory xenite, hub
+  guaranteed richness, life support, starting stockpile, tick rate,
+  autosave interval, low-stock floor, reading jitter) is now data-driven
+  via `Balance`/`data/balance.json` (see `docs/architecture.md`) — a pure
+  extraction, shipped numbers unchanged. Pacing verification (actually
+  tuning those numbers) and the v2 hooks list still to come.
