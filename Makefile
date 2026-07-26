@@ -6,7 +6,7 @@ PROJECT := .
 
 .DEFAULT_GOAL := help
 
-.PHONY: help run editor build import test audio clean
+.PHONY: help run editor build import test audio playtest clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -28,6 +28,9 @@ test: ## Run headless sim tests (non-zero exit on failure)
 
 audio: ## Regenerate the synthesized sound assets (assets/audio/*.wav)
 	python3 tools/gen_audio.py
+
+playtest: ## Headless pacing run: bot-plays several seeds and reports timings
+	$(GODOT) --headless --script res://tools/playtest.gd
 
 clean: ## Remove Godot's generated cache
 	rm -rf $(PROJECT)/.godot
