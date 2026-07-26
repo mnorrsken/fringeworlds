@@ -15,11 +15,17 @@ var resources: Dictionary = {}
 ## never re-parses terrain names or hex strings.
 var buildings: Dictionary = {}
 
+## cue id (String) -> sound definition (Dictionary: file, bus, volume_db, ...).
+## Read by the Audio autoload; see AudioCues for the cue vocabulary.
+var audio: Dictionary = {}
+
 func _ready() -> void:
 	resources = _load_json(DATA_DIR + "resources.json")
 	print("[Defs] loaded %d resource definitions" % resources.size())
 	buildings = _load_buildings(DATA_DIR + "buildings.json")
 	print("[Defs] loaded %d building definitions" % buildings.size())
+	audio = _load_json(DATA_DIR + "audio.json")
+	print("[Defs] loaded %d sound definitions" % audio.size())
 
 ## Loads buildings.json and pre-processes each entry for fast use at runtime.
 func _load_buildings(path: String) -> Dictionary:

@@ -53,7 +53,9 @@ func _ready() -> void:
 	_speed.add_theme_color_override("font_color", SAND)
 	_hint.add_theme_color_override("font_color", DIM)
 
-	_demolish.pressed.connect(func() -> void: demolish_requested.emit())
+	_demolish.pressed.connect(func() -> void:
+		Audio.ui_click()
+		demolish_requested.emit())
 	_hint.text = "LMB place/inspect · RMB demolish · WASD pan · Z zoom · P/O/M overlays · Space,1,3 speed · Esc menu · F1"
 
 var _build_buttons: Dictionary = {}  # building id -> Button
@@ -86,6 +88,7 @@ func set_locks(locks: Dictionary) -> void:
 		btn.tooltip_text = reason if locked else str(btn.get_meta("desc"))
 
 func _on_build_pressed(id: String) -> void:
+	Audio.ui_click()
 	build_requested.emit(id)
 
 func _cost_text(cost: Dictionary) -> String:

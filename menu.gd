@@ -34,10 +34,15 @@ func _ready() -> void:
 	_refresh_continue()
 	_load_panel.visible = false
 
+	for btn in [_new_btn, _continue_btn, _load_btn, _quit_btn, _load_confirm,
+			_delete_btn, _back_btn]:
+		btn.pressed.connect(Audio.ui_click)
 	_new_btn.pressed.connect(_on_new_game)
 	_continue_btn.pressed.connect(_on_continue)
 	_load_btn.pressed.connect(_on_load)
-	_quit_btn.pressed.connect(func() -> void: get_tree().quit())
+	_quit_btn.pressed.connect(func() -> void:
+		Audio.shutdown()
+		get_tree().quit())
 	_load_confirm.pressed.connect(_on_load_confirm)
 	_delete_btn.pressed.connect(_on_delete)
 	_back_btn.pressed.connect(func() -> void: _load_panel.visible = false)

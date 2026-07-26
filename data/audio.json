@@ -1,0 +1,52 @@
+[
+  {
+    "id": "ambient", "file": "res://assets/audio/ambient.wav",
+    "bus": "Music", "volume_db": -7, "loop": true,
+    "desc": "Ambient bed: cold pad over a low drone, wind and sparse bell motes."
+  },
+  {
+    "id": "ui_click", "file": "res://assets/audio/ui_click.wav",
+    "bus": "SFX", "volume_db": -14, "pitch_min": 0.97, "pitch_max": 1.03,
+    "desc": "Any button press."
+  },
+  {
+    "id": "place", "file": "res://assets/audio/place.wav",
+    "bus": "SFX", "volume_db": -6, "pitch_min": 0.94, "pitch_max": 1.06,
+    "desc": "Building placed."
+  },
+  {
+    "id": "denied", "file": "res://assets/audio/denied.wav",
+    "bus": "SFX", "volume_db": -10,
+    "desc": "Placement or demolition refused."
+  },
+  {
+    "id": "demolish", "file": "res://assets/audio/demolish.wav",
+    "bus": "SFX", "volume_db": -8, "pitch_min": 0.92, "pitch_max": 1.08,
+    "desc": "Building removed."
+  },
+  {
+    "id": "alert_info", "file": "res://assets/audio/alert_info.wav",
+    "bus": "SFX", "volume_db": -9,
+    "desc": "INFO alert — e.g. a deposit was confirmed."
+  },
+  {
+    "id": "alert_warn", "file": "res://assets/audio/alert_warn.wav",
+    "bus": "SFX", "volume_db": -8,
+    "desc": "WARN alert — e.g. a resource running low."
+  },
+  {
+    "id": "alert_crit", "file": "res://assets/audio/alert_crit.wav",
+    "bus": "SFX", "volume_db": -7,
+    "desc": "CRIT alert — e.g. power deficit shutting buildings down."
+  },
+  {
+    "id": "win", "file": "res://assets/audio/win.wav",
+    "bus": "Music", "volume_db": -4,
+    "desc": "Beacon launched."
+  },
+  {
+    "id": "lose", "file": "res://assets/audio/lose.wav",
+    "bus": "Music", "volume_db": -4,
+    "desc": "Colony lost."
+  }
+]

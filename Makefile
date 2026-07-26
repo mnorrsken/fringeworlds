@@ -6,7 +6,7 @@ PROJECT := .
 
 .DEFAULT_GOAL := help
 
-.PHONY: help run editor build import test clean
+.PHONY: help run editor build import test audio clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -25,6 +25,9 @@ import: ## Headless import: build the .godot cache and catch script/asset errors
 
 test: ## Run headless sim tests (non-zero exit on failure)
 	$(GODOT) --headless --path $(PROJECT) --script res://tests/run_tests.gd
+
+audio: ## Regenerate the synthesized sound assets (assets/audio/*.wav)
+	python3 tools/gen_audio.py
 
 clean: ## Remove Godot's generated cache
 	rm -rf $(PROJECT)/.godot

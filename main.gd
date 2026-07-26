@@ -24,6 +24,7 @@ enum Mode { NONE, PLACE, DEMOLISH }
 @onready var _gameover_subtitle: Label = $GameOverLayer/Root/Center/Panel/Margin/VBox/Subtitle
 @onready var _sysmenu_root: Control = $SystemMenuLayer/Root
 @onready var _sysmenu_status: Label = $SystemMenuLayer/Root/Center/Panel/Margin/VBox/Status
+@onready var _sound_btn: Button = $SystemMenuLayer/Root/Center/Panel/Margin/VBox/SoundBtn
 @onready var _debug: CanvasLayer = $Debug
 @onready var _label: Label = $Debug/Label
 
@@ -63,10 +64,24 @@ func _ready() -> void:
 
 func _wire_system_menu() -> void:
 	var vbox := $SystemMenuLayer/Root/Center/Panel/Margin/VBox
+	for btn in vbox.get_children():
+		if btn is Button:
+			btn.pressed.connect(Audio.ui_click)
 	vbox.get_node("ResumeBtn").pressed.connect(_close_system_menu)
 	vbox.get_node("SaveBtn").pressed.connect(_on_save_pressed)
+	vbox.get_node("SoundBtn").pressed.connect(_on_sound_pressed)
 	vbox.get_node("MenuBtn").pressed.connect(_on_return_to_menu)
-	vbox.get_node("QuitBtn").pressed.connect(func() -> void: get_tree().quit())
+	vbox.get_node("QuitBtn").pressed.connect(func() -> void:
+		Audio.shutdown()
+		get_tree().quit())
+	_refresh_sound_label()
+
+func _on_sound_pressed() -> void:
+	Audio.toggle_mute()
+	_refresh_sound_label()
+
+func _refresh_sound_label() -> void:
+	_sound_btn.text = "Sound: Off" if Audio.is_muted() else "Sound: On"
 
 func _refresh_locks() -> void:
 	var locks := {}
@@ -146,9 +161,12 @@ func _on_left_click() -> void:
 		return
 	match _mode:
 		Mode.PLACE:
-			Sim.place_building(_place_type, _hover)
+			# Success plays via Events.building_placed; only the refusal is ours.
+			if not Sim.place_building(_place_type, _hover):
+				Audio.play(AudioCues.DENIED)
 		Mode.DEMOLISH:
-			Sim.demolish_at(_hover)
+			if not Sim.demolish_at(_hover):
+				Audio.play(AudioCues.DENIED)
 		Mode.NONE:
 			# Click a building to inspect it; click empty ground to deselect.
 			var b := Sim.building_at(_hover)
@@ -157,8 +175,8 @@ func _on_left_click() -> void:
 func _on_right_click() -> void:
 	if _mode != Mode.NONE:
 		_set_mode(Mode.NONE)
-	else:
-		Sim.demolish_at(_hover)
+	elif not Sim.demolish_at(_hover):
+		Audio.play(AudioCues.DENIED)
 
 func _on_build_requested(type_id: String) -> void:
 	_place_type = type_id

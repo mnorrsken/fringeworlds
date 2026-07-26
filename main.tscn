@@ -212,6 +212,9 @@ text = "Resume"
 [node name="SaveBtn" type="Button" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
 text = "Save Game"
 
+[node name="SoundBtn" type="Button" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
+text = "Sound: On"
+
 [node name="MenuBtn" type="Button" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
 text = "Main Menu"
 

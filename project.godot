@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 Events="*res://sim/events.gd"
 Defs="*res://sim/defs.gd"
 Sim="*res://sim/sim.gd"
+Audio="*res://audio/audio.gd"
 
 [display]
 
