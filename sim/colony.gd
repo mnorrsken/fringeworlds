@@ -34,6 +34,11 @@ var built_types: Dictionary = {}
 var power_produced := 0
 var power_consumed := 0
 
+# Whether these defs declare a controller building at all. Test colonies built
+# from a handful of synthetic defs have no hub, and requiring one there would be
+# meaningless — the rule belongs to the content, not the engine.
+var _needs_controller := false
+
 # Cells whose scan state changed during the most recent tick (for the overlay).
 var scan_changes: Array = []
 
@@ -42,6 +47,10 @@ func _init(p_map: ColonyMap, p_defs: Dictionary, p_stockpile: Dictionary = {},
 	map = p_map
 	defs = p_defs
 	balance = p_balance if p_balance != null else Balance.new()
+	for id in defs:
+		if defs[id].get("colony_controller", false):
+			_needs_controller = true
+			break
 	stockpile = p_stockpile.duplicate()
 	population = balance.starting_population
 
@@ -58,6 +67,43 @@ func footprint(type_id: String, origin: Vector2i) -> Array:
 func is_unlocked(type_id: String) -> bool:
 	return missing_prereqs(type_id).is_empty()
 
+## How many of a building type currently stand.
+func count_of(type_id: String) -> int:
+	var n := 0
+	for id in buildings:
+		if buildings[id].type == type_id:
+			n += 1
+	return n
+
+## True while a scanning building's range covers `cell`. Survey stations have to
+## be planted inside existing coverage, so prospecting spreads outward from the
+## hub in overlapping steps instead of leapfrogging into the dark.
+func in_survey_coverage(cell: Vector2i) -> bool:
+	for id in buildings:
+		var inst: Dictionary = buildings[id]
+		var def: Dictionary = defs[inst.type]
+		if not def.has("scan"):
+			continue
+		var s: int = int(def.size)
+		var center: Vector2i = inst.origin + Vector2i(s / 2, s / 2)
+		if Vector2(cell - center).length() <= float(def.scan.max_radius):
+			return true
+	return false
+
+## Why the build menu should grey this building out, or "" if it's offerable.
+## Covers both tech prerequisites and one-per-colony limits; affordability and
+## terrain are per-tile and belong to can_place() instead.
+func lock_reason(type_id: String) -> String:
+	if bool(defs[type_id].get("unique", false)) and count_of(type_id) > 0:
+		return "Already built"
+	var missing := missing_prereqs(type_id)
+	if missing.is_empty():
+		return ""
+	var names := []
+	for r in missing:
+		names.append(str(defs[r].get("name", r)))
+	return "Requires: " + ", ".join(names)
+
 ## Prerequisite building type ids not yet built (empty == unlocked).
 func missing_prereqs(type_id: String) -> Array:
 	var missing := []
@@ -73,6 +119,10 @@ func can_place(type_id: String, origin: Vector2i) -> Dictionary:
 	if not is_unlocked(type_id):
 		return {"ok": false, "reason": "Locked — prerequisite not built"}
 	var def: Dictionary = defs[type_id]
+	if bool(def.get("unique", false)) and count_of(type_id) > 0:
+		return {"ok": false, "reason": "Only one allowed"}
+	if bool(def.get("requires_coverage", false)) and not in_survey_coverage(origin):
+		return {"ok": false, "reason": "Outside survey coverage"}
 	for c in footprint(type_id, origin):
 		if not map.in_bounds(c):
 			return {"ok": false, "reason": "Off the map"}
@@ -120,6 +170,8 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 	if def.has("scan"):
 		inst["scan_ring"] = 0
 		inst["scan_progress"] = 0
+		inst["resampling"] = false
+		inst["scan_probes"] = 0
 	if def.has("mine"):
 		# Latch the deposit under the extractor at placement time.
 		inst["deposit_type"] = map.get_deposit(origin)
@@ -203,11 +255,26 @@ func life_support_covered() -> int:
 func tick() -> void:
 	scan_changes = []
 	_balance_power()
+	_require_hub()
 	_balance_workforce()
 	_run_prospecting()
 	_run_production()
 	_run_life_support()  # after production, so a just-in-time supply counts
 	_check_status()
+
+# The hub is the colony's controller as well as its heart: without one standing,
+# nothing else runs. Losing it is survivable — build another — but the colony
+# holds its breath until then, including life support.
+func _require_hub() -> void:
+	if not _needs_controller:
+		return
+	for id in buildings:
+		if defs[buildings[id].type].get("colony_controller", false) \
+				and buildings[id].active:
+			return
+	for id in buildings:
+		buildings[id].active = false
+		buildings[id].idle_reason = "No colony hub"
 
 # Among powered buildings, staff oldest-first; idle the newest when the workforce
 # demand exceeds the population.
@@ -302,15 +369,23 @@ func _balance_power() -> void:
 			inst.active = false
 			inst.idle_reason = "No power"
 
-# Survey stations sweep an expanding circular ring outward; each visit advances
-# a tile's scan state one step (unscanned -> coarse -> confirmed). After the
-# outer ring, the sweep restarts from the center, so a second pass confirms.
+# Scanners sweep an expanding circular ring outward; each visit advances a
+# tile's scan state one step (unscanned -> coarse -> confirmed).
+#
+# What happens after the sweep reaches the outer ring depends on the building.
+# The hub simply starts over, so a second systematic pass confirms everything it
+# found. A def with `scan.confirm_ticks` instead drops into resampling — slow,
+# scattered probes (see _run_resample). Finding a deposit is quick; pinning down
+# how rich it is is the patient part.
 func _run_prospecting() -> void:
 	for id in _ids_oldest_first():
 		var inst: Dictionary = buildings[id]
 		if not inst.active or not defs[inst.type].has("scan"):
 			continue
 		var scan: Dictionary = defs[inst.type].scan
+		if bool(inst.get("resampling", false)):
+			_run_resample(inst, scan)
+			continue
 		inst.scan_progress = int(inst.scan_progress) + 1
 		if int(inst.scan_progress) < int(scan.ticks_per_ring):
 			continue
@@ -318,6 +393,40 @@ func _run_prospecting() -> void:
 		_scan_ring(inst, int(inst.scan_ring))
 		var next_ring := int(inst.scan_ring) + 1
 		inst.scan_ring = 0 if next_ring > int(scan.max_radius) else next_ring
+		if next_ring > int(scan.max_radius) and scan.has("confirm_ticks"):
+			inst["resampling"] = true
+
+# One probe every `confirm_ticks` at a tile picked pseudo-randomly from the
+# station's range. It often lands on ground it has already confirmed, or on bare
+# rock, and achieves nothing — that scatter is the cost of confirming richness
+# away from the hub.
+#
+# The pick is hashed from the building id and its probe count rather than drawn
+# from an RNG, so the sim stays deterministic and a save reloads mid-sequence.
+func _run_resample(inst: Dictionary, scan: Dictionary) -> void:
+	inst.scan_progress = int(inst.scan_progress) + 1
+	if int(inst.scan_progress) < int(scan.confirm_ticks):
+		return
+	inst.scan_progress = 0
+	var probe := int(inst.get("scan_probes", 0))
+	inst["scan_probes"] = probe + 1
+
+	var radius := int(scan.max_radius)
+	var size: int = int(defs[inst.type].size)
+	var center: Vector2i = inst.origin + Vector2i(size / 2, size / 2)
+	var span := radius * 2 + 1
+	var h := _probe_hash(int(inst.id), probe)
+	var cell := center + Vector2i(h % span - radius, (h / span) % span - radius)
+	if not map.in_bounds(cell) or Vector2(cell - center).length() > float(radius):
+		return
+	if map.get_scan(cell) == ColonyMap.Scan.COARSE:
+		map.set_scan(cell, ColonyMap.Scan.CONFIRMED)
+		scan_changes.append(cell)
+
+static func _probe_hash(id: int, n: int) -> int:
+	var h := (id * 73856093) ^ ((n + 1) * 19349663)
+	h = (h ^ (h >> 13)) * 1274126177
+	return absi(h ^ (h >> 16))
 
 func _scan_ring(inst: Dictionary, ring: int) -> void:
 	var s: int = defs[inst.type].size
@@ -359,20 +468,28 @@ func _run_production() -> void:
 			inst.progress = int(recipe.ticks)
 			inst.idle_reason = "Needs " + ", ".join(_short_inputs(recipe.get("inputs", {})))
 
-# Extractors yield their deposit's resource at base_rate x richness per tick,
-# accumulating fractional output so rich tiles produce visibly faster.
+# Extractors run at a flat rate and draw the tile's reserve down until it's
+# gone. Richness sizes that reserve rather than the rate, so a rich tile lasts
+# longer instead of pumping faster — and every extractor eventually stands on
+# dead ground and has to be moved.
 func _run_mine(inst: Dictionary, def: Dictionary) -> void:
 	var res: String = ColonyMap.DEPOSIT_RESOURCE.get(int(inst.deposit_type), "")
 	if res == "":
 		return
+	var remaining := map.get_amount(inst.origin)
+	if remaining <= 0.0:
+		inst.active = false
+		inst.idle_reason = "Deposit worked out"
+		return
 	inst.mine_accum = float(inst.mine_accum) + _mine_per_tick(inst, def)
-	var whole := int(inst.mine_accum)
-	if whole > 0:
-		stockpile[res] = int(stockpile.get(res, 0)) + whole
+	var whole := minf(float(int(inst.mine_accum)), remaining)
+	if whole > 0.0:
+		stockpile[res] = int(stockpile.get(res, 0)) + int(whole)
+		map.set_amount(inst.origin, remaining - whole)
 		inst.mine_accum = float(inst.mine_accum) - whole
 
 func _mine_per_tick(inst: Dictionary, def: Dictionary) -> float:
-	return float(def.mine.base_per_tick) * float(inst.richness)
+	return float(def.mine.base_per_tick)
 
 ## Net stockpile change per tick from currently-active buildings (for the HUD).
 func rates() -> Dictionary:
@@ -384,7 +501,7 @@ func rates() -> Dictionary:
 		var def: Dictionary = defs[inst.type]
 		if def.has("mine"):
 			var res: String = ColonyMap.DEPOSIT_RESOURCE.get(int(inst.deposit_type), "")
-			if res != "":
+			if res != "" and map.get_amount(inst.origin) > 0.0:
 				r[res] = float(r.get(res, 0.0)) + _mine_per_tick(inst, def)
 			continue
 		if not def.has("recipe"):
@@ -451,6 +568,7 @@ func building_report(id: int) -> Dictionary:
 			"resource": ColonyMap.DEPOSIT_RESOURCE.get(dep, ""),
 			"richness": float(inst.get("richness", 0.0)),
 			"per_tick": _mine_per_tick(inst, def),
+			"remaining": map.get_amount(inst.origin),
 		}
 	return rep
 
@@ -497,6 +615,8 @@ func _inst_to_dict(inst: Dictionary) -> Dictionary:
 	if inst.has("scan_ring"):
 		d["scan_ring"] = int(inst.scan_ring)
 		d["scan_progress"] = int(inst.scan_progress)
+		d["resampling"] = bool(inst.get("resampling", false))
+		d["scan_probes"] = int(inst.get("scan_probes", 0))
 	if inst.has("deposit_type"):
 		d["deposit_type"] = int(inst.deposit_type)
 		d["richness"] = float(inst.richness)

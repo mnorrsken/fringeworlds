@@ -44,6 +44,8 @@ const DEPOSIT_CATEGORY := {
 ## data/balance.json by Sim; the default matches the shipped balance so a map
 ## built bare (in tests) reads the same as in game.
 var reading_jitter := Balance.new().reading_jitter
+## Units a deposit holds at full richness, by deposit name (see Balance).
+var deposit_units := Balance.new().deposit_units
 
 var width: int
 var height: int
@@ -53,6 +55,7 @@ var seed: int = 0
 var _cells: PackedByteArray = PackedByteArray()       # terrain
 var _deposit: PackedByteArray = PackedByteArray()     # Deposit id (hidden)
 var _richness: PackedFloat32Array = PackedFloat32Array()  # 0..1 (hidden)
+var _amount: PackedFloat32Array = PackedFloat32Array()    # extractable units left
 var _scan: PackedByteArray = PackedByteArray()        # Scan state (revealed by play)
 var _reading_noise: PackedFloat32Array = PackedFloat32Array()  # -1..1 per cell, for coarse jitter
 
@@ -63,6 +66,7 @@ func _init(w: int = 64, h: int = 64) -> void:
 	_cells.resize(n)
 	_deposit.resize(n)
 	_richness.resize(n)
+	_amount.resize(n)
 	_scan.resize(n)
 	_reading_noise.resize(n)
 
@@ -81,12 +85,22 @@ func get_deposit(cell: Vector2i) -> int:
 func get_richness(cell: Vector2i) -> float:
 	return _richness[cell.y * width + cell.x]
 
-## Sets a cell's hidden deposit type and richness. Used at generation and by the
-## hub's "guarantee reachable iron" rule; extractors read these once, at placement.
+## Units of ore still in the ground here. Extractors draw this down and stop
+## when it hits zero — a tile is a finite reserve, not a faucet.
+func get_amount(cell: Vector2i) -> float:
+	return _amount[cell.y * width + cell.x]
+
+func set_amount(cell: Vector2i, v: float) -> void:
+	_amount[cell.y * width + cell.x] = maxf(v, 0.0)
+
+## Sets a cell's hidden deposit type and richness, sizing its reserve from that
+## richness. Used at generation and by the hub's "guarantee reachable iron"
+## rule; extractors read the type once, at placement, but draw the reserve live.
 func set_deposit(cell: Vector2i, dep: int, richness: float) -> void:
 	var i := cell.y * width + cell.x
 	_deposit[i] = dep
 	_richness[i] = richness
+	_amount[i] = richness * float(deposit_units.get(Deposit.keys()[dep], 100.0))
 
 func get_scan(cell: Vector2i) -> int:
 	return _scan[cell.y * width + cell.x]
@@ -111,8 +125,10 @@ func reading_text(cell: Vector2i) -> String:
 		Scan.CONFIRMED:
 			if dep == Deposit.NONE:
 				return "confirmed: barren"
-			return "%s · richness %d%%" % [
-				DEPOSIT_NAMES[dep], int(round(get_richness(cell) * 100))]
+			var left := get_amount(cell)
+			if left <= 0.0:
+				return "%s · worked out" % DEPOSIT_NAMES[dep]
+			return "%s · %d units left" % [DEPOSIT_NAMES[dep], int(round(left))]
 	return ""
 
 ## --- Serialization ---------------------------------------------------------
@@ -128,6 +144,7 @@ func to_dict() -> Dictionary:
 		"deposit": Marshalls.raw_to_base64(_deposit),
 		"scan": Marshalls.raw_to_base64(_scan),
 		"richness": Marshalls.raw_to_base64(_richness.to_byte_array()),
+		"amount": Marshalls.raw_to_base64(_amount.to_byte_array()),
 		"reading_noise": Marshalls.raw_to_base64(_reading_noise.to_byte_array()),
 	}
 
@@ -140,6 +157,16 @@ static func from_dict(d: Dictionary) -> ColonyMap:
 	m._scan = Marshalls.base64_to_raw(str(d.scan))
 	m._richness = Marshalls.base64_to_raw(str(d.richness)).to_float32_array()
 	m._reading_noise = Marshalls.base64_to_raw(str(d.reading_noise)).to_float32_array()
+	# Saves from before deposits were finite carry no reserves; refill them from
+	# richness so an old save loads as an untouched map rather than a dead one.
+	if d.has("amount"):
+		m._amount = Marshalls.base64_to_raw(str(d.amount)).to_float32_array()
+	else:
+		for i in m.width * m.height:
+			var dep := m._deposit[i]
+			if dep != Deposit.NONE:
+				m._amount[i] = m._richness[i] \
+					* float(m.deposit_units.get(Deposit.keys()[dep], 100.0))
 	return m
 
 ## Generates terrain from noise. Deterministic for a given seed. Two noise
@@ -167,7 +194,7 @@ func generate(p_seed: int) -> void:
 				t = Terrain.HIGHLANDS
 			if t == Terrain.REGOLITH and f > 0.55:
 				t = Terrain.ICE
-			elif t == Terrain.HIGHLANDS and f < -0.60:
+			elif t == Terrain.HIGHLANDS and f < -0.40:
 				t = Terrain.CRYSTAL
 			set_terrain(Vector2i(x, y), t)
 
@@ -184,7 +211,7 @@ func _generate_deposits(p_seed: int) -> void:
 
 	var fields := {}
 	var thresholds := {
-		Deposit.IRON: 0.42, Deposit.COPPER: 0.45, Deposit.XENITE: 0.58,
+		Deposit.IRON: 0.42, Deposit.COPPER: 0.45,
 	}
 	for dep in thresholds:
 		var n := FastNoiseLite.new()
@@ -193,21 +220,33 @@ func _generate_deposits(p_seed: int) -> void:
 		n.frequency = 0.09
 		fields[dep] = n
 
+	# Xenite is the exception: it sits in the crystal formations, which are
+	# visible terrain. You can see where the crystal is from orbit — what you
+	# can't see is how much is in it, so a formation still has to be prospected
+	# before an extractor can be sited on it.
+	var xen := FastNoiseLite.new()
+	xen.seed = p_seed + Deposit.XENITE * 101
+	xen.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	xen.frequency = 0.14
+
 	for y in height:
 		for x in width:
-			var t := get_terrain(Vector2i(x, y))
+			var cell := Vector2i(x, y)
+			var t := get_terrain(cell)
+			if t == Terrain.CRYSTAL:
+				var v := xen.get_noise_2d(x, y) * 0.5 + 0.5   # 0..1
+				set_deposit(cell, Deposit.XENITE, clampf(0.25 + v * 0.75, 0.2, 1.0))
+				continue
 			if t != Terrain.REGOLITH and t != Terrain.HIGHLANDS:
 				continue
 			var best_dep := Deposit.NONE
 			var best_margin := 0.0
 			for dep in fields:
-				var v: float = fields[dep].get_noise_2d(x, y)
-				var margin: float = v - thresholds[dep]
+				var v2: float = fields[dep].get_noise_2d(x, y)
+				var margin: float = v2 - thresholds[dep]
 				if margin > 0.0 and margin > best_margin:
 					best_margin = margin
 					best_dep = dep
 			if best_dep != Deposit.NONE:
-				var i := y * width + x
-				_deposit[i] = best_dep
 				# Margin maps to richness; even a thin deposit reads > 0.
-				_richness[i] = clampf(0.2 + best_margin * 1.6, 0.1, 1.0)
+				set_deposit(cell, best_dep, clampf(0.2 + best_margin * 1.6, 0.1, 1.0))

@@ -90,7 +90,10 @@ func _ready() -> void:
 	_minimap.setup(_map, _camera)
 	Events.game_over.connect(_on_game_over)
 	# New buildings can unlock others, so refresh the build menu's locks on place.
+	# Demolishing matters as much as building now: tearing down the hub (or a
+	# one-per-colony building) puts it back in the menu.
 	Events.building_placed.connect(func(_i): _refresh_locks())
+	Events.building_removed.connect(func(_i): _refresh_locks())
 	_refresh_locks()
 	_wire_system_menu()
 	_set_mode(Mode.NONE)
@@ -119,14 +122,7 @@ func _refresh_sound_label() -> void:
 func _refresh_locks() -> void:
 	var locks := {}
 	for id in Defs.buildings:
-		var missing := Sim.colony.missing_prereqs(id)
-		if missing.is_empty():
-			locks[id] = ""
-		else:
-			var names := []
-			for r in missing:
-				names.append(str(Defs.buildings[r].name))
-			locks[id] = "Requires: " + ", ".join(names)
+		locks[id] = Sim.colony.lock_reason(id)
 	_sidebar.set_locks(locks)
 
 func _process(_delta: float) -> void:

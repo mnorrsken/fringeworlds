@@ -78,3 +78,64 @@ func test_hub_does_not_duplicate_existing_iron(t: Object) -> void:
 	var c := Colony.new(m, _defs(), {})
 	c.place("hub", Vector2i(10, 10))  # center (11,11); (13,11) is distance 2, in range
 	t.eq(_count_iron(m), 1, "existing reachable iron isn't duplicated")
+
+# --- one hub, and nothing runs without it -----------------------------------
+
+func _controller_defs() -> Dictionary:
+	var d := _defs()
+	d.hub["unique"] = true
+	d.hub["colony_controller"] = true
+	return d
+
+func _hub_colony() -> Colony:
+	return Colony.new(_flat_map(), _controller_defs(), {})
+
+func test_the_hub_is_free(t: Object) -> void:
+	var c := _hub_colony()
+	c.stockpile = {}
+	t.ok(c.can_place("hub", Vector2i(4, 4)).ok,
+		"the hub costs nothing, so a colony with an empty stockpile can land one")
+
+func test_only_one_hub_at_a_time(t: Object) -> void:
+	var c := _hub_colony()
+	c.place("hub", Vector2i(4, 4))
+	var second := c.can_place("hub", Vector2i(10, 10))
+	t.ok(not second.ok, "a second hub is refused")
+	t.eq(str(second.reason), "Only one allowed", "and says why")
+	t.eq(str(c.lock_reason("hub")), "Already built", "the build menu greys it out too")
+
+func test_the_hub_can_be_replaced(t: Object) -> void:
+	var c := _hub_colony()
+	c.place("hub", Vector2i(4, 4))
+	c.demolish_at(Vector2i(4, 4))
+	t.eq(str(c.lock_reason("hub")), "", "demolishing puts the hub back on the menu")
+	t.ok(c.can_place("hub", Vector2i(10, 10)).ok, "and it can be rebuilt elsewhere")
+
+func test_nothing_runs_without_a_hub(t: Object) -> void:
+	var c := _hub_colony()
+	c.place("hub", Vector2i(4, 4))
+	var hab: Dictionary = c.place("hab", Vector2i(9, 9))
+	c.tick()
+	t.ok(hab.active, "the habitat runs while the hub stands")
+	c.demolish_at(Vector2i(4, 4))
+	c.tick()
+	t.ok(not hab.active, "and stops the moment the hub is gone")
+	t.eq(str(hab.idle_reason), "No colony hub", "with the reason named")
+
+func test_the_colony_recovers_when_the_hub_returns(t: Object) -> void:
+	var c := _hub_colony()
+	c.place("hub", Vector2i(4, 4))
+	var hab: Dictionary = c.place("hab", Vector2i(9, 9))
+	c.demolish_at(Vector2i(4, 4))
+	c.tick()
+	c.place("hub", Vector2i(14, 14))
+	c.tick()
+	t.ok(hab.active, "rebuilding the hub brings the colony back up")
+
+# A colony whose defs declare no controller (every unit test but this file)
+# must not be shut down by a rule its content never opted into.
+func test_defs_without_a_controller_are_unaffected(t: Object) -> void:
+	var c := Colony.new(_flat_map(), _defs(), {})
+	var hab: Dictionary = c.place("hab", Vector2i(9, 9))
+	c.tick()
+	t.ok(hab.active, "no controller declared, so no controller required")

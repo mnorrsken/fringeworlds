@@ -104,9 +104,9 @@ func _lines(report: Dictionary, terrain: String, reading: String) -> Array:
 		out.append("progress %d/%d" % [int(report.progress), int(recipe.ticks)])
 	if report.has("mine"):
 		var m: Dictionary = report.mine
-		out.append("mining %s" % str(m.resource))
-		out.append("richness %d%%  (%.2f/t)" % [
-			int(round(float(m.richness) * 100)), float(m.per_tick)])
+		out.append("mining %s  (%.2f/t)" % [str(m.resource), float(m.per_tick)])
+		var left := int(round(float(m.get("remaining", 0.0))))
+		out.append("reserve %d left" % left if left > 0 else "reserve worked out")
 
 	out.append("")
 	out.append(terrain + ("  ·  " + reading if reading != "" else ""))

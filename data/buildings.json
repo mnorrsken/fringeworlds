@@ -1,7 +1,7 @@
 [
   {
     "id": "hub", "name": "Colony Hub", "size": 2,
-    "cost": { "metal": 40 }, "power": 15, "workers": 0,
+    "cost": {}, "power": 15, "workers": 0, "unique": true, "colony_controller": true,
     "capacity": 4, "life_support": 4,
     "scan": { "max_radius": 6, "ticks_per_ring": 3 },
     "guarantees_deposit": "IRON",
@@ -12,7 +12,7 @@
     ],
     "allowed_terrain": ["REGOLITH"],
     "color": "e8c15a",
-    "desc": "The colony's heart. Sustains its first 4 colonists, generates power, surveys the area, and guarantees nearby iron ore. Build this first."
+    "desc": "The colony's heart, and free to land. Sustains its first 4 colonists, generates power, surveys the area, and guarantees nearby iron ore. Only one can stand at a time, and nothing in the colony runs without it."
   },
   {
     "id": "solar_panel", "name": "Solar Panel", "size": 1,
@@ -85,21 +85,22 @@
     "id": "survey_station", "name": "Survey Station", "size": 1,
     "cost": { "metal": 25 }, "power": -3, "workers": 0,
     "requires_built": ["hub"],
-    "scan": { "max_radius": 7, "ticks_per_ring": 3 },
+    "scan": { "max_radius": 7, "ticks_per_ring": 3, "confirm_ticks": 6 },
+    "requires_coverage": true,
     "sprite": "res://assets/prospector.png",
     "fx": [
       { "type": "lamp", "at": [-2, -43], "color": "ff4a3a", "period": 1.4, "duty": 0.2, "radius": 1.8 }
     ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "d98a3a",
-    "desc": "Extends prospecting past the hub — find copper and xenite farther out. Scan again to confirm. Automated."
+    "desc": "Extends prospecting past the hub — must be built inside existing survey coverage. Its first sweep finds deposits quickly; confirming their richness is a slow resample of scattered tiles. Automated."
   },
   {
     "id": "mine", "name": "Mine", "size": 1,
     "cost": { "metal": 20 }, "power": -4, "workers": 0,
     "requires_built": ["hub"],
     "requires_deposit": ["IRON", "COPPER"],
-    "mine": { "base_per_tick": 0.35 },
+    "mine": { "base_per_tick": 0.30 },
     "sprite": "res://assets/miner.png",
     "fx": [
       { "type": "dust", "at": [0, 2], "rate": 10, "scale": 1.4 },
@@ -145,14 +146,14 @@
     "cost": { "metal": 20, "parts": 8 }, "power": -6, "workers": 2,
     "requires_built": ["parts_factory"],
     "requires_deposit": ["XENITE"],
-    "mine": { "base_per_tick": 0.15 },
+    "mine": { "base_per_tick": 0.022 },
     "sprite": "res://assets/crystalextractor.png",
     "fx": [
       { "type": "shimmer", "at": [12, -18], "rate": 8, "scale": 1.2 },
       { "type": "glow", "at": [12, -9], "color": "a774c6", "radius": 6, "alpha": 0.55, "period": 2.2 }
     ],
-    "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
+    "allowed_terrain": ["CRYSTAL"],
     "color": "9a5ac4",
-    "desc": "On confirmed xenite. Needs 2 colonists. Yields the beacon resource."
+    "desc": "Stands on a crystal formation, once prospecting has confirmed how rich it is. Needs 2 colonists. A single formation won't fill the beacon — plan on several."
   }
 ]

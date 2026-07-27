@@ -84,7 +84,7 @@ func _cost_text(cost: Dictionary) -> String:
 	var parts := []
 	for r in cost:
 		parts.append("%d %s" % [int(cost[r]), r])
-	return ", ".join(parts)
+	return ", ".join(parts) if not parts.is_empty() else "free"
 
 func set_mode_label(text: String) -> void:
 	_mode.text = "◈ %s" % text

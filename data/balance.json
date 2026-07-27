@@ -16,7 +16,7 @@
   },
 
   "victory": {
-    "xenite": 150
+    "xenite": 260
   },
 
   "sim": {
@@ -24,6 +24,12 @@
     "autosave_seconds": 180.0,
     "low_stock": 8,
     "reading_jitter": 0.25
+  },
+
+  "deposit_units": {
+    "IRON": 600,
+    "COPPER": 260,
+    "XENITE": 30
   },
 
   "life_support": {

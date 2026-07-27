@@ -17,9 +17,9 @@ var base_capacity := 0
 ## Consecutive ticks of unmet life support before a colonist dies.
 var starve_ticks := 24
 ## Consecutive ticks of met needs (with housing spare) before one is born.
-var growth_ticks := 80
+var growth_ticks := 110
 ## Xenite that must be stockpiled to launch the beacon and win.
-var victory_xenite := 50
+var victory_xenite := 260
 ## Richness of the iron deposit the hub guarantees within its survey range.
 var guaranteed_richness := 0.6
 ## Per colonist, per tick.
@@ -34,6 +34,12 @@ var autosave_seconds := 180.0
 var low_stock := 8
 ## Spread of the noise on an unconfirmed prospecting reading (± this, roughly).
 var reading_jitter := 0.25
+## Extractable units a deposit holds at full richness, keyed by deposit name. A
+## tile's actual reserve is its richness times this, so richness now means "how
+## much is down there", not "how fast it comes up" — extraction runs at a flat
+## rate and a tile simply runs dry. Xenite is deliberately small against the
+## victory target: one crystal formation can't finish the beacon.
+var deposit_units := {"IRON": 600.0, "COPPER": 260.0, "XENITE": 30.0}
 ## Fraction of a building's cost returned when it is demolished. This is the
 ## colony's only way to turn a building back into resources, so it is what makes
 ## an over-committed base recoverable instead of a dead end.
@@ -67,6 +73,8 @@ static func from_dict(d: Dictionary) -> Balance:
 		b.life_support = _merge(d.life_support, {}, false)
 	if d.has("starting_stockpile"):
 		b.starting_stockpile = _merge(d.starting_stockpile, {}, true)
+	if d.has("deposit_units"):
+		b.deposit_units = _merge(d.deposit_units, b.deposit_units, false)
 	return b
 
 # JSON numbers all parse as floats; stockpile amounts are whole units, life

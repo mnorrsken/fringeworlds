@@ -20,13 +20,25 @@ const TRACKED := ["metal", "iron_ore", "copper_ore", "parts", "xenite"]
 const ACT_EVERY := 4
 ## How long to leave a fruitless site search alone.
 const RETRY_TICKS := 600
-## Compass directions the survey stations rotate through as they push outward.
-const DIRECTIONS := 8
+## How far from a target formation the bot will look for a legal station site.
+const SURVEY_REACH := 22
 ## Housing the bot builds toward — enough to staff the whole chain.
 const MAX_POPULATION := 12
 ## Metal capacity to have in place before switching on the parts factory.
 const IRON_MINES_BEFORE_FACTORY := 4
 const SMELTERS_BEFORE_FACTORY := 3
+## Extractors to keep running at once. Deposits are finite now, so these are
+## concurrent counts, not lifetime totals — the bot works a tile out, tears the
+## extractor down for the refund, and moves on to the next confirmed tile.
+const IRON_MINES := 4
+const COPPER_MINES := 2
+const CRYSTAL_EXTRACTORS := 3
+## Parts worth banking before the factory is shut down — enough for several more
+## extractors, since each costs 8.
+const PARTS_BANKED := 40
+## Mines the colony keeps enough metal in hand to (re)build at any moment.
+## Deposits tend to run out in clusters, so the fleet can collapse all at once.
+const MINE_RESERVE := 2
 ## Spare power kept in hand, so the next building has somewhere to plug in.
 const POWER_MARGIN := 6
 
@@ -115,14 +127,25 @@ func _act() -> void:
 	# 2. Power headroom, so the next consumer can actually run.
 	if _power_headroom() < POWER_MARGIN and _try("solar_panel"):
 		return
-	# 3. Metal loop. Spending the starting stockpile on anything else first is
+	# 3. Clear out extractors standing on worked-out ground: the tile is spent,
+	#    and the refund pays toward its replacement.
+	if _clear_worked_out():
+		return
+	# 3b. Once enough parts are banked, the factory is pure metal drain — it eats
+	#     2 metal every 4 ticks forever. With finite ore that is the difference
+	#     between finishing and slowly starving, so tear it down and take the
+	#     refund; it can be rebuilt if more parts are ever needed.
+	if int(colony.stockpile.get("parts", 0)) >= PARTS_BANKED \
+			and _demolish_one("parts_factory"):
+		return
+	# 4. Metal loop. Spending the starting stockpile on anything else first is
 	#    the classic dead-end: no income, nothing affordable.
 	if _try_mine("mine", ColonyMap.Deposit.IRON, 1):
 		return
 	if _count("smelter") < 1 and _try("smelter"):
 		return
 
-	# 4. Life support, before growth makes colonists draw on the stockpile.
+	# 5. Life support, before growth makes colonists draw on the stockpile.
 	if _count("ice_harvester") < 1 \
 			and _try_on_terrain("ice_harvester", ColonyMap.Terrain.ICE):
 		return
@@ -135,18 +158,18 @@ func _act() -> void:
 	var short := _draining_life_support()
 	if short != "" and _build_producer(short):
 		return
-	# 5. Housing: the smelter, factory and extractor need 7 workers between them,
+	# 6. Housing: the smelter, factory and extractor need 7 workers between them,
 	#    and population only grows while there's room spare.
 	if colony.capacity() - colony.population <= 1 and colony.population < MAX_POPULATION \
 			and _try("habitat"):
 		return
-	# 6. Push prospecting out to find copper and xenite.
+	# 7. Push prospecting out to find copper and xenite.
 	if _needs_more_prospecting() and _try_survey():
 		return
-	# 7. Parts chain. Widen metal supply *first*: a running parts factory eats
+	# 8. Parts chain. Widen metal supply *first*: a running parts factory eats
 	#    2 metal every 4 ticks, which is more than a couple of mines and one
 	#    smelter can replace, and the colony then never affords the extractor.
-	if _try_mine("mine", ColonyMap.Deposit.COPPER, 1):
+	if _try_mine("mine", ColonyMap.Deposit.COPPER, COPPER_MINES):
 		return
 	if _count("mine") < IRON_MINES_BEFORE_FACTORY + 1 \
 			and _try_mine("mine", ColonyMap.Deposit.IRON, IRON_MINES_BEFORE_FACTORY):
@@ -155,10 +178,10 @@ func _act() -> void:
 		return
 	if _count("parts_factory") < 1 and _try("parts_factory"):
 		return
-	if _try_mine("crystal_extractor", ColonyMap.Deposit.XENITE, 2):
+	if _try_mine("crystal_extractor", ColonyMap.Deposit.XENITE, CRYSTAL_EXTRACTORS):
 		return
-	# 8. Nothing gating: widen the metal supply and the power margin.
-	if _try_mine("mine", ColonyMap.Deposit.IRON, 3):
+	# 9. Nothing gating: widen the metal supply and the power margin.
+	if _try_mine("mine", ColonyMap.Deposit.IRON, IRON_MINES):
 		return
 	if _count("smelter") < 2 and _try("smelter"):
 		return
@@ -203,10 +226,28 @@ func _power_headroom() -> int:
 			demand += -p
 	return produced - demand
 
-# Prospect further out while a needed deposit type hasn't been confirmed yet.
+# Keep pushing survey coverage out while the colony is short of somewhere to
+# put its next extractor. One confirmed crystal formation is no longer enough:
+# each holds only a fraction of the beacon, so the bot wants a queue of them.
 func _needs_more_prospecting() -> bool:
-	return _find_deposit(ColonyMap.Deposit.COPPER) == null \
-		or _find_deposit(ColonyMap.Deposit.XENITE) == null
+	if _find_deposit(ColonyMap.Deposit.COPPER) == null:
+		return true
+	if _free_deposits(ColonyMap.Deposit.IRON) < 2:
+		return true
+	# Crystal hunting waits for the parts chain. Stations are expensive, and
+	# early metal belongs in the metal loop, not in scouting for an endgame the
+	# colony can't build toward yet.
+	return colony.built_types.has("parts_factory") \
+		and _free_deposits(ColonyMap.Deposit.XENITE) < CRYSTAL_EXTRACTORS + 1
+
+# Confirmed, unoccupied tiles of a deposit type that are still available to
+# build on.
+func _free_deposits(deposit: int) -> int:
+	var n := 0
+	for c in _confirmed.get(deposit, []):
+		if colony.building_at(c).is_empty() and colony.map.get_amount(c) > 0.0:
+			n += 1
+	return n
 
 # --- placement helpers -------------------------------------------------------
 
@@ -266,6 +307,23 @@ func _metal_reserve(type_id: String) -> int:
 		# pushes the grid short of the smelter later.
 		if _power_headroom() - _draw(type_id) < draw and type_id != "solar_panel":
 			need += _cost("solar_panel")
+	# Ore runs out. Once the metal loop exists, the colony must always be able to
+	# afford the next mine *and* the survey station that finds somewhere to put
+	# it — going broke with no ore income and no way to prospect for more is
+	# unrecoverable, and with finite deposits it is the default outcome rather
+	# than an edge case.
+	if colony.built_types.has("smelter"):
+		var mines := MINE_RESERVE
+		if type_id == "mine":
+			mines -= 1
+		need += mines * _cost("mine")
+		# Only hold metal back for a survey station when there is nowhere left
+		# to mine. Reserving it while confirmed ore sits unused blocks the very
+		# mine the reserve exists to protect, and the colony deadlocks with a
+		# healthy bank balance and no income.
+		if type_id != "survey_station" \
+				and _free_deposits(ColonyMap.Deposit.IRON) < 1:
+			need += _cost("survey_station")
 	# The win condition outranks everything else. A running parts factory eats
 	# 2 metal every 4 ticks forever, so metal income can sit at roughly zero
 	# while parts pile up uselessly — hold back an extractor's worth the moment
@@ -278,7 +336,7 @@ func _metal_reserve(type_id: String) -> int:
 # True while the colony can and should still plant an extractor on xenite.
 func _wants_extractor() -> bool:
 	return colony.is_unlocked("crystal_extractor") \
-		and _extractors_on(ColonyMap.Deposit.XENITE) < 1 \
+		and _extractors_on(ColonyMap.Deposit.XENITE) < CRYSTAL_EXTRACTORS \
 		and _find_deposit(ColonyMap.Deposit.XENITE) != null
 
 func _cost(type_id: String) -> int:
@@ -305,35 +363,103 @@ func _extractors_on(deposit: int) -> int:
 			n += 1
 	return n
 
-# A confirmed, still-free deposit of a type, or null. Occupied tiles are dropped
-# as they're found, so the index stays short.
+# A confirmed deposit of a type that is free to build on and still has ore in
+# it. Tiles that are occupied or worked out are dropped from the index as they
+# turn up, so it stays short — and, critically, a tile the colony has already
+# emptied never gets a second extractor built on it.
 func _find_deposit(deposit: int) -> Variant:
 	var cells: Array = _confirmed.get(deposit, [])
 	while not cells.is_empty():
 		var c: Vector2i = cells[0]
+		if colony.map.get_amount(c) <= 0.0:
+			cells.pop_front()
+			continue
 		if colony.building_at(c).is_empty():
 			return c
 		cells.pop_front()
 	return null
 
-# Survey stations leapfrog outward: each one is planted a scan radius further
-# from the hub than the last, rotating through eight directions, so the
-# confirmed area keeps growing instead of thickening around the hub.
+# Survey stations have to stand inside existing coverage now, so they can no
+# longer leapfrog into the dark — coverage grows outward in overlapping steps.
+#
+# Where to aim them isn't a guess, though: crystal formations are *visible*
+# terrain, so the colony can see which ground is worth surveying long before it
+# knows how rich it is. The bot heads for the nearest unconfirmed formation and
+# plants the station as close to it as coverage allows, which is exactly the loop
+# the design intends — see the crystal, go confirm it.
 func _try_survey() -> bool:
 	if not _available("survey_station"):
 		return false
-	var radius: int = int(colony.defs["survey_station"].scan.max_radius)
-	var step := _survey_ring
-	var distance: float = radius * (1.0 + floor(step / DIRECTIONS))
-	var angle: float = TAU * float(step % DIRECTIONS) / float(DIRECTIONS)
-	var target := _hub_center() + Vector2i(
-		int(round(cos(angle) * distance)), int(round(sin(angle) * distance)))
-	_survey_ring += 1   # always move on, so a bad spot isn't retried forever
-	var cell: Variant = _nearest_to(target, radius,
-		func(c): return colony.can_place("survey_station", c).ok)
+	# Crystal is visible and worth aiming at; iron isn't, so when the colony is
+	# short of ore the station just goes to the frontier to open new ground.
+	var goal: Variant = null
+	if _free_deposits(ColonyMap.Deposit.IRON) >= 2:
+		goal = _nearest_unconfirmed_crystal()
+	var cell: Variant = null
+	if goal != null:
+		cell = _nearest_to(goal, SURVEY_REACH,
+			func(c): return colony.can_place("survey_station", c).ok)
 	if cell == null:
+		# Nothing reachable to aim at: just push the frontier outward instead.
+		cell = _farthest_placeable("survey_station", 10 + _survey_ring * 5)
+	_survey_ring += 1   # widen the fallback search next time either way
+	if cell == null:
+		_retry_after["survey_station"] = _tick + RETRY_TICKS
 		return false
 	return _commit("survey_station", cell)
+
+# The closest crystal formation whose richness hasn't been confirmed yet. Terrain
+# is public knowledge; only the reserve underneath needs prospecting.
+func _nearest_unconfirmed_crystal() -> Variant:
+	var hub := _hub_center()
+	var best: Variant = null
+	var best_d := 1 << 30
+	for y in colony.map.height:
+		for x in colony.map.width:
+			var c := Vector2i(x, y)
+			if colony.map.get_terrain(c) != ColonyMap.Terrain.CRYSTAL:
+				continue
+			if colony.map.get_scan(c) == ColonyMap.Scan.CONFIRMED:
+				continue
+			var d := (c - hub).length_squared()
+			if d < best_d:
+				best_d = d
+				best = c
+	return best
+
+# The legal build site furthest from the hub — the frontier of survey coverage.
+func _farthest_placeable(type_id: String, reach: int) -> Variant:
+	var hub := _hub_center()
+	var best: Variant = null
+	var best_d := -1
+	for dy in range(-reach, reach + 1):
+		for dx in range(-reach, reach + 1):
+			var d := dx * dx + dy * dy
+			if d <= best_d:
+				continue
+			var c := hub + Vector2i(dx, dy)
+			if colony.map.in_bounds(c) and colony.can_place(type_id, c).ok:
+				best = c
+				best_d = d
+	return best
+
+# Tears down one building of a type, refunding half its cost.
+func _demolish_one(type_id: String) -> bool:
+	for id in colony.buildings:
+		if colony.buildings[id].type == type_id:
+			colony.demolish_at(colony.buildings[id].origin)
+			return true
+	return false
+
+# Extractors whose tile has run dry: demolish them so the ground is free and
+# half the cost comes back. Without this the bot sits on dead mines forever.
+func _clear_worked_out() -> bool:
+	for id in colony.buildings:
+		var inst: Dictionary = colony.buildings[id]
+		if str(inst.get("idle_reason", "")) == "Deposit worked out":
+			colony.demolish_at(inst.origin)
+			return true
+	return false
 
 # Places `type_id` on the closest valid tile to the hub (or to map center before
 # the hub exists) that also satisfies `extra`.
