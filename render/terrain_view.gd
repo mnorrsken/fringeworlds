@@ -33,11 +33,19 @@ const SPEC := {
 }
 
 # Canyons are autotiled instead of picked at random: which walls a void tile
-# draws depends on which of its neighbours are solid ground. Only the two
-# *far* edges can be seen from this camera angle — you look over the near rim
-# and down at the opposite wall — so a two-bit mask covers it.
-const VOID_NW := 1   # solid ground up-left  (cell.x - 1)
-const VOID_NE := 2   # solid ground up-right (cell.y - 1)
+# draws depends on which of its neighbours are solid ground. Only the far side
+# of a rift is visible from this camera angle — you look over the near rim and
+# down at the opposite wall — so three bits cover it.
+#
+# The third bit is the one that isn't obvious. Grid diagonals are screen
+# cardinals here, so (x-1, y-1) is the tile directly NORTH on screen. When that
+# tile is solid but both edge neighbours are rift, the cliff's vertical corner
+# column still projects down into this tile — the two flanking walls meet above
+# it and the drop continues. Without this bit a lone mesa gets a black notch
+# bitten out from under its south corner.
+const VOID_NW := 1   # solid ground up-left    (x - 1, y)
+const VOID_NE := 2   # solid ground up-right   (x, y - 1)
+const VOID_N := 4    # solid ground due north  (x - 1, y - 1)
 const VOID_VARIANTS := 2
 ## How far the lit wall reaches down before everything is black, in the tile's
 ## normalised space. Past this there is no bottom — that's the whole point.
@@ -94,6 +102,8 @@ func _void_mask(map: ColonyMap, cell: Vector2i) -> int:
 		mask |= VOID_NW
 	if _is_solid(map, cell + Vector2i(0, -1)):
 		mask |= VOID_NE
+	if _is_solid(map, cell + Vector2i(-1, -1)):
+		mask |= VOID_N
 	return mask
 
 func _is_solid(map: ColonyMap, cell: Vector2i) -> bool:
@@ -109,7 +119,7 @@ func _cell_hash(cell: Vector2i, salt: int) -> int:
 func _build_tileset() -> TileSet:
 	var w := IsoGrid.TILE_W
 	var h := IsoGrid.TILE_H
-	var total := 4 * VOID_VARIANTS
+	var total := 8 * VOID_VARIANTS
 	for t in SPEC:
 		total += (int(SPEC[t].variants) + int(SPEC[t].clutter)) * int(SPEC[t].frames)
 	var img := Image.create(total * w, h, false, Image.FORMAT_RGBA8)
@@ -139,7 +149,7 @@ func _build_tileset() -> TileSet:
 			_clutter_coords[t] = cluttered
 
 	_void_coords.clear()
-	for mask in 4:
+	for mask in 8:
 		var walls := []
 		for vi in VOID_VARIANTS:
 			walls.append(Vector2i(col, 0))
@@ -257,10 +267,17 @@ func _draw_void(img: Image, col: int, mask: int, variant: int) -> void:
 				continue
 			# Distance below each lit rim, 0 at the edge and growing inward.
 			var depth := 99.0
+			var below_nw := 1.0 + dx + dy   # 0 along the up-left edge
+			var below_ne := 1.0 - dx + dy   # 0 along the up-right edge
 			if mask & VOID_NW:
-				depth = minf(depth, 1.0 + dx + dy)
+				depth = minf(depth, below_nw)
 			if mask & VOID_NE:
-				depth = minf(depth, 1.0 - dx + dy)
+				depth = minf(depth, below_ne)
+			# Both measures hit 0 at the top corner, so their max is the distance
+			# from that corner: a wedge, which is exactly how a cliff's corner
+			# column projects. Harmless when an edge wall already covers it.
+			if mask & VOID_N:
+				depth = minf(depth, maxf(below_nw, below_ne))
 			var c: Color = Palette.VOID_ABYSS
 			var wall := WALL_DEPTH * strata[lx]
 			if depth < wall:
