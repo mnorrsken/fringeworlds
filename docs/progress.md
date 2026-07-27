@@ -99,3 +99,8 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   `dist/READ-ME-FIRST-*.txt`). A tagged push (`vX.Y.Z`) also builds and
   publishes a GitHub release via `.github/workflows/release.yml`. See
   [`DISTRIBUTING.md`](../DISTRIBUTING.md).
+- **UI restructure — done.** Colony stats moved from the sidebar to the top
+  bar, controls help moved to a popup (`H` or the `?` button), and
+  building/tile info moved from click-to-select to a cursor hover panel
+  (`ui/hover_panel.gd`). The sidebar is now mode/speed/build-list only. See
+  `docs/architecture.md`'s "UI layer".

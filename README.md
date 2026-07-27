@@ -100,7 +100,7 @@ release via `.github/workflows/release.yml`. See
 data/       JSON content definitions: resources.json, buildings.json (recipes live inline per building), audio.json, balance.json (tuning — see docs/architecture.md)
 sim/        Pure simulation logic and state — no rendering dependency
 render/     Views of sim state: tilemap, buildings, camera, hover cursor, shared palette
-ui/         Screen-space UI: the sidebar
+ui/         Screen-space UI: sidebar, top status bar, cursor hover readout
 audio/      Sound layer (Audio autoload + cue vocabulary) — view-layer only, never touches sim state
 tools/      Asset generators (`gen_audio.py`, run via `make audio`) and the
             headless pacing harness (`colony_bot.gd`, `playtest.gd`, run via
@@ -125,9 +125,11 @@ reads sim state and never writes game rules back. See
 | M | Toggle the overhead map (terrain, buildings, camera view; click to jump) |
 | P | Toggle the prospecting overlay (tints tiles by scan state / deposit type) |
 | O | Toggle the status overlay (green/red dot per building: running/idle) |
-| Left click | Place selected building, demolish (in demolish mode), or inspect a building (in select mode) |
+| Left click | Place selected building, or demolish (in demolish mode) |
 | Right click | Demolish at cursor, or cancel current mode |
-| Esc | Close the overhead map if open, otherwise cancel current mode |
+| Hover | Read a tile's terrain, survey reading and building (see below) |
+| H | Open/close the controls help popup |
+| Esc | Close the help popup or overhead map if open, otherwise cancel current mode |
 | Space | Pause / unpause (resumes at whatever speed was running) |
 | 1 | Set speed to 1× |
 | 3 | Set speed to 3× |
@@ -139,21 +141,22 @@ buildings, denied actions, alerts, and win/lose. The pause menu's "Sound:
 On/Off" button mutes/unmutes, persisted across sessions.
 
 Mouse wheel / trackpad scroll do **not** zoom (removed — it felt twitchy on
-a trackpad); use `Z`, pinch, or `+`/`-` instead. A top resource bar shows
-each stockpiled resource as a coloured glyph + amount + per-second rate
-(e.g. `⬢ 185`), revealing new resources as they enter the stockpile; hover
-a glyph for its name and a one-line description. Buildings and Demolish are
-selected from the right-hand sidebar (only the build list scrolls;
-everything else is static, at a slightly smaller font than before), which
-also shows the current mode, the hovered tile's info, power used/produced
-(red on deficit), population/housing/workforce, and the current speed.
-Clicking a building outside build/demolish mode
-inspects it in a sidebar INSPECT section (status, why it's idle if it is,
-power, workers, housing, recipe/mine progress); a fading alert ticker in
-the bottom-left corner announces power deficits, any resource running low
-while being net-drained (not just life support — ore/metal/parts too), and
-newly confirmed deposits. When the colony wins or loses, press **Enter** on
-the game-over screen to start a fresh colony.
+a trackpad); use `Z`, pinch, or `+`/`-` instead. A top status bar shows each
+stockpiled resource as a coloured glyph + amount + per-second rate (e.g.
+`⬢ 185`), revealing new resources as they enter the stockpile, plus the
+colony's standing numbers on the right — power drawn/generated (red on
+deficit) and colonists/capacity/workers (amber at capacity) — and a `?`
+button (or `H`) opening a help popup with the full controls list. Hover a
+resource glyph for its name and description. Buildings and Demolish are
+selected from the right-hand sidebar, which is otherwise just the current
+mode, speed, and the build list (only the list scrolls). Hovering any tile
+shows a panel next to the cursor with its terrain and survey reading, and,
+if a building sits there, its live state (status, why it's idle if it is,
+power, workers, housing, recipe/mine progress) — there is no click-to-select.
+A fading alert ticker in the bottom-left corner announces power deficits,
+any resource running low while being net-drained (not just life support —
+ore/metal/parts too), and newly confirmed deposits. When the colony wins or
+loses, press **Enter** on the game-over screen to start a fresh colony.
 
 ## Buildings (current 11)
 
@@ -205,7 +208,10 @@ are done, plus a pre-M6 fixes-and-balance pass (correct multi-tile
 building depth-sorting, a gentler early game, and the tech-unlock system
 described above), a post-M6 UI/UX refinement pass (bigger window, a
 top glyph-based resource bar, and a sidebar where only the build list
-scrolls), and a Colony Hub early-game rework (the game now starts with a
+scrolls), a further UI restructure moving colony stats to the top bar,
+controls help to a popup, and building/tile info to a cursor-following
+hover panel (leaving the sidebar as a command surface: mode, speed, build
+list), and a Colony Hub early-game rework (the game now starts with a
 single Hub that sustains the base 4 colonists for free and guarantees
 reachable iron, gating everything else behind it). The game now boots to
 a main menu (New Game/Continue/Load/Quit) and the full sim state can be

@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **UI restructure: top-bar stats, popup help, hover readout** (2026-07-27)
+  - `ui/resource_bar.gd` gained a right-aligned `set_stats()` showing
+    power drawn/generated and colonists/capacity/workers (same
+    red-on-deficit, amber-at-capacity colouring as before), plus a `?`
+    button opening a new help popup (`HelpLayer` in `main.tscn`, also
+    bound to the `H` key) with `main.gd`'s `HELP_TEXT`.
+  - New `ui/hover_panel.gd` (`HoverPanel` in `main.tscn`): a cursor-following
+    panel showing the hovered tile's terrain/survey reading and, when a
+    building is there, its live state (running/idle, power, workers,
+    capacity, life support, recipe or mining progress) — the same facts
+    `Colony.building_report()` always provided, now read where you're
+    already looking instead of a sidebar section.
+  - Click-to-select a building is removed (superseded by hover); `main.gd`
+    no longer tracks `_selected_id`.
+  - `ui/sidebar.gd` is back to a command surface only: title, mode, speed,
+    build list. Lost `set_tile_info`/`set_economy`/`set_colony`/
+    `set_inspector`; `set_economy` became `set_speed`. The permanently-
+    wrapped hint paragraph is gone (superseded by the help popup).
+  - Full suite: 1127 assertions across 98 tests, 0 failures (`make test`).
 - **CI release workflow** (2026-07-27)
   - New `.github/workflows/release.yml`: on a `vX.Y.Z` tag (also
     `workflow_dispatch` for a build-only dry run), tests, cross-builds all

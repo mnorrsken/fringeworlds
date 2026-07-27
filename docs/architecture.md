@@ -679,19 +679,12 @@ Hub), `scans` (bool), plus `recipe` (with the instance's `progress`) or
 `mine` (resource/richness/per-tick rate) when applicable. Returns `{}` if
 `id` is no longer a placed building — the caller's cue to deselect.
 `Sim.building_report(id)` is a bare pass-through (no signal, since it's
-polled, not pushed). `ui/sidebar.gd`'s inspector renders a "sustains N
-colonists" line whenever `life_support > 0`.
+polled, not pushed).
 
-On the render/UI side: `main.gd` tracks `_selected_id` (`-1` = none). In
-`Mode.NONE` (the same mode used for hovering/nothing-active — there's no
-separate "select" mode), a left click on a building sets `_selected_id` to
-its id, or `-1` on empty ground. `_update_inspector()`, called every frame,
-pushes `Sim.building_report(_selected_id)` to `sidebar.set_inspector(rep)`;
-an empty dict (demolished-while-selected) both clears `_selected_id` and
-hides the sidebar section. `ui/sidebar.gd`'s `set_inspector(rep)` toggles
-visibility of a new INSPECT section (`SepInspect`/`InspectHeader`/
-`InspectInfo` in `ui/sidebar.tscn`, hidden by default) and renders the
-report as plain text lines, colored green when running / red when idle.
+On the render/UI side, this is no longer surfaced by clicking to select —
+see "UI layer" below for `ui/hover_panel.gd`, which renders the same
+`building_report()` dict as a cursor-following readout instead of a sidebar
+section, and shows a "sustains N colonists" line whenever `life_support > 0`.
 
 ## Alerts (`AlertMonitor`, Milestone 6)
 
@@ -1114,32 +1107,34 @@ to canceling build mode when it's already closed.
 
 ## UI layer
 
+As of a post-M9 UI restructure, three concerns that used to live in the
+sidebar have moved out to where they're more naturally read: colony-wide
+numbers to the top bar, help to a popup, and building/tile info to a
+cursor-following hover panel. The sidebar is left as a pure command
+surface — what mode you're in and what you can build — not a dashboard.
+Click-to-select is gone entirely: hovering now shows the same facts a click
+used to select, so there's no separate "select" state to maintain.
+
 `ui/sidebar.gd` (on `ui/sidebar.tscn`, a `PanelContainer`) is a "Dune
 II"-style fixed right-hand command panel, instanced under a `CanvasLayer`
 (`UI`) in `main.tscn` so it draws in screen space above the game world. It
-is 240px wide (widened from 216px in the post-Milestone-3 UI/UX pass so a
-scrollbar doesn't clip button text). `_ready()` assigns the Sidebar a
-`Theme` with `default_font_size = 14` (down from the engine default 16);
-since a Theme's default size propagates to every descendant, this shrinks
-every sidebar label and build button in one place, except the Title, which
-keeps its own explicit 18px `font_size` override. It holds no game logic —
-it only displays state pushed into it and emits signals for user intent:
+is 240px wide. `_ready()` assigns the Sidebar a `Theme` with
+`default_font_size = 14` (down from the engine default 16); since a
+Theme's default size propagates to every descendant, this shrinks every
+sidebar label and build button in one place, except the Title, which keeps
+its own explicit 18px `font_size` override. It holds no game logic — it
+only displays state pushed into it and emits signals for user intent:
 
-- As of the post-M6 UI/UX refinement pass, only the **build list**
-  scrolls, not the whole sidebar. `Margin/VBox` holds the info sections
-  (title, mode/speed, a condensed one-line controls hint, TILE, POWER,
-  COLONISTS, SELECTED/inspector) as static children, plus a
-  `ScrollContainer` (`Margin/VBox/Scroll`, `size_flags_vertical = 3` so it
-  fills the remaining height, horizontal scrolling disabled) wrapping just
-  `BuildList`, with the Demolish button pinned static above it. This
-  replaced an earlier pass where the *entire* `VBox` sat inside one
-  `ScrollContainer` (`Margin/Scroll/VBox`) — that made the info sections
-  scroll out of view along with the build list, which got worse once the
-  sidebar picked up more sections (INSPECT, COLONISTS). All the
-  `@onready` node paths in `sidebar.gd` were updated accordingly (e.g.
-  `$Margin/VBox/Title`, `$Margin/VBox/Scroll/BuildList`). The STOCKPILE
-  section was removed from the sidebar in the same pass — the stockpile
-  now lives in the top `ResourceBar` (below).
+- Only the **build list** scrolls, not the whole sidebar. `Margin/VBox`
+  holds Title, ModeLabel, SpeedLabel, and BuildHeader as static children,
+  plus a `ScrollContainer` (`Margin/VBox/Scroll`, `size_flags_vertical = 3`
+  so it fills the remaining height, horizontal scrolling disabled) wrapping
+  just `BuildList`, with the Demolish button pinned static above it. The UI
+  restructure removed the TILE/POWER/COLONISTS/SELECTED sections and the
+  static controls-hint paragraph that used to sit here (moved to the top
+  bar / hover panel / help popup respectively), so the sidebar's
+  `@onready` set is now just `_title`, `_mode`, `_speed`, `_build_header`,
+  `_build_list`, `_demolish`.
 - `populate(buildings: Dictionary)` builds one `Button` per entry in
   `Defs.buildings`, each emitting `build_requested(type_id)` when pressed.
   Buttons are single-line (`"%s  ·  %s" % [name, cost]`) with
@@ -1155,54 +1150,97 @@ it only displays state pushed into it and emits signals for user intent:
   id has a non-empty reason, appends `"  🔒"` to its label, and sets its
   tooltip to the reason (an unlocked button's tooltip reverts to the
   building's `desc`). Called by `main.gd`'s `_refresh_locks()`.
-- `set_mode_label(text)` and `set_tile_info(cell, terrain, occupant,
-  reading = "")` are pushed by `main.gd` every frame. The optional
-  `reading` parameter (Milestone 4) renders `ColonyMap.reading_text(cell)`
-  between the terrain and occupant lines when non-empty — the prospecting
-  readout ("coarse: metal traces (~40%)", "Iron Ore · richness 72%",
-  etc.).
-- `set_economy(power_produced, power_consumed, speed)` (replacing
-  Milestone 2's `set_stockpile`; the stockpile/rates args were dropped in
-  the post-M6 UI/UX pass once that data moved to `ResourceBar`) is also
-  pushed every frame by `main.gd`, not event-driven — it renders the
-  POWER section as `"<consumed> / <produced> used"` (colored red when
-  consumption exceeds production) and the speed label as `❚❚ PAUSED` or
-  `▶ Nx`.
-- `set_colony(population, cap, workers_used)` (Milestone 5, a new
-  COLONISTS section) renders `"pop %d / %d"` and `"workers %d / %d"`
-  (workers used vs. population, not capacity), turning amber when
-  `population >= cap` to flag a crowded colony.
-- `set_inspector(rep: Dictionary)` (Milestone 6, see "Building inspector"
-  above) shows/hides the INSPECT section and renders `Colony.building_report()`'s
-  output as text, pushed every frame by `main.gd`.
+- `set_mode_label(text)` is pushed by `main.gd` every frame.
+- `set_speed(speed)` (formerly `set_economy`, before power/colonist stats
+  moved to `ResourceBar`) is pushed every frame by `main.gd`; renders the
+  speed label as `❚❚ PAUSED` or `▶ Nx`.
 - A Demolish button emits `demolish_requested()`.
 
 `main.gd` connects `build_requested`/`demolish_requested` to switch its own
 `Mode` enum (`NONE`/`PLACE`/`DEMOLISH`) and never reaches into the
 sidebar's internals beyond those signals and setters.
 
-### Top resource bar (`ResourceBar`, post-M6 UI/UX pass)
+### Top status bar (`ResourceBar`)
 
 `ui/resource_bar.gd` (a `PanelContainer` under `UI/ResourceBar` in
-`main.tscn`, `Margin/HBox` inside) replaces the sidebar's old STOCKPILE
-section with a compact glyph-based bar spanning the top of the screen,
-anchored from the left edge to the sidebar (`offset_right = -240`). Like
-the sidebar it holds no game logic:
+`main.tscn`) spans the top of the screen, anchored from the left edge to
+the sidebar (`offset_right = -240`). It now holds three groups inside
+`Margin/HBox`: `Resources` (the original stockpile glyphs), a flexible
+`Spacer`, and `Stats` (colony-wide numbers + help button), right-aligned.
+Like the sidebar it holds no game logic:
 
 - `populate(resources: Dictionary)` builds one hidden `Label` per entry in
-  `Defs.resources` (skipping `power`, which is a capacity balance rather
-  than a stockpiled good and stays in the sidebar's POWER section), tinted
-  from the new `color` field in `data/resources.json` (parsed with
-  `Color.html`) and remembering its `glyph` as node metadata. Each label's
-  `tooltip_text` is set to `"<name>\n<desc>"` from `data/resources.json`'s
-  `desc` field, with `mouse_filter = Control.MOUSE_FILTER_STOP` so hovering
-  a glyph pops up its name and a one-line description.
-- `set_resources(stock, rates)`, pushed every frame by `main.gd` alongside
-  `sidebar.set_economy()`, shows each label as `"<glyph> <amount>"` plus a
-  `"  %+.1f"` rate suffix when the rate is non-negligible (e.g. `⬢ 185`,
-  `≈ 100 -0.3`), and hides a resource entirely while the colony has none of
-  it and no meaningful rate — so ore/parts/xenite stay hidden until the
-  production chain that makes them comes online.
+  `Defs.resources` into the `Resources` box (skipping `power`, which is a
+  capacity balance rather than a stockpiled good and is covered by
+  `set_stats()` instead), tinted from the `color` field in
+  `data/resources.json` (parsed with `Color.html`) and remembering its
+  `glyph` as node metadata. Each label's `tooltip_text` is set to
+  `"<name>\n<desc>"` from `data/resources.json`'s `desc` field, with
+  `mouse_filter = Control.MOUSE_FILTER_STOP` so hovering a glyph pops up
+  its name and a one-line description.
+- `set_resources(stock, rates)`, pushed every frame by `main.gd`, shows
+  each label as `"<glyph> <amount>"` plus a `"  %+.1f"` rate suffix when
+  the rate is non-negligible (e.g. `⬢ 185`, `≈ 100 -0.3`), and hides a
+  resource entirely while the colony has none of it and no meaningful
+  rate — so ore/parts/xenite stay hidden until the production chain that
+  makes them comes online.
+- `set_stats(power_produced, power_consumed, population, capacity,
+  workers_used)` — the colony's two standing numbers, formerly the
+  sidebar's POWER and COLONISTS sections. Pushed every frame by `main.gd`.
+  Renders `"⚡ <consumed>/<produced>"` (red when consumption exceeds
+  production, same as before) and `"☻ <population>/<capacity>  ⚒
+  <workers>"` (amber at/over capacity).
+- A `help_requested()` signal, emitted by the `?` button (`_help.pressed`);
+  `main.gd` connects it to `_toggle_help()` (see below).
+
+### Help popup (`HelpLayer`, `main.gd`)
+
+The sidebar's permanently-wrapped hint paragraph — read once, then a
+standing cost in panel height — is gone, replaced by a popup behind the
+top bar's `?` button or the `H` key. `HelpLayer` in `main.tscn` follows the
+same backdrop-plus-centered-panel pattern as the minimap and system menu
+(`HelpLayer/Root`: a dim `ColorRect` backdrop, a `CenterContainer` holding
+a titled `PanelContainer` with a `Body` label and a Close button).
+`main.gd` holds the copy as a single `HELP_TEXT` constant (MOUSE / CAMERA
+/ OVERLAYS / TIME sections, ending with the "prospect before you build"
+advice) assigned to the body label in `_ready()`. `_toggle_help()` flips
+`_help_root.visible`; `H` toggles it, `Esc`/the Close button close it
+(checked before the normal input `match`, same pattern as the system
+menu). While it's open the hover panel is hidden (see below) so nothing
+chases the cursor behind a modal.
+
+### Hover panel (`ui/hover_panel.gd`)
+
+`HoverPanel`, a `PanelContainer` under `UI` in `main.tscn`, is the
+replacement for the sidebar's old TILE and INSPECT sections and for
+click-to-select: it follows the cursor and shows whatever tile is under
+it — terrain, `ColonyMap.reading_text()`, and, if a building sits there,
+`Colony.building_report()` rendered the same way the old sidebar inspector
+did (running/idle line first, then power/workers/capacity/life
+support/scans, then recipe or mine progress, then the terrain line).
+Screen-space and stateless like the other UI panels: `main.gd` pushes the
+hovered tile's report each frame via `show_tile(terrain, reading, report)`;
+it never reads `Colony` itself.
+
+`top_level = true` positions it in screen space regardless of its parent's
+layout, and every node in it has `mouse_filter = MOUSE_FILTER_IGNORE` so it
+can sit directly under the cursor without swallowing clicks meant for the
+map beneath it. `place_at(cursor)` calls `reset_size()` before
+repositioning — without that a Godot `Control` keeps the largest size it
+has ever needed, so moving from a building's multi-line readout onto bare
+ground would otherwise leave a stale, mostly-empty box hanging off the
+cursor — then flips to the cursor's left/above when the panel would run
+off the right/bottom edge (`EDGE_MARGIN = 8px`), and clamps into the
+viewport as a last resort.
+
+`main.gd`'s `_update_hover_panel(terrain, reading)`, called from
+`_update_info()` every frame, hides the panel (`hide_info()`) whenever the
+cursor is over UI, off the map, or a modal overlay (minimap, system menu,
+help, game-over) is showing — a panel chasing the mouse across a full-
+screen backdrop would just be noise — otherwise looks up
+`Sim.building_at(_hover)` and calls `show_tile()`. Because this replaces
+selection, `main.gd` no longer has a `_selected_id` field, and a left
+click in `Mode.NONE` (no build/demolish mode active) does nothing.
 
 ## Game root
 
@@ -1230,19 +1268,17 @@ updates the placement ghost (visible + repositioned + validity-tinted only
 in `Mode.PLACE` and only over the map — as of the pre-M6 fixes pass, via
 `_ghost.set_cells(Sim.colony.footprint(_place_type, _hover))` rather than a
 single-cell/single-origin call, so a multi-tile ghost previews its whole
-footprint, not just its origin tile), and refreshes the sidebar's tile
-info — including (Milestone 4) `_map.reading_text(_hover)`, the
-prospecting reading for the hovered cell, passed as `set_tile_info`'s new
-`reading` argument. It also (as of Milestone 3) reads `Sim.colony.rates()`
-— per-tick —
-and multiplies each value by `Sim.ticks_per_second` to get a per-second
-figure before calling `_resource_bar.set_resources(stockpile, per_sec)`
-and `sidebar.set_economy(power_produced, power_consumed, Sim.speed)`; this
-conversion happens here, in the render/UI layer, precisely so `Colony`
-itself never needs to know
-about real time or the sidebar. As of Milestone 5 it also calls
-`sidebar.set_colony(col.population, col.capacity(), col.workers_used())`
-every frame. Finally it refreshes the F1 debug label.
+footprint, not just its origin tile), and calls `_update_hover_panel(terrain,
+reading)` (see "Hover panel" above) with `_map.reading_text(_hover)`, the
+prospecting reading for the hovered cell. It also (as of Milestone 3) reads
+`Sim.colony.rates()` — per-tick — and multiplies each value by
+`Sim.ticks_per_second` to get a per-second figure before calling
+`_resource_bar.set_resources(stockpile, per_sec)` and (post-M9 UI
+restructure) `_resource_bar.set_stats(power_produced, power_consumed,
+population, capacity, workers_used)`; this conversion happens here, in the
+render/UI layer, precisely so `Colony` itself never needs to know about real
+time or the UI. It also calls `sidebar.set_speed(Sim.speed)` every frame.
+Finally it refreshes the F1 debug label.
 
 **Game over (Milestone 5)**: `_on_game_over(won: bool)`, connected to
 `Events.game_over`, sets the game-over panel's title to "BEACON LAUNCHED"
@@ -1259,15 +1295,18 @@ the overlay can't mutate a live game.
 
 Input (`_unhandled_input`) is skipped for mouse clicks that landed on UI.
 Left-click places (in `PLACE` mode) or demolishes (in `DEMOLISH` mode) at
-the hovered cell via `Sim`; right-click cancels the current mode if one is
-active, otherwise demolishes at the hovered cell directly; F1 toggles the
-debug overlay (`$Debug/Label` — cell coords, terrain name, zoom level,
-seed, FPS); `M` toggles `_minimap_root.visible`; `P` calls
+the hovered cell via `Sim`; in `Mode.NONE` it does nothing (see "Hover
+panel" above — there is no click-to-select anymore). Right-click cancels
+the current mode if one is active, otherwise demolishes at the hovered
+cell directly; F1 toggles the debug overlay (`$Debug/Label` — cell coords,
+terrain name, zoom level, seed, FPS); `H` toggles the help popup
+(`_toggle_help()`); `M` toggles `_minimap_root.visible`; `P` calls
 `_toggle_prospect()` (Milestone 4 — flips `_prospect.visible` and calls
 `_prospect.rebuild()` when turning it on, so the overlay reflects the
 latest scan state even if it missed incremental `scan_changed` updates
-while hidden); Escape closes the minimap first if it's open, otherwise
-cancels the current mode to `Mode.NONE`; Space calls `Sim.toggle_pause()`;
+while hidden); Escape closes the help popup first if it's open, then the
+minimap, otherwise cancels the current mode to `Mode.NONE`; Space calls
+`Sim.toggle_pause()`;
 `1` and `3` call `Sim.set_speed(1.0)` / `Sim.set_speed(3.0)` directly. Zoom
 (`Z`, pinch, `+`/`-`) is handled entirely inside `IsoCamera` itself, not
 here. The debug overlay is intentionally meant to stay available for the
@@ -1280,7 +1319,7 @@ first thing to suspect when on-screen visuals look wrong.
 data/       JSON content definitions: resources.json, buildings.json, audio.json, balance.json
 sim/        Pure sim logic and state: sim.gd, defs.gd, events.gd, map.gd, iso_grid.gd, colony.gd, alerts.gd, balance.gd
 render/     Views of sim state: terrain_view.gd, prospect_overlay.gd, building_sprite.gd, buildings_view.gd, tile_cursor.gd, iso_camera.gd, minimap.gd, status_overlay.gd, palette.gd
-ui/         Screen-space UI: sidebar.gd / sidebar.tscn, resource_bar.gd, alert_ticker.gd
+ui/         Screen-space UI: sidebar.gd / sidebar.tscn, resource_bar.gd, hover_panel.gd, alert_ticker.gd
 audio/      View-layer sound: audio.gd (Audio autoload), audio_cues.gd (AudioCues)
 tools/      Asset generators: gen_audio.py (run via `make audio`)
 assets/     Committed art (PNG + Godot .import sidecars) and audio/ (WAV + .import sidecars)
