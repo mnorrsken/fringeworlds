@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-28
+
+Regolith's first release since 1.0.0, and a lot has changed under the hood and
+on screen. The interface got a rework: colony stats moved to a top bar with
+hover readouts, and there's a proper in-game help popup. Terrain now flows
+naturally with scattered ground clutter, and canyons read as real bottomless
+drops instead of flat dark tiles. The colony hub is free to build but unique
+and essential — lose it and everything else grinds to a halt. Ore and crystal
+deposits are no longer bottomless: they run out, so prospecting new ground and
+relocating extractors is now the core loop, and xenite is visible up front in
+crystal formations rather than hidden anywhere underground. Storage is also
+limited now, so building warehouses is required to stockpile enough xenite to
+finish the beacon.
+
 ### Added
 
 - **Warehouse art.** The Warehouse now renders its own `assets/warehouse.png`
@@ -613,18 +627,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `Makefile`: `run`, `editor`, `build`/`import`, `test`, `clean`.
   - Headless test harness: `tests/run_tests.gd`, `tests/test_defs.gd`.
 
-### Fixed
-
-- **Canyon rendering: missing wall on lone mesas' south corner**: grid
-  diagonals are screen cardinals in this projection, so `_void_mask()` was
-  missing the case where the tile directly north on screen (`x-1, y-1`) is
-  solid ground but both edge neighbours are rift — the two flanking walls'
-  corner column has to project down through this tile, and without it the
-  tile got a black notch instead. New `VOID_N` mask bit in
-  `render/terrain_view.gd` (atlas grown 4→8 masks × variants).
-
-### Changed
-
 - **Colony Hub early-game rework** (2026-07-22)
   - New `hub` building (`data/buildings.json`, now 11 buildings): 2×2, 40
     metal, +15 power, `capacity: 4`, a new `life_support: 4` field, a `scan`
@@ -724,6 +726,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `clip_text` to fit.
 
 ### Fixed
+
+- **Canyon rendering: missing wall on lone mesas' south corner**: grid
+  diagonals are screen cardinals in this projection, so `_void_mask()` was
+  missing the case where the tile directly north on screen (`x-1, y-1`) is
+  solid ground but both edge neighbours are rift — the two flanking walls'
+  corner column has to project down through this tile, and without it the
+  tile got a black notch instead. New `VOID_N` mask bit in
+  `render/terrain_view.gd` (atlas grown 4→8 masks × variants).
 
 - Multi-tile buildings render per-tile, fixing depth/occlusion overlap.
   Previously a multi-tile building was a single `BuildingSprite` y-sorted
