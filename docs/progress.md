@@ -125,9 +125,8 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   Warehouse (12th building) is required — three of them, to hold the
   beacon's 260-xenite target. `ColonyBot` learned to build them; starting
   metal dropped 120 → 50 to fit the smaller hub yard. `make playtest`:
-  5/5 seeds win, 25.4–26.4 min (avg 25.9). Warehouse currently reuses the
-  Parts Factory sprite as placeholder art — still needs its own. See
-  `docs/architecture.md`'s "Storage limits".
+  5/5 seeds win, 25.4–26.4 min (avg 25.9). Warehouse now has its own art
+  and rooftop steam/lamp FX. See `docs/architecture.md`'s "Storage limits".
 - **Internal building buffers — done.** Producers/extractors now hold a
   small hopper (`building_buffer`, default 4) so a full colony store backs
   up before a line actually stalls. Overlay FX (plumes/vents/lamps) now

@@ -254,12 +254,12 @@ consumed by the view layer, not `Colony`. Building/resource content:
   and a new twelfth building, `warehouse` (2×2, 45 metal + 6 parts, −2
   power, `requires_built: ["parts_factory"]`), declares a much larger one
   (100 metal/ore, 60 parts, 90 xenite, 150 of each life-support resource) —
-  the only building that can hold xenite at all. `warehouse` currently
-  reuses `hub`'s neighbour `assets/partsfactory.png` as placeholder
-  `sprite` (it renders identically to the Parts Factory in-game) pending
-  its own art. `starting_stockpile.metal` in `data/balance.json` dropped
-  120 → 50 to match the smaller hub yard (a colony can't land with more
-  metal than its own storage can hold).
+  the only building that can hold xenite at all. `warehouse`'s `sprite` is
+  its own `assets/warehouse.png`, with `fx` for a rooftop steam vent and
+  three blinking status lamps on its tanks and tower.
+  `starting_stockpile.metal` in `data/balance.json` dropped 120 → 50 to
+  match the smaller hub yard (a colony can't land with more metal than its
+  own storage can hold).
 
 There is no separate `data/recipes.json` — recipes live inline on the
 building that runs them, one recipe per building, which is enough for the
@@ -1327,9 +1327,10 @@ soft pulsing glows, all driven by a building def's optional `fx` array
   `smoothstep`-shaped bump that peaks at the middle of the `duty` fraction
   of each `period` and is fully dark for the rest of the cycle — reads as
   a ramping beacon flash rather than a hard on/off toggle. `_draw_lamp`
-  layers a soft halo under the bulb when lit; `_draw_glow` layers three
-  nested discs pulsing on a `sin` cycle for a furnace-mouth/crystal-hopper
-  bloom.
+  layers a soft halo under the bulb when lit; `_draw_glow` layers four
+  nested discs (brighter/more opaque than the original three, which read as
+  too faint against baked-in art) pulsing on a `sin` cycle for a
+  furnace-mouth/crystal-hopper bloom.
 - **`set_active(active: bool)`** stops/resumes emitter `emitting` and
   darkens/relights lamps and glows (glows simply don't draw while
   inactive). `render/building_sprite.gd`'s `attach_fx(fx)` parents a

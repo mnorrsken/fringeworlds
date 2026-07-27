@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Warehouse art.** The Warehouse now renders its own `assets/warehouse.png`
+  instead of borrowing the Parts Factory sprite, with matching `fx`: a
+  rooftop steam vent and three blinking status lamps on its tanks and tower.
+
 - **Internal building buffers.** Producers and extractors now hold a small
   hopper (`building_buffer` balance key, default 4 units per resource)
   instead of writing straight to the colony stockpile. Output lands in the
@@ -70,6 +74,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Stronger furnace/hopper glow FX.** `_draw_glow` now builds from four
+  nested discs (was three) with roughly double the alpha per ring; the old
+  version read as too faint next to the buildings' baked-in art. Raised the
+  per-building glow alpha/radius on the ice harvester's furnace, the
+  smelter's grill, the crystal extractor's hopper, and the hydroponics
+  grow-lights to match.
 - **Stalled buildings now read differently from shut-down ones.**
   `BuildingSprite` splits "dimmed" (no power/workers/hub — greyed out) from
   a new "working" state (actually producing this tick): overlay FX
