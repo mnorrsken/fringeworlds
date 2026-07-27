@@ -34,11 +34,19 @@ const IRON_MINES := 4
 const COPPER_MINES := 2
 const CRYSTAL_EXTRACTORS := 3
 ## Parts worth banking before the factory is shut down — enough for several more
-## extractors, since each costs 8.
+## extractors and a warehouse or two. Rebuilding waits until the bank is nearly
+## spent (PARTS_LOW), or the colony oscillates: bank 40, demolish, spend, rebuild.
 const PARTS_BANKED := 40
+const PARTS_LOW := 12
+## Warehouses the bot is willing to build: the three the beacon requires, plus
+## one for slack. Reacting to stalled lines without a ceiling paves the map —
+## fresh capacity just fills up again, because the mines out-produce the
+## smelters by design.
+const MAX_WAREHOUSES := 4
 ## Mines the colony keeps enough metal in hand to (re)build at any moment.
-## Deposits tend to run out in clusters, so the fleet can collapse all at once.
-const MINE_RESERVE := 2
+## Only one: storage caps mean metal can't be hoarded, and a deeper reserve
+## simply makes the expensive buildings unaffordable forever.
+const MINE_RESERVE := 1
 ## Spare power kept in hand, so the next building has somewhere to plug in.
 const POWER_MARGIN := 6
 
@@ -145,6 +153,11 @@ func _act() -> void:
 	if _count("smelter") < 1 and _try("smelter"):
 		return
 
+	# 4b. Storage. The hub's yard is small and holds no xenite at all, so the
+	#     beacon simply cannot be filled without warehouses — and a capped store
+	#     stalls every line feeding it.
+	if _needs_storage() and _try("warehouse"):
+		return
 	# 5. Life support, before growth makes colonists draw on the stockpile.
 	if _count("ice_harvester") < 1 \
 			and _try_on_terrain("ice_harvester", ColonyMap.Terrain.ICE):
@@ -176,7 +189,9 @@ func _act() -> void:
 		return
 	if _count("smelter") < SMELTERS_BEFORE_FACTORY and _try("smelter"):
 		return
-	if _count("parts_factory") < 1 and _try("parts_factory"):
+	if _count("parts_factory") < 1 \
+			and int(colony.stockpile.get("parts", 0)) < PARTS_LOW \
+			and _try("parts_factory"):
 		return
 	if _try_mine("crystal_extractor", ColonyMap.Deposit.XENITE, CRYSTAL_EXTRACTORS):
 		return
@@ -240,6 +255,23 @@ func _needs_more_prospecting() -> bool:
 	return colony.built_types.has("parts_factory") \
 		and _free_deposits(ColonyMap.Deposit.XENITE) < CRYSTAL_EXTRACTORS + 1
 
+# Warehouses are worth building for two different reasons: to unjam a line that
+# has filled its store, and — the one that decides the game — to have somewhere
+# to put the beacon's xenite, which the hub cannot hold at all.
+func _needs_storage() -> bool:
+	if _count("warehouse") >= MAX_WAREHOUSES:
+		return false
+	# Room for the whole beacon: xenite is never spent, so it all has to fit at
+	# once, and the hub holds none of it.
+	if colony.storage_for("xenite") < colony.balance.victory_xenite:
+		return true
+	# Otherwise only when a line is genuinely stalled for want of room. Reacting
+	# to any full store instead has the colony paving the map with warehouses.
+	for id in colony.buildings:
+		if str(colony.buildings[id].get("idle_reason", "")) == "Storage full":
+			return true
+	return false
+
 # Confirmed, unoccupied tiles of a deposit type that are still available to
 # build on.
 func _free_deposits(deposit: int) -> int:
@@ -294,6 +326,12 @@ func _available(type_id: String) -> bool:
 # refund — so a colony that spends down to nothing before its first smelter is
 # unwinnable. Every purchase has to leave the rest of the bootstrap affordable.
 func _metal_reserve(type_id: String) -> int:
+	# A building that costs no metal can never be what the colony is saving up
+	# for, so a reserve must never block it. The hub is free, and gating it
+	# behind the bootstrap reserve leaves the colony with no hub at all — which
+	# now means nothing runs and everyone starves.
+	if _cost(type_id) == 0:
+		return 0
 	var need := 0
 	if not colony.built_types.has("smelter"):
 		var draw := _draw("smelter")

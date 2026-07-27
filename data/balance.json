@@ -39,7 +39,7 @@
   },
 
   "starting_stockpile": {
-    "metal": 120,
+    "metal": 50,
     "oxygen": 60,
     "water": 60,
     "food": 60

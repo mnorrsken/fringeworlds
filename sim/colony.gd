@@ -34,6 +34,12 @@ var built_types: Dictionary = {}
 var power_produced := 0
 var power_consumed := 0
 
+## Stand-in for "no limit" when the content models no storage at all.
+const UNLIMITED := 1 << 30
+
+# Whether the content models storage limits at all.
+var _storage_limited := false
+
 # Whether these defs declare a controller building at all. Test colonies built
 # from a handful of synthetic defs have no hub, and requiring one there would be
 # meaningless — the rule belongs to the content, not the engine.
@@ -50,7 +56,8 @@ func _init(p_map: ColonyMap, p_defs: Dictionary, p_stockpile: Dictionary = {},
 	for id in defs:
 		if defs[id].get("colony_controller", false):
 			_needs_controller = true
-			break
+		if not defs[id].get("storage", {}).is_empty():
+			_storage_limited = true
 	stockpile = p_stockpile.duplicate()
 	population = balance.starting_population
 
@@ -66,6 +73,34 @@ func footprint(type_id: String, origin: Vector2i) -> Array:
 ## True once all of a building's prerequisite types have been built.
 func is_unlocked(type_id: String) -> bool:
 	return missing_prereqs(type_id).is_empty()
+
+## How much of a resource the colony can hold, summed over everything standing.
+## Storage is physical: an unpowered warehouse still holds what's in it, so this
+## counts buildings whether or not they're running.
+##
+## Content that declares no storage anywhere isn't playing by these rules at all
+## (the unit tests build colonies from two or three synthetic defs), so capacity
+## is unlimited in that case rather than zero.
+func storage_for(res: String) -> int:
+	if not _storage_limited:
+		return UNLIMITED
+	var n := 0
+	for id in buildings:
+		n += int(defs[buildings[id].type].get("storage", {}).get(res, 0))
+	return n
+
+## Room left for a resource right now.
+func space_for(res: String) -> int:
+	return maxi(0, storage_for(res) - int(stockpile.get(res, 0)))
+
+## True when everything in `flow` would fit. Producers check this before
+## consuming their inputs — a full store stalls a building rather than quietly
+## destroying its output.
+func _fits(flow: Dictionary) -> bool:
+	for res in flow:
+		if int(flow[res]) > space_for(res):
+			return false
+	return true
 
 ## How many of a building type currently stand.
 func count_of(type_id: String) -> int:
@@ -458,7 +493,12 @@ func _run_production() -> void:
 		inst.progress = int(inst.progress) + 1
 		if int(inst.progress) < int(recipe.ticks):
 			continue
-		if _has(recipe.get("inputs", {})):
+		if not _fits(recipe.get("outputs", {})):
+			# Hold at the completion threshold rather than burning the inputs:
+			# a full store pauses a production line, it doesn't waste it.
+			inst.progress = int(recipe.ticks)
+			inst.idle_reason = "Storage full"
+		elif _has(recipe.get("inputs", {})):
 			_spend(recipe.get("inputs", {}))
 			_gain(recipe.get("outputs", {}))
 			inst.progress = 0
@@ -480,6 +520,9 @@ func _run_mine(inst: Dictionary, def: Dictionary) -> void:
 	if remaining <= 0.0:
 		inst.active = false
 		inst.idle_reason = "Deposit worked out"
+		return
+	if space_for(res) <= 0:
+		inst.idle_reason = "Storage full"
 		return
 	inst.mine_accum = float(inst.mine_accum) + _mine_per_tick(inst, def)
 	var whole := minf(float(int(inst.mine_accum)), remaining)
@@ -553,6 +596,7 @@ func building_report(id: int) -> Dictionary:
 		"name": str(def.get("name", inst.type)),
 		"active": bool(inst.active),
 		"idle_reason": str(inst.get("idle_reason", "")),
+		"storage": def.get("storage", {}),
 		"power": int(def.get("power", 0)),
 		"workers": int(def.get("workers", 0)),
 		"capacity": int(def.get("capacity", 0)),
@@ -576,9 +620,12 @@ func _spend(cost: Dictionary) -> void:
 	for r in cost:
 		stockpile[r] = int(stockpile.get(r, 0)) - int(cost[r])
 
+# Nothing can be stored beyond capacity. Producers call _fits() first so they
+# stall instead of quietly destroying output; this clamp is the backstop for
+# demolition refunds and partial draws.
 func _gain(gain: Dictionary) -> void:
 	for r in gain:
-		stockpile[r] = int(stockpile.get(r, 0)) + int(gain[r])
+		stockpile[r] = mini(int(stockpile.get(r, 0)) + int(gain[r]), storage_for(r))
 
 # --- Serialization -----------------------------------------------------------
 
@@ -684,6 +731,9 @@ func demolish_at(cell: Vector2i) -> Variant:
 		_occupancy.erase(c)
 	buildings.erase(id)
 	_refund(str(inst.type))
+	# Tearing down storage spills whatever no longer fits.
+	for res in stockpile:
+		stockpile[res] = mini(int(stockpile[res]), storage_for(res))
 	return inst
 
 # Demolition returns part of the build cost (balance.demolish_refund), rounded

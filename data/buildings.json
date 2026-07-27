@@ -3,6 +3,10 @@
     "id": "hub", "name": "Colony Hub", "size": 2,
     "cost": {}, "power": 15, "workers": 0, "unique": true, "colony_controller": true,
     "capacity": 4, "life_support": 4,
+    "storage": {
+      "water": 400, "oxygen": 400, "food": 400,
+      "metal": 75, "iron_ore": 50, "copper_ore": 50, "parts": 50
+    },
     "scan": { "max_radius": 6, "ticks_per_ring": 3 },
     "guarantees_deposit": "IRON",
     "sprite": "res://assets/hub.png",
@@ -12,7 +16,7 @@
     ],
     "allowed_terrain": ["REGOLITH"],
     "color": "e8c15a",
-    "desc": "The colony's heart, and free to land. Sustains its first 4 colonists, generates power, surveys the area, and guarantees nearby iron ore. Only one can stand at a time, and nothing in the colony runs without it."
+    "desc": "The colony's heart, and free to land. Sustains its first 4 colonists, generates power, surveys the area, and guarantees nearby iron ore. Its yard holds only 50 of each material and cannot contain xenite at all. Only one can stand at a time, and nothing runs without it."
   },
   {
     "id": "solar_panel", "name": "Solar Panel", "size": 1,
@@ -140,6 +144,19 @@
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "8a8f9a",
     "desc": "Metal + copper into parts. Needs 3 colonists, 5 power."
+  },
+  {
+    "id": "warehouse", "name": "Warehouse", "size": 2,
+    "cost": { "metal": 45, "parts": 6 }, "power": -2, "workers": 0,
+    "requires_built": ["parts_factory"],
+    "storage": {
+      "water": 150, "oxygen": 150, "food": 150,
+      "metal": 100, "iron_ore": 100, "copper_ore": 100, "parts": 60, "xenite": 90
+    },
+    "sprite": "res://assets/partsfactory.png",
+    "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
+    "color": "8a7f6a",
+    "desc": "Storage for everything, and the only place xenite can be kept. The beacon needs more xenite than any two warehouses can hold."
   },
   {
     "id": "crystal_extractor", "name": "Crystal Extractor", "size": 1,

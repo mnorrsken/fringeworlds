@@ -53,7 +53,9 @@ func populate(resources: Dictionary) -> void:
 		var def: Dictionary = resources[id]
 		var lbl := Label.new()
 		lbl.add_theme_font_size_override("font_size", 17)
-		lbl.add_theme_color_override("font_color", Color.html(str(def.get("color", "ffffff"))))
+		var tint := Color.html(str(def.get("color", "ffffff")))
+		lbl.add_theme_color_override("font_color", tint)
+		lbl.set_meta("tint", tint)
 		lbl.mouse_filter = Control.MOUSE_FILTER_STOP  # so the tooltip shows on hover
 		var desc := str(def.get("desc", ""))
 		lbl.tooltip_text = str(def.get("name", id)) + ("\n" + desc if desc != "" else "")
@@ -63,7 +65,11 @@ func populate(resources: Dictionary) -> void:
 		_entries[id] = lbl
 
 ## Updates amounts/rates each frame; hides resources the colony has none of.
-func set_resources(stock: Dictionary, rates: Dictionary) -> void:
+##
+## Storage is a real constraint, so the ceiling appears as soon as a resource is
+## close to it and the figure turns amber when it's full — a production line
+## stalled for want of room is otherwise invisible until you hover the building.
+func set_resources(stock: Dictionary, rates: Dictionary, caps: Dictionary) -> void:
 	for id in _entries:
 		var lbl: Label = _entries[id]
 		var amount := int(stock.get(id, 0))
@@ -72,10 +78,16 @@ func set_resources(stock: Dictionary, rates: Dictionary) -> void:
 			lbl.visible = false
 			continue
 		lbl.visible = true
+		var cap := int(caps.get(id, 0))
+		var tight := cap > 0 and amount >= cap * 0.8
 		var text := "%s %d" % [str(lbl.get_meta("glyph")), amount]
+		if tight:
+			text += "/%d" % cap
 		if absf(rate) > 0.05:
 			text += "  %+.1f" % rate
 		lbl.text = text
+		lbl.add_theme_color_override("font_color",
+			AMBER if cap > 0 and amount >= cap else lbl.get_meta("tint"))
 
 ## The two standing numbers, kept out of the scrolling stockpile list because
 ## they're balances rather than stock: power turns red when demand outstrips

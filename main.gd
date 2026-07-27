@@ -294,7 +294,10 @@ func _update_info() -> void:
 	var per_sec := {}
 	for r in per_tick:
 		per_sec[r] = per_tick[r] * Sim.ticks_per_second
-	_resource_bar.set_resources(col.stockpile, per_sec)
+	var caps := {}
+	for r in Defs.resources:
+		caps[r] = col.storage_for(r)
+	_resource_bar.set_resources(col.stockpile, per_sec, caps)
 	_resource_bar.set_stats(col.power_produced, col.power_consumed,
 		col.population, col.capacity(), col.workers_used())
 	_sidebar.set_speed(Sim.speed)

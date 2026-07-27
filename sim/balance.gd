@@ -25,7 +25,7 @@ var guaranteed_richness := 0.6
 ## Per colonist, per tick.
 var life_support := {"oxygen": 0.02, "water": 0.02, "food": 0.015}
 ## What the colony starts with in the global stockpile.
-var starting_stockpile := {"metal": 120, "oxygen": 60, "water": 60, "food": 60}
+var starting_stockpile := {"metal": 50, "oxygen": 60, "water": 60, "food": 60}
 ## Simulation rate. Recipe `ticks` and the rates above are all relative to this.
 var ticks_per_second := 4.0
 ## Real seconds between autosaves.

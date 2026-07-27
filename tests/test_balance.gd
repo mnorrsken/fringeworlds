@@ -30,8 +30,20 @@ func test_metal_chain_affordable_from_start(t: Object) -> void:
 		total += int(defs[id].cost.get("metal", 0)) * int(plan[id])
 	var start := _starting_metal()
 	t.ok(total <= start, "bootstrap costs %d metal, start is %d" % [total, start])
-	# ...and a little headroom left over (not down to the last credit).
-	t.ok(start - total >= 20, "at least 20 metal headroom after the bootstrap")
+	# Some headroom, but not much: storage limits mean the colony lands with a
+	# full yard and the opening is meant to be tight. The mine starts paying
+	# immediately, and a misplaced building refunds half, so a few credits of
+	# slack is enough to be recoverable rather than comfortable.
+	t.ok(start - total >= 5, "some metal headroom after the bootstrap (%d)" % (start - total))
+
+# Landing with more than the hub can hold would put resources on the books that
+# the colony can never bank or replace.
+func test_the_colony_lands_within_its_own_storage(t: Object) -> void:
+	var defs := _buildings()
+	var yard: Dictionary = defs.hub.get("storage", {})
+	t.ok(_starting_metal() <= int(yard.get("metal", 0)),
+		"starting metal %d fits the hub yard %d" % [
+			_starting_metal(), int(yard.get("metal", 0))])
 
 func test_hub_is_the_only_starter(t: Object) -> void:
 	# Everything except the hub must be gated behind it, so the first build is
