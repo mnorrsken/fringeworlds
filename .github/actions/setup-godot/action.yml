@@ -1,0 +1,80 @@
+name: Set up Godot
+description: >
+  Installs the pinned Godot editor build and its matching export templates on a
+  Linux or macOS runner, then exports GODOT_BIN for later steps. Templates must
+  match the engine version exactly or exports fail, so both come from the same
+  pinned release.
+
+inputs:
+  version:
+    description: Godot version, e.g. 4.7.1 (templates are pulled to match)
+    required: false
+    default: "4.7.1"
+
+runs:
+  using: composite
+  steps:
+    # ~1 GB of templates per run is worth avoiding; the key pins the version so
+    # a Godot bump naturally misses the cache instead of using stale templates.
+    - name: Cache Godot and export templates
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/godot-ci
+          ~/.local/share/godot/export_templates
+          ~/Library/Application Support/Godot/export_templates
+        key: godot-${{ runner.os }}-${{ inputs.version }}
+
+    - name: Install Godot and export templates
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        base="https://github.com/godotengine/godot/releases/download/${VERSION}-stable"
+
+        case "$RUNNER_OS" in
+          Linux)
+            templates="$HOME/.local/share/godot/export_templates/${VERSION}.stable"
+            bin="$HOME/godot-ci/godot"
+            url="$base/Godot_v${VERSION}-stable_linux.x86_64.zip"
+            ;;
+          macOS)
+            templates="$HOME/Library/Application Support/Godot/export_templates/${VERSION}.stable"
+            bin="$HOME/godot-ci/Godot.app/Contents/MacOS/Godot"
+            url="$base/Godot_v${VERSION}-stable_macos.universal.zip"
+            ;;
+          *)
+            echo "::error::unsupported runner OS: $RUNNER_OS"
+            exit 1
+            ;;
+        esac
+
+        if [ ! -x "$bin" ]; then
+          echo "Downloading Godot ${VERSION} for $RUNNER_OS"
+          curl -fsSL -o /tmp/godot.zip "$url"
+          rm -rf /tmp/godot && unzip -q /tmp/godot.zip -d /tmp/godot
+          mkdir -p "$HOME/godot-ci"
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            mv /tmp/godot/Godot_v*_linux.x86_64 "$bin"
+            chmod +x "$bin"
+          else
+            mv "$(find /tmp/godot -maxdepth 2 -name 'Godot.app' | head -1)" \
+              "$HOME/godot-ci/Godot.app"
+          fi
+        else
+          echo "Godot ${VERSION} restored from cache"
+        fi
+
+        if [ ! -d "$templates" ] || [ -z "$(ls -A "$templates" 2>/dev/null)" ]; then
+          echo "Downloading export templates ${VERSION}"
+          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${VERSION}-stable_export_templates.tpz"
+          rm -rf /tmp/tpl && unzip -q /tmp/templates.tpz -d /tmp/tpl
+          mkdir -p "$templates"
+          cp /tmp/tpl/templates/* "$templates/"
+        else
+          echo "Export templates ${VERSION} restored from cache"
+        fi
+
+        echo "GODOT_BIN=$bin" >> "$GITHUB_ENV"
+        "$bin" --headless --version

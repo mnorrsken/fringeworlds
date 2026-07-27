@@ -1,0 +1,145 @@
+name: Release
+
+# Tag a commit and the three platform builds appear on the GitHub release:
+#
+#     make test && git tag v1.0.1 && git push origin v1.0.1
+#
+# The tag must match config/version in project.godot — the workflow refuses to
+# build otherwise, so a release can't be cut with a stale version baked into the
+# macOS bundle and the archive names.
+#
+# workflow_dispatch runs everything except publishing, which is how you check a
+# change to this file without burning a version number.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # required to create the release
+
+env:
+  GODOT_VERSION: "4.7.1"
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches config/version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(sed -n 's/^config\/version="\(.*\)"/\1/p' project.godot)
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match config/version=\"$version\" in project.godot"
+            exit 1
+          fi
+          echo "Releasing version $version"
+
+      - uses: ./.github/actions/setup-godot
+
+      - name: Import project
+        run: make import GODOT="$GODOT_BIN"
+
+      - name: Run the test suite
+        run: make test GODOT="$GODOT_BIN"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux and Windows cross-export fine from the same Linux runner.
+          - { os: ubuntu-latest, target: linux }
+          - { os: ubuntu-latest, target: windows }
+          # macOS is built on a Mac so the ad-hoc signature is produced by the
+          # real codesign and can be verified here — an unsigned arm64 app will
+          # not launch at all on Apple Silicon, and that failure is invisible
+          # until a player tries to open it.
+          - { os: macos-latest, target: macos }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-godot
+
+      - name: Import project
+        run: make import GODOT="$GODOT_BIN"
+
+      - name: Export ${{ matrix.target }}
+        run: make export-${{ matrix.target }} GODOT="$GODOT_BIN"
+
+      - name: Verify the macOS bundle is signed and launches
+        if: matrix.target == 'macos'
+        run: |
+          set -euo pipefail
+          app=$(find build/stage -maxdepth 2 -name "Regolith.app" | head -1)
+          codesign --verify --deep --strict "$app"
+          codesign -dvv "$app" 2>&1 | grep -q "Signature=adhoc"
+          "$app/Contents/MacOS/Regolith" --headless --quit-after 40
+          echo "Bundle signed and starts cleanly."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: regolith-${{ matrix.target }}
+          path: build/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Write the release notes
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          Download the archive for your platform below, unzip, and play.
+
+          **The first launch shows a security warning on macOS and Windows.**
+          These builds aren't signed with a paid developer certificate, so the
+          OS can't identify the publisher. Nothing is wrong with the game.
+
+          - **macOS** — right-click `Regolith.app` and choose **Open**, then
+            **Open** again in the dialog. Only needed once. If macOS says the
+            app "is damaged", clear the download flag:
+            `xattr -dr com.apple.quarantine /path/to/Regolith.app`
+          - **Windows** — SmartScreen shows "Windows protected your PC":
+            click **More info** → **Run anyway**. Only needed once.
+          - **Linux** — `chmod +x Regolith.x86_64 && ./Regolith.x86_64`
+
+          Each archive includes a READ ME FIRST with the controls and save
+          locations. See [DISTRIBUTING.md](DISTRIBUTING.md) for the details.
+          NOTES
+          {
+            echo
+            echo "---"
+            echo
+          } >> notes.md
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -lh artifacts/
+          gh release create "$GITHUB_REF_NAME" artifacts/*.zip \
+            --title "Regolith $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --generate-notes
