@@ -52,15 +52,21 @@ func set_valid(valid: bool) -> void:
 	_valid = valid
 	_update_modulate()
 
-## Dims a placed building that's been shut down (power / worker / idle). Also
-## kills its lamps and smoke, so a dark, still building reads as "off".
+## Dims a placed building that's been shut down (power / workers / no hub).
 func set_dimmed(dimmed: bool) -> void:
 	if _ghost:
 		return
 	_dimmed = dimmed
 	modulate = Color(0.5, 0.5, 0.55) if dimmed else Color.WHITE
+
+## Whether the building is actually producing. Its overlay effects — plumes,
+## vents, dust, lamps — run only while it is, so a line that has stalled for
+## want of storage goes visibly quiet without going dark.
+func set_working(working: bool) -> void:
+	if _ghost:
+		return
 	if _fx != null:
-		_fx.set_active(not dimmed)
+		_fx.set_active(working)
 
 func _process(delta: float) -> void:
 	# Throttle redraws to ~12 fps — plenty for blinking lamps and drifting smoke.

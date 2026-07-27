@@ -23,6 +23,7 @@
     "ticks_per_second": 4.0,
     "autosave_seconds": 180.0,
     "low_stock": 8,
+    "building_buffer": 4,
     "reading_jitter": 0.25
   },
 

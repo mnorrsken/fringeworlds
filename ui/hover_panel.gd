@@ -95,6 +95,12 @@ func _lines(report: Dictionary, terrain: String, reading: String) -> Array:
 		out.append("sustains %d colonists" % int(report.life_support))
 	if report.get("scans", false):
 		out.append("surveys for deposits")
+	var buffer: Dictionary = report.get("buffer", {})
+	if not buffer.is_empty():
+		var held := []
+		for res in buffer:
+			held.append("%d %s" % [int(buffer[res]), res])
+		out.append("holding " + ", ".join(held))
 	var storage: Dictionary = report.get("storage", {})
 	if not storage.is_empty():
 		var parts := []

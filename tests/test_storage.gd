@@ -63,26 +63,54 @@ func test_gains_are_capped(t: Object) -> void:
 	c._gain({"metal": 20})
 	t.eq(int(c.stockpile.metal), 50, "a gain past capacity is clipped, not carried")
 
-# A stalled line must not eat its inputs — the ore is still in the crate.
-func test_a_full_store_stalls_production_without_consuming_inputs(t: Object) -> void:
+# A building has a small internal hopper, so a full colony store doesn't stop it
+# dead — it keeps working until that hopper backs up too, and only then stalls
+# without eating any more input.
+func test_a_full_store_backs_up_through_the_hopper(t: Object) -> void:
 	var c := _colony({"metal": 50, "iron_ore": 40})
 	c.place("hub", Vector2i(2, 2))
 	var smelter: Dictionary = c.place("smelter", Vector2i(3, 3))
+	for i in 20:
+		c.tick()
+	t.eq(int(c.stockpile.metal), 50, "the colony store stays at its ceiling")
+	t.eq(int(smelter.buffer.get("metal", 0)), c.balance.building_buffer,
+		"the smelter's hopper fills up")
+	t.eq(str(smelter.idle_reason), "Storage full", "and then it stalls")
+	var ore_left := int(c.stockpile.iron_ore)
 	c.tick()
-	t.eq(int(c.stockpile.metal), 50, "metal is already at capacity")
-	t.eq(int(c.stockpile.iron_ore), 40, "so the ore was not consumed")
-	t.eq(str(smelter.idle_reason), "Storage full", "and the smelter says why")
+	t.eq(int(c.stockpile.iron_ore), ore_left, "a stalled line consumes nothing")
+
+func test_the_hopper_is_only_a_moments_grace(t: Object) -> void:
+	var c := _colony({"metal": 50, "iron_ore": 40})
+	c.place("hub", Vector2i(2, 2))
+	var smelter: Dictionary = c.place("smelter", Vector2i(3, 3))
+	for i in 20:
+		c.tick()
+	t.ok(int(smelter.buffer.get("metal", 0)) <= 8,
+		"a hopper is a pause, not a second warehouse")
+
+# With room in the store the hopper is invisible: output arrives the same tick,
+# exactly as it did before buffers existed.
+func test_the_hopper_does_not_delay_normal_production(t: Object) -> void:
+	var c := _colony({"iron_ore": 40})
+	c.place("hub", Vector2i(2, 2))
+	c.place("smelter", Vector2i(3, 3))
+	c.tick()
+	t.eq(int(c.stockpile.get("metal", 0)), 1, "the first batch lands immediately")
 
 func test_production_resumes_when_room_appears(t: Object) -> void:
 	var c := _colony({"metal": 50, "iron_ore": 40})
 	c.place("hub", Vector2i(2, 2))
-	c.place("smelter", Vector2i(3, 3))
-	c.tick()
+	var smelter: Dictionary = c.place("smelter", Vector2i(3, 3))
+	for i in 20:
+		c.tick()
+	t.eq(str(smelter.idle_reason), "Storage full", "stalled to begin with")
 	c.stockpile["metal"] = 10          # something spent the metal
 	c.tick()
-	t.eq(int(c.stockpile.metal), 11, "the smelter picks straight back up")
+	t.ok(int(c.stockpile.metal) > 10, "the hopper empties into the store")
+	t.eq(int(smelter.buffer.get("metal", 0)), 0, "leaving the hopper clear")
 
-func test_an_extractor_idles_with_nowhere_to_put_the_ore(t: Object) -> void:
+func test_an_extractor_stops_with_the_ore_left_in_the_ground(t: Object) -> void:
 	var c := _colony({"iron_ore": 50})
 	c.place("hub", Vector2i(2, 2))
 	var cell := Vector2i(5, 5)
@@ -90,9 +118,11 @@ func test_an_extractor_idles_with_nowhere_to_put_the_ore(t: Object) -> void:
 	c.map.set_scan(cell, ColonyMap.Scan.CONFIRMED)
 	var mine: Dictionary = c.place("mine", cell)
 	var before := c.map.get_amount(cell)
-	c.tick()
-	t.eq(str(mine.idle_reason), "Storage full", "the mine stops")
-	t.eq(c.map.get_amount(cell), before, "and leaves the ore in the ground")
+	for i in 20:
+		c.tick()
+	t.eq(str(mine.idle_reason), "Storage full", "the mine stops once its hopper backs up")
+	t.eq(before - c.map.get_amount(cell), float(c.balance.building_buffer),
+		"and no more than a hopper's worth ever left the ground")
 
 func test_losing_storage_spills_the_excess(t: Object) -> void:
 	var c := _colony({"metal": 70})

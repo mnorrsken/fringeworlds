@@ -15,14 +15,21 @@ func bind() -> void:
 	for id in Sim.colony.buildings:
 		_on_placed(Sim.colony.buildings[id])
 
-# Each tick, reflect the shut-down (unpowered / understaffed) state as dimming.
+# Each tick, push two separate visual states.
+#
+# Dimming means *shut down* — no power, no workers, no hub. Effects instead
+# track whether the building is actually doing anything: a smelter with nowhere
+# to put its metal is lit and staffed but idle, and the plume stopping is how
+# you notice from across the map that the colony has run out of room.
 func _on_ticked(_tick: int) -> void:
 	for id in _sprites:
 		var inst: Dictionary = Sim.colony.buildings.get(id, {})
 		if inst.is_empty():
 			continue
+		var working: bool = inst.active and str(inst.get("idle_reason", "")) == ""
 		for spr in _sprites[id]:
 			spr.set_dimmed(not inst.active)
+			spr.set_working(working)
 
 func _on_placed(inst: Dictionary) -> void:
 	var def: Dictionary = Defs.buildings[inst.type]

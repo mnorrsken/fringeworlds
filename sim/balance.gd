@@ -34,6 +34,11 @@ var autosave_seconds := 180.0
 var low_stock := 8
 ## Spread of the noise on an unconfirmed prospecting reading (± this, roughly).
 var reading_jitter := 0.25
+## Units of each resource a building can hold internally before it has to stop.
+## Small on purpose: it keeps a line from stalling the instant the colony store
+## fills, and gives the player a moment to react, without becoming storage in
+## its own right.
+var building_buffer := 4
 ## Extractable units a deposit holds at full richness, keyed by deposit name. A
 ## tile's actual reserve is its richness times this, so richness now means "how
 ## much is down there", not "how fast it comes up" — extraction runs at a flat
@@ -65,6 +70,7 @@ static func from_dict(d: Dictionary) -> Balance:
 	b.ticks_per_second = float(sim.get("ticks_per_second", b.ticks_per_second))
 	b.autosave_seconds = float(sim.get("autosave_seconds", b.autosave_seconds))
 	b.low_stock = int(sim.get("low_stock", b.low_stock))
+	b.building_buffer = int(sim.get("building_buffer", b.building_buffer))
 	b.reading_jitter = float(sim.get("reading_jitter", b.reading_jitter))
 
 	# Overriding either of these replaces the whole table rather than merging, so

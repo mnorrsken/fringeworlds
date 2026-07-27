@@ -207,6 +207,10 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 		inst["scan_progress"] = 0
 		inst["resampling"] = false
 		inst["scan_probes"] = 0
+	if def.has("recipe") or def.has("mine"):
+		# A small internal hopper. Output lands here first and drains into the
+		# colony store as room allows; when both are full the building stops.
+		inst["buffer"] = {}
 	if def.has("mine"):
 		# Latch the deposit under the extractor at placement time.
 		inst["deposit_type"] = map.get_deposit(origin)
@@ -490,23 +494,61 @@ func _run_production() -> void:
 		if not def.has("recipe"):
 			continue
 		var recipe: Dictionary = def.recipe
+		_flush(inst)
 		inst.progress = int(inst.progress) + 1
 		if int(inst.progress) < int(recipe.ticks):
 			continue
-		if not _fits(recipe.get("outputs", {})):
+		if not _buffer_fits(inst, recipe.get("outputs", {})):
 			# Hold at the completion threshold rather than burning the inputs:
-			# a full store pauses a production line, it doesn't waste it.
+			# a full colony store backs the hopper up and pauses the line, it
+			# doesn't waste what goes in.
 			inst.progress = int(recipe.ticks)
 			inst.idle_reason = "Storage full"
 		elif _has(recipe.get("inputs", {})):
 			_spend(recipe.get("inputs", {}))
-			_gain(recipe.get("outputs", {}))
-			inst.progress = 0
+			_buffer_gain(inst, recipe.get("outputs", {}))
+			_flush(inst)   # straight through when there's room; the hopper only
+			inst.progress = 0   # holds output the colony currently can't take
 		else:
 			# Stalled on missing inputs: hold at the completion threshold and
 			# name what's short so the inspector can explain the idle.
 			inst.progress = int(recipe.ticks)
 			inst.idle_reason = "Needs " + ", ".join(_short_inputs(recipe.get("inputs", {})))
+
+# Moves whatever a building is holding internally into the colony store, as far
+# as there is room for it. Runs before the building produces, so a line restarts
+# the moment space appears somewhere.
+func _flush(inst: Dictionary) -> void:
+	var buffer: Dictionary = inst.get("buffer", {})
+	for res in buffer.keys():
+		var held := int(buffer[res])
+		if held <= 0:
+			buffer.erase(res)
+			continue
+		var moved: int = mini(held, space_for(res))
+		if moved <= 0:
+			continue
+		stockpile[res] = int(stockpile.get(res, 0)) + moved
+		if held - moved > 0:
+			buffer[res] = held - moved
+		else:
+			buffer.erase(res)
+
+## Room left in a building's internal hopper for one resource.
+func _buffer_space(inst: Dictionary, res: String) -> int:
+	return maxi(0, balance.building_buffer - int(inst.get("buffer", {}).get(res, 0)))
+
+# True when a whole batch of outputs would fit in the hopper.
+func _buffer_fits(inst: Dictionary, flow: Dictionary) -> bool:
+	for res in flow:
+		if int(flow[res]) > _buffer_space(inst, res):
+			return false
+	return true
+
+func _buffer_gain(inst: Dictionary, flow: Dictionary) -> void:
+	var buffer: Dictionary = inst.buffer
+	for res in flow:
+		buffer[res] = int(buffer.get(res, 0)) + int(flow[res])
 
 # Extractors run at a flat rate and draw the tile's reserve down until it's
 # gone. Richness sizes that reserve rather than the rate, so a rich tile lasts
@@ -516,18 +558,23 @@ func _run_mine(inst: Dictionary, def: Dictionary) -> void:
 	var res: String = ColonyMap.DEPOSIT_RESOURCE.get(int(inst.deposit_type), "")
 	if res == "":
 		return
+	_flush(inst)
 	var remaining := map.get_amount(inst.origin)
 	if remaining <= 0.0:
 		inst.active = false
 		inst.idle_reason = "Deposit worked out"
 		return
-	if space_for(res) <= 0:
+	var room := _buffer_space(inst, res)
+	if room <= 0:
+		# Nowhere to put it: the ore stays in the ground rather than being
+		# pumped into a colony that cannot hold it.
 		inst.idle_reason = "Storage full"
 		return
 	inst.mine_accum = float(inst.mine_accum) + _mine_per_tick(inst, def)
-	var whole := minf(float(int(inst.mine_accum)), remaining)
+	var whole := minf(minf(float(int(inst.mine_accum)), remaining), float(room))
 	if whole > 0.0:
-		stockpile[res] = int(stockpile.get(res, 0)) + int(whole)
+		_buffer_gain(inst, {res: int(whole)})
+		_flush(inst)
 		map.set_amount(inst.origin, remaining - whole)
 		inst.mine_accum = float(inst.mine_accum) - whole
 
@@ -597,6 +644,7 @@ func building_report(id: int) -> Dictionary:
 		"active": bool(inst.active),
 		"idle_reason": str(inst.get("idle_reason", "")),
 		"storage": def.get("storage", {}),
+		"buffer": inst.get("buffer", {}),
 		"power": int(def.get("power", 0)),
 		"workers": int(def.get("workers", 0)),
 		"capacity": int(def.get("capacity", 0)),
@@ -664,6 +712,8 @@ func _inst_to_dict(inst: Dictionary) -> Dictionary:
 		d["scan_progress"] = int(inst.scan_progress)
 		d["resampling"] = bool(inst.get("resampling", false))
 		d["scan_probes"] = int(inst.get("scan_probes", 0))
+	if inst.has("buffer"):
+		d["buffer"] = inst.buffer.duplicate()
 	if inst.has("deposit_type"):
 		d["deposit_type"] = int(inst.deposit_type)
 		d["richness"] = float(inst.richness)
@@ -714,6 +764,13 @@ static func _inst_from_dict(bd: Dictionary) -> Dictionary:
 	if bd.has("scan_ring"):
 		inst["scan_ring"] = int(bd.scan_ring)
 		inst["scan_progress"] = int(bd.scan_progress)
+		inst["resampling"] = bool(bd.get("resampling", false))
+		inst["scan_probes"] = int(bd.get("scan_probes", 0))
+	if bd.has("buffer"):
+		var buffer := {}
+		for res in bd.buffer:
+			buffer[res] = int(bd.buffer[res])
+		inst["buffer"] = buffer
 	if bd.has("deposit_type"):
 		inst["deposit_type"] = int(bd.deposit_type)
 		inst["richness"] = float(bd.richness)
