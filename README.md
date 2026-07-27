@@ -73,7 +73,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1118 assertions across 94 tests, 0 failures.**
+**1127 assertions across 98 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
@@ -152,13 +152,13 @@ the game-over screen to start a fresh colony.
 | Solar Panel | 1×1 | 10 metal | +15 | 0 | — | Hub | Regolith, Highlands |
 | Habitat | 2×2 | 30 metal | −2 | 0 | houses +6 colonists | Hub | Regolith |
 | Ice Harvester | 1×1 | 15 metal | −5 | 0 | 1 water / 4 ticks (no inputs) | Hub | Ice |
-| Survey Station | 1×1 | 25 metal | −3 | 0 | scans outward, ring every 2 ticks, radius 7 | Hub | Regolith, Highlands |
+| Survey Station | 1×1 | 25 metal | −3 | 0 | scans outward, ring every 3 ticks, radius 7 | Hub | Regolith, Highlands |
 | Electrolysis Plant | 1×1 | 20 metal | −4 | 0 | water → 1 oxygen / 3 ticks | Ice Harvester | Regolith, Highlands |
 | Hydroponics Farm | 2×2 | 20 metal | −3 | 0 | water → 1 food / 3 ticks | Ice Harvester | Regolith |
-| Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore, `0.5 × richness` / tick | Hub | confirmed Iron or Copper |
+| Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore, `0.35 × richness` / tick | Hub | confirmed Iron or Copper |
 | Smelter | 1×1 | 25 metal | −4 | 2 | 2 iron ore → 1 metal / 2 ticks | Mine | Regolith, Highlands |
 | Parts Factory | 2×2 | 35 metal | −5 | 3 | 2 metal + 1 copper ore → 1 parts / 4 ticks | Smelter | Regolith, Highlands |
-| Crystal Extractor | 1×1 | 20 metal + 8 parts | −6 | 2 | xenite, `0.25 × richness` / tick | Parts Factory | confirmed Xenite |
+| Crystal Extractor | 1×1 | 20 metal + 8 parts | −6 | 2 | xenite, `0.15 × richness` / tick | Parts Factory | confirmed Xenite |
 
 Defined in `data/buildings.json`. The Hub is the only building unlocked at
 game start and the root of the tech tree; it guarantees a mineable iron
@@ -176,7 +176,9 @@ output rate scales with that deposit's richness (0–100%, revealed exactly
 only once confirmed — a coarse scan gives an imprecise guess). A locked
 building (unmet "Requires built") can't be placed and shows 🔒 in the
 build menu until its prerequisite is built — the unlock persists even if
-that prerequisite is later demolished. The design plan's Geothermal Plant
+that prerequisite is later demolished. Demolishing any building refunds
+half its cost (rounded down per resource — see Status below), shown in the
+Demolish button's tooltip. The design plan's Geothermal Plant
 (a second power source, sited on a surface vent) is deferred — the map
 doesn't generate vents yet, so Solar Panel and the Hub are the only power
 sources for now.
@@ -209,11 +211,16 @@ bed + SFX, `make audio` regenerates the WAVs). Milestone 9 (balance,
 polish, v2 hooks) is now in progress: every tunable simulation number has
 been extracted into `data/balance.json` (see
 [`docs/architecture.md`](docs/architecture.md#tuning-balance-milestone-9)),
-and a headless pacing harness (`ColonyBot`, `make playtest`, see
+a headless pacing harness (`ColonyBot`, `make playtest`, see
 [`docs/architecture.md`](docs/architecture.md#pacing-harness-colonybot-milestone-9))
-bot-plays the real sim to confirm every seed is completable — 5/5 seeds
-currently win in 11–19 minutes of game time — with tuning decisions and the
-v2 hooks list still to come. See
+bot-plays the real sim to confirm every seed is completable, and a balance
+pass has since acted on that data — a demolition refund (50% of cost,
+`Balance.demolish_refund`) fixes a soft-lock the harness found (an
+over-committed colony had no way to recover resources), and pacing was
+retuned (slower prospecting rings, slower mines, a higher xenite target and
+growth-tick count) so the bot's win time moved from 11–19 minutes to a
+20–41 minute average of ~30, putting a human session in the plan's 45–90
+minute window. Only the v2 hooks list remains for Milestone 9. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

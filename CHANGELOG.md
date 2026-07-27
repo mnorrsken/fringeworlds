@@ -8,6 +8,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 9 — Balance pass** (2026-07-27)
+  - New `Balance.demolish_refund` (default `0.5`, clamped `0.0`–`1.0`),
+    exposed as `colony.demolish_refund` in `data/balance.json`.
+    `Colony.demolish_at()` now credits `floor(cost × refund)` per resource
+    via a new `_refund()` — the colony's only way to recover resources from
+    an over-committed building, fixing a soft-lock the pacing harness found
+    (a running parts factory can eat an entire two-smelter metal income,
+    permanently pinning metal at ~0 with no way to afford the crystal
+    extractor). Flooring the refund means a build/demolish cycle is always
+    a net loss, so it can't be farmed. Demolish button tooltip
+    (`ui/sidebar.gd`) states the refund percentage.
+  - New tests in `tests/test_tuning.gd`: refund amount, can't-be-farmed,
+    `0.0` disables it, out-of-range values clamp.
+- **Milestone 9 — Pacing tuning** (2026-07-27)
+  - `data/balance.json`: `victory.xenite` 50 → 150, `colony.growth_ticks`
+    80 → 110. `data/buildings.json`: mine `base_per_tick` 0.5 → 0.35,
+    crystal extractor `base_per_tick` 0.25 → 0.15, `ticks_per_ring` 2 → 3
+    for both the hub and the survey station (prospecting is the dominant
+    term in the ramp). Moves the bot's win time from 11.1–19.4 min (avg
+    15.8) to 20.3–41.4 min (avg 29.9) across the 5 playtest seeds, landing
+    a human session in the plan's 45–90 minute window.
+  - `tests/test_pacing.gd`: replaced the "not trivially short" floor check
+    with `test_sessions_land_in_the_intended_window`, asserting every seed
+    finishes in 15–50 bot-minutes.
+  - `tools/colony_bot.gd`: the bot now waits for the hub's first survey
+    sweep (a confirmed iron tile) before building anything else — it's
+    possible to bury the hub's guaranteed iron deposit under a building
+    placed before prospecting confirms it, since the guarantee lands in the
+    tiles right beside the hub and an unconfirmed deposit is invisible.
 - **Milestone 9 — Pacing harness (`ColonyBot`, `make playtest`)** (2026-07-27)
   - New `tools/colony_bot.gd` (`ColonyBot`): a scripted reference player
     driving the real `Colony`/`ColonyMap` classes headlessly (no autoloads,

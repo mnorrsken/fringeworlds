@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1118 assertions across 94 tests, 0 failures** (`make test`).
+Current test count: **1127 assertions across 98 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -64,11 +64,18 @@ Current test count: **1118 assertions across 94 tests, 0 failures** (`make test`
   `user://settings.cfg`, and a new pause-menu Sound toggle.
 - **M9 — Balance, polish, v2 hooks — in progress.** Every tunable sim
   number (population/capacity, starve/growth ticks, victory xenite, hub
-  guaranteed richness, life support, starting stockpile, tick rate,
-  autosave interval, low-stock floor, reading jitter) is now data-driven
-  via `Balance`/`data/balance.json` (see `docs/architecture.md`) — a pure
-  extraction, shipped numbers unchanged. Pacing is now measured, not
-  eyeballed: `ColonyBot`/`make playtest` (see `docs/architecture.md`) bot-
-  plays the real sim, and 5/5 seeds win in 11.1–19.4 minutes of game time
-  (average 15.8). Still open: acting on that data (actually tuning the
-  numbers) and the v2 hooks list.
+  guaranteed richness, demolish refund, life support, starting stockpile,
+  tick rate, autosave interval, low-stock floor, reading jitter) is now
+  data-driven via `Balance`/`data/balance.json` (see `docs/architecture.md`)
+  — a pure extraction, shipped numbers unchanged at the time. Pacing is
+  measured, not eyeballed: `ColonyBot`/`make playtest` (see
+  `docs/architecture.md`) bot-plays the real sim. The balance pass acted on
+  that data: a demolition refund (50% of cost) fixes a soft-lock the
+  harness found (an over-committed colony — e.g. a parts factory outrunning
+  its metal supply — had no way to recover resources since buildings can't
+  be switched off), and pacing was retuned (`victory.xenite` 50→150,
+  `growth_ticks` 80→110, slower mine/extractor output, slower prospecting
+  rings) so the bot's win time moved from 11.1–19.4 min (avg 15.8) to
+  20.3–41.4 min (avg 29.9), landing a human session in the plan's 45–90
+  minute window; `tests/test_pacing.gd` now guards a 15–50 minute bot
+  window. Only the v2 hooks list remains open for M9.

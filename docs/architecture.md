@@ -247,10 +247,10 @@ buildings need to switch between multiple recipes later.
 `data/buildings.json` is content (what exists); `data/balance.json` is
 pacing (how hard it presses) — starting population/capacity,
 starve/growth tick counts, the xenite victory target, the hub's
-guaranteed-deposit richness, life-support draw per colonist, the starting
-stockpile, sim tick rate, autosave interval, the low-stock alert floor, and
-prospecting reading jitter. Tuning the game means editing that file, not
-engine code.
+guaranteed-deposit richness, the demolition refund fraction, life-support
+draw per colonist, the starting stockpile, sim tick rate, autosave
+interval, the low-stock alert floor, and prospecting reading jitter. Tuning
+the game means editing that file, not engine code.
 
 `sim/balance.gd` (`Balance`, `class_name`, `RefCounted`) holds every one of
 those numbers as a field with the shipped value as its default, plus
@@ -284,6 +284,18 @@ guards on the shipped values (`growth_ticks > starve_ticks`, so a failing
 colony can't grow out of trouble; every life-support resource is stocked at
 game start).
 
+**Demolition refund (balance pass).** `Colony.demolish_at()` credits
+`floor(cost[res] * balance.demolish_refund)` per resource back to the
+stockpile (`demolish_refund` default `0.5`, clamped `0.0`–`1.0` in
+`Balance.from_dict`). This is the colony's only way to turn a building back
+into resources — without it, over-committing to a building with no way to
+power it down is a dead end (see the parts-factory finding below, which is
+what surfaced the gap). Flooring the refund means a build/demolish cycle on
+the same building is always a net resource loss, so it can't be farmed;
+`ui/sidebar.gd`'s Demolish button tooltip states the live percentage from
+`Defs.balance`. Covered by `tests/test_tuning.gd` (refund amount, can't be
+farmed, `0.0` disables it, out-of-range values clamp).
+
 ## Pacing harness (`ColonyBot`, Milestone 9)
 
 Tuning numbers only matter if someone plays the game long enough to feel
@@ -314,8 +326,16 @@ does, so a headless script with no autoloads can still construct a real
   ever catch — a balance change can leave every building individually
   correct while making the colony as a whole unwinnable.
 
-Measured result at time of writing: 5/5 seeds win, 11.1–19.4 minutes of
-game time, average 15.8.
+`tests/test_pacing.gd::test_sessions_land_in_the_intended_window` pins the
+result to a 15–50 minute band so a future tuning change that drifts outside
+it fails loudly, rather than quietly turning the game into a five-minute
+clicker or an hour of waiting.
+
+Measured result after the Milestone 9 balance pass (below): 5/5 seeds win,
+20.3–41.4 minutes of game time, average 29.9 (previously 11.1–19.4 minutes,
+average 15.8, against the plan's 45–90 minute target — since the bot buys
+the instant it can afford to, its time is a floor, so ~30 bot-minutes was
+chosen to put a human session in the plan's window).
 
 Building the bot surfaced real balance findings, not just infrastructure:
 
@@ -323,11 +343,12 @@ Building the bot surfaced real balance findings, not just infrastructure:
   running Parts Factory consumes 2 metal per 4 ticks — roughly the entire
   output of two smelters — so a colony that switches one on too early pins
   metal at ~0 forever and can never afford the Crystal Extractor's 20
-  metal. Demolition doesn't refund cost, so the only way out is tearing the
-  factory back down. Three of five seeds failed this way before the bot
-  was taught to expand first (4 iron mines + 3 smelters,
-  `IRON_MINES_BEFORE_FACTORY`/`SMELTERS_BEFORE_FACTORY`) before building
-  the factory.
+  metal. Buildings can't be switched off, and (before the balance pass)
+  demolition refunded nothing, so there was no way back short of a
+  soft-lock; this is what motivated the demolition refund above. Three of
+  five seeds failed this way before the bot was taught to expand first (4
+  iron mines + 3 smelters, `IRON_MINES_BEFORE_FACTORY`/
+  `SMELTERS_BEFORE_FACTORY`) before building the factory.
 - **One Ice Harvester doesn't cover both an Electrolysis Plant and a
   Hydroponics Farm** — 0.25 water/tick produced vs. 0.67 consumed by the
   two together — so the water chain has to widen as the colony grows or it
@@ -335,6 +356,23 @@ Building the bot surfaced real balance findings, not just infrastructure:
 - **Xenite is common** and often sits within a few tiles of the hub, so a
   careless base can literally pave over its own win condition before ever
   surveying for it.
+- **Don't build before you've prospected.** The Hub's guaranteed iron (see
+  "Colony Hub and guaranteed deposits" below) is injected into the tiles
+  right beside the Hub — exactly where an eager colony builds first — and an
+  unconfirmed deposit is invisible, so it's possible to bury the colony's
+  only guaranteed iron under a building before the first survey sweep
+  confirms it, with no way to recover it. The bot now waits for the Hub's
+  first survey sweep (a confirmed iron tile) before building anything else,
+  which is also good practice for a human player: check the prospect
+  overlay (`P`) before placing near the Hub.
+
+**Balance pass (Milestone 9).** Tuned from `data/balance.json`/
+`data/buildings.json` to move the bot's win time from ~16 to ~30 minutes:
+`victory.xenite` 50 → 150, `colony.growth_ticks` 80 → 110, mine
+`base_per_tick` 0.5 → 0.35, crystal extractor `base_per_tick` 0.25 → 0.15,
+and `ticks_per_ring` 2 → 3 for both the hub's and the survey station's
+`scan` blocks (prospecting is the dominant term in the ramp, so slowing it
+lifted the fast seeds without over-inflating the slow ones).
 
 ## The tick economy (`Colony.tick()`)
 
@@ -421,7 +459,9 @@ live: `balance.base_capacity` (`0` — the Colony Hub rework dropped this from
 buildings' `capacity` fields, of which the Hub is now one),
 `balance.starve_ticks` (`24`, ~6s of real time at 1× speed — raised from
 `16` in the pre-M6 balance pass, for a more forgiving grace period),
-`balance.growth_ticks` (`80`, ~20s), `balance.victory_xenite` (`50`), and
+`balance.growth_ticks` (`110`, ~27.5s — raised from `80` in the Milestone 9
+balance pass), `balance.victory_xenite` (`150`, raised from `50` in the
+same pass), and
 `balance.life_support` (`{oxygen: 0.02, water: 0.02, food: 0.015}`,
 consumption per colonist per tick — also reduced from `{0.03, 0.03, 0.02}`
 in the pre-M6 pass).
@@ -549,8 +589,9 @@ algorithm, and is fully deterministic per seed — pinned by
 
 **Survey scanning** (`Colony._run_prospecting` / `_scan_ring`, in
 `sim/colony.gd`): a survey building (any def with a `scan` block —
-`survey_station` at `max_radius: 7, ticks_per_ring: 2`, and — Colony Hub
-rework — `hub` at `max_radius: 6, ticks_per_ring: 2`) sweeps an expanding
+`survey_station` at `max_radius: 7, ticks_per_ring: 3`, and — Colony Hub
+rework — `hub` at `max_radius: 6, ticks_per_ring: 3` — both raised from `2`
+in the Milestone 9 balance pass) sweeps an expanding
 ring outward from its footprint center. Each active
 survey building's `scan_progress` (a per-instance counter, alongside
 `scan_ring`, both initialized in `place()`) advances one per tick; once it
