@@ -3,7 +3,9 @@
 Milestone 9 asks for the next round of features to be *written down* rather than
 built. This is that list: five candidates from the plan (§ Milestone 9), each
 sketched far enough to be costed and argued about, with the parts of the current
-architecture they would disturb named explicitly.
+architecture they would disturb named explicitly. One (deposit depletion) has
+since shipped — its entry below is kept as a record of what was planned vs.
+what was built, rather than deleted.
 
 Nothing here is committed to. The point is that when v2 starts, the arguments
 have already happened.
@@ -27,30 +29,26 @@ Three facts from the M9 balance pass shape everything below:
   reference player and the pacing guard rots. That cost is real and is included
   in each estimate.
 
-## 1. Deposit depletion
+## 1. Deposit depletion — shipped
 
-**Sketch.** A deposit holds a finite quantity, not an infinite rate. Extracting
-draws it down; richness falls as the node is worked out; an exhausted extractor
-goes idle with a clear reason and can be demolished for its refund. Prospecting
-stops being a one-time land-grab and becomes the thing you keep doing.
-
-**Sim.** `ColonyMap` gains a per-cell `reserve` array alongside richness, seeded
-at generation from richness × a balance multiplier. `Colony._run_mine()`
-decrements it and idles the extractor at zero (`idle_reason = "Deposit
-exhausted"`). Save/load carries the reserves. New balance keys: reserve per
-richness point, and whether depletion also decays the yield curve.
-
-**View/UI.** The inspector shows remaining reserve; the prospect overlay wants a
-"worked out" state distinct from confirmed. Both are additive.
-
-**Risks.** This is the change most likely to break the win condition: xenite must
-stay reachable for the whole session, and the hub's *guaranteed* iron deposit
-becomes a guarantee with an expiry date. The harness will catch a colony that
-starves, but only if the bot learns to re-prospect and relocate extractors — the
-bulk of the work here is in the bot, not the sim.
-
-**Size.** Small sim change, medium bot change, small UI. Good first v2 feature —
-it deepens the signature mechanic without touching the stockpile.
+**Shipped, not a candidate anymore.** `ColonyMap` gained a per-cell `_amount`
+array (extractable units left), seeded at `set_deposit()` from richness ×
+`Balance.deposit_units` (per deposit type — IRON 600, COPPER 260, XENITE 30).
+Extraction runs at a flat rate and draws the reserve down; a tile that hits zero
+idles its extractor with `idle_reason = "Deposit worked out"` and can be
+demolished for the refund. Richness now sizes the reserve rather than the rate.
+Xenite generation moved off a hidden noise field onto visible CRYSTAL terrain
+(every crystal tile holds it, nowhere else does), so a formation is visible but
+its size still has to be prospected — the endgame is a prospect → work-out →
+relocate cycle across several formations, not a sit at one deposit. Save/load
+carries reserves, with a migration that refills them from richness for
+pre-existing saves. `ColonyBot` was reworked to match: it clears worked-out
+extractors for the refund, keeps a standing metal reserve for the next mine, and
+never re-sites onto a tile it has already emptied — this is exactly the "bulk of
+the work is in the bot, not the sim" risk called out below, and it landed.
+See `docs/architecture.md`'s "Deposits and prospecting" and "Pacing harness" for
+the full mechanics and the resulting rebalance (`victory.xenite` 150 → 260,
+mine/extractor rates down).
 
 ## 2. Depot / logistics radius
 
@@ -152,10 +150,9 @@ strategic depth without new subsystems.
 
 ## Suggested order
 
-1. **Hostile events** — isolated, visible, exercises the existing alert and FX
+1. ~~**Deposit depletion**~~ — shipped; see § 1 above.
+2. **Hostile events** — isolated, visible, exercises the existing alert and FX
    layers. Ship an on/off toggle for buildings alongside it.
-2. **Deposit depletion** — deepens prospecting, small sim surface, forces the
-   bot to become a smarter reference player (worth doing on its own merits).
 3. **Second colonist tier** — depth on top of a stable economy.
 4. **Depot / logistics radius** — only with intent to re-derive pacing; treat as
    the start of a v2 branch rather than an increment.

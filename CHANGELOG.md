@@ -8,11 +8,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Deposits are now finite.** A tile's richness sizes its reserve
+  (`deposit_units`: IRON 600, COPPER 260, XENITE 30) instead of its output
+  rate; extractors run at a flat rate and idle with "Deposit worked out"
+  once a reserve hits zero. Reserves are serialized, with a migration that
+  refills them from richness for older saves. The hover readout and
+  `reading_text()` now report units left instead of a richness percentage.
+- **Xenite lives in visible crystal formations**: every CRYSTAL terrain
+  tile holds xenite and no xenite generates anywhere else, so a formation
+  is visible from the start even though its reserve still has to be
+  prospected. Crystal generation loosened (highlands feature threshold
+  -0.60 → -0.40, ~1–9 formations per map → ~28–33) since the old rarity
+  could make a seed unwinnable outright.
+- **The Colony Hub is now free (`cost: {}`), unique, and required.** New
+  building-def flags `unique` (only one may stand; `can_place`/
+  `Colony.lock_reason()` grey out a second) and `colony_controller`: with
+  no active controller building, every other building — including life
+  support — goes inactive with idle reason "No colony hub" until one is
+  rebuilt. The rule is data-driven; defs with no declared controller (all
+  existing unit tests) are unaffected.
+- **Survey stations must be built inside existing survey coverage**
+  (new `requires_coverage` flag, `Colony.in_survey_coverage()`), so
+  prospecting spreads outward from the hub in overlapping steps instead of
+  leapfrogging into the dark.
+- **Slow, scattered richness confirmation.** A scan def can carry
+  `confirm_ticks`: once a survey station's outward sweep finishes, it drops
+  into resampling — one probe every `confirm_ticks` ticks at a
+  pseudo-randomly picked tile in its radius (deterministically hashed from
+  building id + probe count, not an RNG, so saves reload mid-sequence).
+  The probe often lands on already-confirmed ground or bare rock and
+  achieves nothing. The hub is unaffected — its sweep still just restarts.
 - **Ground clutter**: regolith, highlands and ice tiles now generate extra
   "cluttered" atlas variants — stones, craters/rubble, pressure cracks —
   used by a percentage of tiles, independent of the base texture pick.
 
 ### Changed
+
+- **Rebalance for finite deposits**: `victory.xenite` 150 → 260, crystal
+  extractor rate 0.15 → 0.022, mine rate 0.35 → 0.30, `growth_ticks`
+  default in `sim/balance.gd` synced to the shipped 110. The endgame is now
+  a prospect → work-out → relocate cycle across several crystal formations
+  rather than one sit at a single deposit.
+- **`ColonyBot` reworked** for the finite-deposit economy: it clears
+  worked-out extractors for the refund, keeps a standing metal reserve for
+  the next mine (deposits deplete in clusters, so the whole fleet can
+  collapse at once), aims survey stations at the nearest unconfirmed
+  visible crystal formation, never re-sites onto a tile it has already
+  emptied, and tears down the parts factory once 40 parts are banked.
+  `make playtest`: 5/5 seeds win, 24.2–24.6 minutes (avg 24.4).
 
 - **VOID terrain now renders as bottomless canyons instead of flat dark
   diamonds**: `TerrainView` autotiles rift walls per-cell from a 2-bit

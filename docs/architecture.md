@@ -235,7 +235,19 @@ consumed by the view layer, not `Colony`. Building/resource content:
   building, or a recipe/scan/mine/requires_built/fx block to an existing
   one, is a matter of editing JSON — no script changes needed, since
   `Colony.tick()`, `BuildingsView`, and the sidebar's build menu all read
-  generically off the def dictionary.
+  generically off the def dictionary. The finite-deposits/required-hub
+  rework (see "Deposits and prospecting" and "Colony Hub and guaranteed
+  deposits" below) added four more fields, all still generic — no new
+  preprocessing in `Defs`: `unique` (bool, one-per-colony — only `hub`),
+  `colony_controller` (bool, the colony shuts down without one active —
+  only `hub`), `requires_coverage` (bool, must be placed inside an
+  existing scanning building's range — only `survey_station`), and
+  `scan.confirm_ticks` (int, only `survey_station`'s `scan` block — see
+  below). `hub`'s `cost` is now `{}` (it's free) and `mine`/
+  `crystal_extractor`'s `mine.base_per_tick` dropped to `0.30`/`0.022`
+  (from `0.35`/`0.15`) as part of the same rebalance;
+  `crystal_extractor`'s `allowed_terrain` narrowed to `["CRYSTAL"]` (from
+  `["REGOLITH", "HIGHLANDS"]`), since xenite now only generates there.
 
 There is no separate `data/recipes.json` — recipes live inline on the
 building that runs them, one recipe per building, which is enough for the
@@ -249,8 +261,11 @@ pacing (how hard it presses) — starting population/capacity,
 starve/growth tick counts, the xenite victory target, the hub's
 guaranteed-deposit richness, the demolition refund fraction, life-support
 draw per colonist, the starting stockpile, sim tick rate, autosave
-interval, the low-stock alert floor, and prospecting reading jitter. Tuning
-the game means editing that file, not engine code.
+interval, the low-stock alert floor, prospecting reading jitter, and (the
+finite-deposits rework) `deposit_units` — extractable units per deposit
+type at full richness (`IRON: 600, COPPER: 260, XENITE: 30`), read by
+`ColonyMap.set_deposit()` to size a tile's reserve. Tuning the game means
+editing that file, not engine code.
 
 `sim/balance.gd` (`Balance`, `class_name`, `RefCounted`) holds every one of
 those numbers as a field with the shipped value as its default, plus
@@ -316,6 +331,22 @@ preprocesses `data/buildings.json` the same way `Defs._load_buildings`
 does, so a headless script with no autoloads can still construct a real
 `Colony`.
 
+**Reworked for finite deposits.** With deposits finite (see "Deposits and
+prospecting" below), the bot had to stop treating a mine or extractor as a
+permanent fixture: it now demolishes any extractor idled with "Deposit
+worked out" for the refund (`_clear_worked_out`), keeps a standing metal
+reserve for the *next* mine before spending on anything else — deposits
+tend to run out in clusters, so the whole extraction fleet can collapse at
+once (`_metal_reserve`, `MINE_RESERVE`) — aims survey stations at the
+nearest unconfirmed *visible* crystal formation and otherwise pushes the
+coverage frontier outward, since stations must now stand inside existing
+coverage (`_nearest_unconfirmed_crystal`, `_farthest_placeable`), never
+re-sites an extractor onto a tile it has already emptied (`_find_deposit`
+drops worked-out cells from its index), and tears down the parts factory
+once `PARTS_BANKED` (40) parts are banked, since a permanently-running
+factory's metal drain is the difference between finishing and slowly
+starving once ore is finite.
+
 - **`tools/playtest.gd`** (`make playtest`) runs several seeds, prints each
   one's outcome/ticks/minutes/timeline/build order plus a summary, and
   exits non-zero if any seed fails to win — a manual/CI pacing report.
@@ -331,11 +362,19 @@ result to a 15–50 minute band so a future tuning change that drifts outside
 it fails loudly, rather than quietly turning the game into a five-minute
 clicker or an hour of waiting.
 
-Measured result after the Milestone 9 balance pass (below): 5/5 seeds win,
+Measured result after the Milestone 9 balance pass: 5/5 seeds win,
 20.3–41.4 minutes of game time, average 29.9 (previously 11.1–19.4 minutes,
 average 15.8, against the plan's 45–90 minute target — since the bot buys
 the instant it can afford to, its time is a floor, so ~30 bot-minutes was
 chosen to put a human session in the plan's window).
+
+**After the finite-deposits rework and its rebalance** (below): 5/5 seeds
+win, 24.2–24.6 minutes, average 24.4 — the bot rework above (working tiles
+out, relocating extractors, banking then shutting down the parts factory)
+kept the session inside `test_pacing.gd`'s 15–50 minute band without
+needing to widen it, so the endgame is now a prospect → work-out →
+relocate cycle across several crystal formations rather than one sit at a
+single deposit, at roughly the same real-world length as before.
 
 Building the bot surfaced real balance findings, not just infrastructure:
 
@@ -365,6 +404,15 @@ Building the bot surfaced real balance findings, not just infrastructure:
   first survey sweep (a confirmed iron tile) before building anything else,
   which is also good practice for a human player: check the prospect
   overlay (`P`) before placing near the Hub.
+- **A colony can go bankrupt with confirmed ore sitting unused**, because
+  opening a deposit costs metal it no longer has once the metal loop is
+  running and reserves have run low — demolition refunds are the way out
+  (`_metal_reserve`'s mine/survey-station holdback exists because of this).
+- **The parts factory's metal drain is much sharper now that ore is
+  finite.** A permanently-running factory can outpace what a finite set of
+  mines can ever replace, not just what an early, still-growing metal loop
+  can — this is why the bot now tears the factory down once enough parts
+  are banked instead of only delaying when it turns on.
 
 **Balance pass (Milestone 9).** Tuned from `data/balance.json`/
 `data/buildings.json` to move the bot's win time from ~16 to ~30 minutes:
@@ -374,10 +422,23 @@ and `ticks_per_ring` 2 → 3 for both the hub's and the survey station's
 `scan` blocks (prospecting is the dominant term in the ramp, so slowing it
 lifted the fast seeds without over-inflating the slow ones).
 
-This completes Milestone 9, and with it all nine milestones of the plan. The
-findings above — the metal loop, the water chain, the stockpile as the
-single biggest sim assumption — shape the next round of features, sketched
-(not built) in [`docs/v2-candidates.md`](v2-candidates.md).
+This completed Milestone 9, and with it all nine milestones of the plan.
+
+**Balance pass (finite deposits).** Deposits becoming finite (below)
+needed its own retune, since a target sized for an infinite tap doesn't
+carry over to one that runs dry: `victory.xenite` 150 → 260, crystal
+extractor `base_per_tick` 0.15 → 0.022, mine `base_per_tick` 0.35 → 0.30,
+and `growth_ticks`'s default in `sim/balance.gd` synced to the shipped
+`110` (it had drifted to `80`). A typical iron tile now carries a colony
+for a long while (deposit base 600 units), but a crystal formation holds
+only ~18 units against a 260-unit beacon target, so finishing the game
+means working through many formations, not sitting at one.
+
+The findings above — the metal loop, the water chain, the stockpile as the
+single biggest sim assumption — shaped the v2 candidates written up in
+[`docs/v2-candidates.md`](v2-candidates.md); deposit depletion (candidate
+#1 there) has since shipped and is described under "Deposits and
+prospecting" below.
 
 ## The tick economy (`Colony.tick()`)
 
@@ -465,8 +526,10 @@ buildings' `capacity` fields, of which the Hub is now one),
 `balance.starve_ticks` (`24`, ~6s of real time at 1× speed — raised from
 `16` in the pre-M6 balance pass, for a more forgiving grace period),
 `balance.growth_ticks` (`110`, ~27.5s — raised from `80` in the Milestone 9
-balance pass), `balance.victory_xenite` (`150`, raised from `50` in the
-same pass), and
+balance pass), `balance.victory_xenite` (`260` — `50` at launch, `150`
+after the Milestone 9 balance pass, `260` after the finite-deposits
+rebalance, since a crystal formation now only holds a fraction of the
+target), and
 `balance.life_support` (`{oxygen: 0.02, water: 0.02, food: 0.015}`,
 consumption per colonist per tick — also reduced from `{0.03, 0.03, 0.02}`
 in the pre-M6 pass).
@@ -563,11 +626,25 @@ until surveyed, and extraction is gated on a confirmed reading.
 - `_deposit` (`PackedByteArray`) — one of `enum Deposit { NONE, IRON,
   COPPER, XENITE }` per cell. Hidden; `get_deposit(cell)` reads it, but
   nothing renders it directly until a scan confirms it. `set_deposit(cell,
-  dep, richness)` (Colony Hub rework) writes both this and `_richness`
-  (below) for one cell — the only way a deposit is ever placed outside of
-  map generation; see "Colony Hub and guaranteed deposits" below.
-- `_richness` (`PackedFloat32Array`) — `0.0`–`1.0` per cell, how much a
-  matching extractor produces there. Hidden the same way.
+  dep, richness)` (Colony Hub rework) writes this, `_richness` (below),
+  and — finite-deposits rework — `_amount` for one cell: the only way a
+  deposit is ever placed outside of map generation; see "Colony Hub and
+  guaranteed deposits" below.
+- `_richness` (`PackedFloat32Array`) — `0.0`–`1.0` per cell. Originally how
+  fast a matching extractor produced there; since the finite-deposits
+  rework it instead sizes the tile's reserve (see `_amount` below) — a
+  richer tile lasts longer, not faster. Hidden the same way.
+- `_amount` (`PackedFloat32Array`, finite-deposits rework) — extractable
+  units still in the ground at this cell. `set_deposit()` seeds it as
+  `richness * Balance.deposit_units[deposit name]` (`deposit_units`: IRON
+  600, COPPER 260, XENITE 30 — see "Tuning" above); `get_amount(cell)`/
+  `set_amount(cell, v)` read/write it (the setter clamps at `0.0`).
+  Extraction draws it down (see "Extractor gating and output" below) and
+  it is the only layer that changes for a reason other than scanning.
+  Serialized (`amount` key in `to_dict`/`from_dict`); a save from before
+  this rework has no `amount` key, so `from_dict` refills every deposit's
+  reserve from its richness on load, so an old save reads as an
+  untouched map rather than a dead one.
 - `_reading_noise` (`PackedFloat32Array`) — a fixed per-cell random value
   in `-1.0..1.0`, generated once at map creation from a seeded
   `RandomNumberGenerator`. `coarse_richness(cell)` adds
@@ -581,16 +658,27 @@ until surveyed, and extraction is gated on a confirmed reading.
   changes during play, via `set_scan(cell, state)`.
 
 **Deposit generation** (`_generate_deposits`, called from `generate()`
-after terrain): one low-frequency `FastNoiseLite` field per deposit type
-(`IRON`/`COPPER`/`XENITE`, each seeded `p_seed + dep * 101` so they're
-independent), each with its own threshold. Only cells already terrain
-REGOLITH or HIGHLANDS are eligible. For each eligible cell, the winning
-deposit is whichever field's value clears its threshold by the largest
-margin (ties/no-clears → `Deposit.NONE`); richness is derived from that
-margin (`clampf(0.2 + margin * 1.6, 0.1, 1.0)`). This produces
-naturally blob-shaped deposits without an explicit blob/flood-fill
-algorithm, and is fully deterministic per seed — pinned by
+after terrain): IRON and COPPER each get a low-frequency `FastNoiseLite`
+field (seeded `p_seed + dep * 101` so they're independent), each with its
+own threshold, eligible only on REGOLITH/HIGHLANDS cells. For each
+eligible cell, the winning deposit is whichever field's value clears its
+threshold by the largest margin (ties/no-clears → `Deposit.NONE`);
+richness is derived from that margin (`clampf(0.2 + margin * 1.6, 0.1,
+1.0)`). This produces naturally blob-shaped deposits without an explicit
+blob/flood-fill algorithm, and is fully deterministic per seed — pinned by
 `tests/test_prospecting.gd`'s `test_generation_is_deterministic`.
+
+XENITE (finite-deposits rework) no longer goes through that noise-field/
+threshold scheme at all: **every CRYSTAL terrain cell holds xenite, and no
+xenite generates anywhere else** — `tests/test_prospecting.gd`'s
+`test_xenite_sits_in_visible_crystal` pins both halves of that. A
+formation is visible terrain from the start; only its richness (and so its
+reserve) is hidden until prospected, seeded from a separate noise field
+(`clampf(0.25 + v * 0.75, 0.2, 1.0)`) so richness still varies formation to
+formation. `generate()`'s highlands→CRYSTAL feature threshold loosened
+`-0.60 → -0.40` in the same rework (roughly 1–9 crystal formations per map
+before, ~28–33 after) — at the old rarity a seed could hold less total
+xenite than the victory target and be unwinnable outright.
 
 **Survey scanning** (`Colony._run_prospecting` / `_scan_ring`, in
 `sim/colony.gd`): a survey building (any def with a `scan` block —
@@ -605,32 +693,79 @@ cell whose rounded distance from center equals `scan_ring` — and advances
 each such cell's scan state one step (`UNSCANNED→COARSE` or
 `COARSE→CONFIRMED`; a cell already `CONFIRMED` is left alone). Every cell
 actually advanced is appended to `Colony.scan_changes` (reset to `[]` at
-the top of every `tick()`). Once `scan_ring` exceeds `max_radius`, it
-resets to `0` and the sweep restarts from the center — so a tile visited
-by the first sweep (coarse) gets upgraded to confirmed on the second. This
-is why the acceptance criteria's "progressively reveals coarse then
-confirmed" holds: it's not two different mechanisms, just the same ring
-sweep run twice.
+the top of every `tick()`). Once `scan_ring` exceeds `max_radius`, what
+happens next depends on the building (finite-deposits rework): a def with
+no `scan.confirm_ticks` (just `hub`) resets `scan_ring` to `0` and
+restarts from the center, so a tile visited by the first sweep (coarse)
+gets upgraded to confirmed on the second sweep — the original "progressively
+reveals coarse then confirmed" mechanism, unchanged for the hub. A def
+*with* `scan.confirm_ticks` (`survey_station`, `6`) instead sets
+`inst.resampling = true` and switches to `_run_resample` on every later
+tick for that instance:
+
+- One probe every `confirm_ticks` ticks (via the same `scan_progress`
+  counter, now counting toward `confirm_ticks` instead of
+  `ticks_per_ring`), incrementing a per-instance `scan_probes` counter.
+- The probed cell is picked from the station's full radius by
+  `_probe_hash(building_id, probe_number)` — an integer hash, not
+  `RandomNumberGenerator` — so the sequence is deterministic and a save
+  reloads mid-sequence (`resampling`/`scan_probes` are both serialized,
+  alongside `scan_ring`/`scan_progress`).
+- If the hashed cell is off the map, outside the radius, or not currently
+  `COARSE`, the probe does nothing — it frequently lands on ground
+  already confirmed, or on bare rock. If it *is* `COARSE`, it's promoted
+  to `CONFIRMED` and appended to `scan_changes`.
+
+So discovery (the ring sweep, `COARSE`) is comparatively quick; pinning
+down richness away from the hub is a patient, scattershot process —
+`tests/test_prospecting.gd`'s `test_confirming_is_much_slower_than_discovering`
+asserts confirming takes more than 4× as long as first finding a tile, and
+`test_resampling_is_deterministic` asserts a replayed colony confirms the
+same tiles in the same order.
+
+**Survey coverage requirement** (finite-deposits rework): a def can
+declare `requires_coverage: true` (only `survey_station`); `can_place()`
+then also requires `Colony.in_survey_coverage(origin)` — true if any
+currently-placed building with a `scan` block has `origin` within its
+`scan.max_radius` of its footprint center (`in_survey_coverage` loops
+every building; there is no spatial index, since a colony has at most a
+handful of scanning buildings at once). Practically this means a survey
+station can only be planted somewhere the hub or an earlier station
+already reaches, so coverage grows outward in overlapping steps instead of
+leapfrogging into open dark.
 
 **Extractor gating and output**: any building def with `requires_deposit_ids`
 (resolved by `Defs` from `requires_deposit`, see above) can only be placed
 where `Colony.can_place()` finds `map.get_scan(origin) ==
 ColonyMap.Scan.CONFIRMED` *and* `map.get_deposit(origin)` is one of the
-required types — all extractors are 1×1, so `origin` is the only cell to
-check. On placement, `place()` latches `deposit_type`, `richness`, and a
-`mine_accum` float onto the instance — the deposit is fixed at build time,
-not re-read every tick. `_run_mine` (called from `_run_production` for any
-`active` building with a `mine` def block) adds `base_per_tick * richness`
-to `mine_accum` every tick and pays out whole units to the stockpile
-resource (`ColonyMap.DEPOSIT_RESOURCE[deposit_type]`) once the accumulator
-crosses `1.0`, carrying the fractional remainder forward — so a richness-1.0
-deposit visibly produces roughly twice as fast as a richness-0.5 one over
-many ticks, without ever paying out a fraction of a resource unit.
+required types (`allowed_terrain_ids` is checked separately, the same way
+as for every building — this is how `crystal_extractor` additionally
+requires CRYSTAL terrain) — all extractors are 1×1, so `origin` is the
+only cell to check. On placement, `place()` latches `deposit_type`,
+`richness`, and a `mine_accum` float onto the instance — the deposit is
+fixed at build time, not re-read every tick.
+
+Since the finite-deposits rework, `_run_mine` (called from
+`_run_production` for any `active` building with a `mine` def block) no
+longer scales its rate by richness: it adds a flat `base_per_tick` to
+`mine_accum` every tick and pays out whole units, capped at
+`map.get_amount(origin)`, drawing that reserve down by the same amount
+(`map.set_amount`). Once the reserve hits `0.0`, `_run_mine` idles the
+building (`active = false`, `idle_reason = "Deposit worked out"`) instead
+of accumulating further — the extractor has to be demolished (for the
+refund) and rebuilt elsewhere. `rates()` mirrors this: a worked-out tile
+contributes nothing to the projected per-tick figure, not just to actual
+output. Richness now determines how much ore a tile ever holds, not how
+fast it comes up — see `_amount`/`deposit_units` above.
+`ColonyMap.reading_text()` reports units-left ("IRON · 240 units left") on
+a confirmed tile instead of a richness percentage, and "worked out" at
+zero; `ui/hover_panel.gd`'s mine line does the same via
+`building_report()`'s new `remaining` field.
 
 `Sim._advance_tick()` emits `Events.scan_changed(colony.scan_changes)`
 after `colony.tick()`, but only when the list is non-empty, so idle ticks
-(no active survey buildings, or a survey mid-ring with nothing left to
-reveal) don't spam the signal.
+(no active survey buildings, or a survey mid-ring/mid-resample with
+nothing revealed this tick) don't spam the signal.
 
 ### Colony Hub and guaranteed deposits (Colony Hub rework)
 
@@ -659,6 +794,41 @@ can never be stranded without buildable ore.
 other half of the Hub's forgiveness: see `life_support_covered()` and
 `_run_life_support()` in "Colonists, life support, and win/lose" above.
 
+### The hub is free, unique, and required (finite-deposits rework)
+
+Three more def flags, all only ever set on `hub`:
+
+- **`cost: {}`** — the hub is free. Landing the first one no longer
+  depends on the starting stockpile at all.
+- **`unique: true`** — `Colony.count_of(type_id)` counts placed instances
+  of a type; `can_place()` refuses a second `unique` building
+  (`{"ok": false, "reason": "Only one allowed"}`), and
+  `Colony.lock_reason(type_id)` — the general-purpose "why is this greyed
+  out in the build menu" query, covering both this and the existing
+  `missing_prereqs()` check — returns `"Already built"` for it.
+  `main.gd._refresh_locks()` now calls `lock_reason()` instead of
+  re-deriving the prerequisite-only rule itself.
+- **`colony_controller: true`** — `Colony._init()` sets a private
+  `_needs_controller` flag if *any* def in the passed-in `defs` dictionary
+  declares `colony_controller`; content that doesn't (every hand-rolled
+  test-defs dictionary in the suite except `tests/test_hub.gd`'s) never
+  triggers the rule below, so it's opt-in per content set, not a hardcoded
+  hub special-case. `tick()` calls `_require_hub()` right after
+  `_balance_power()`: if `_needs_controller` and no placed building with
+  `colony_controller` is currently `active`, every building — including
+  ones with `life_support` — is forced `active = false` with
+  `idle_reason = "No colony hub"`, overriding whatever the power pass just
+  decided. Losing the hub is recoverable, not fatal: placing a new one
+  (anywhere) satisfies the check again on the very next tick.
+  `main.gd` now also refreshes the build-menu locks on
+  `Events.building_removed`, not just `building_placed`, so demolishing a
+  `unique` building puts it back in the menu immediately.
+
+`tests/test_hub.gd` covers all three: the hub can be placed from an empty
+stockpile, a second one is refused and greyed out, demolishing and
+rebuilding recovers the colony, and (the negative case) a defs dictionary
+with no `colony_controller` declared is unaffected by the rule at all.
+
 ## Building inspector (`Colony`/`Sim`/sidebar, Milestone 6)
 
 Every building instance dict carries `idle_reason: String` (initialized `""`
@@ -676,7 +846,9 @@ instance's live state with its def into a display-ready dict: `name`,
 `active`, `idle_reason`, `power`, `workers`, `capacity`, `life_support`
 (Colony Hub rework — the def's `life_support` field, `0` unless it's the
 Hub), `scans` (bool), plus `recipe` (with the instance's `progress`) or
-`mine` (resource/richness/per-tick rate) when applicable. Returns `{}` if
+`mine` (resource/richness/per-tick rate, plus — finite-deposits rework —
+`remaining`, the tile's live `map.get_amount(origin)`) when applicable.
+Returns `{}` if
 `id` is no longer a placed building — the caller's cue to deselect.
 `Sim.building_report(id)` is a bare pass-through (no signal, since it's
 polled, not pushed).
@@ -738,19 +910,22 @@ pure/testable pattern as everything else in `sim/`:
 
 - **`ColonyMap.to_dict()` / static `from_dict(d)`** (`sim/map.gd`): width,
   height, seed, plus the byte layers (`_cells`, `_deposit`, `_scan`) and
-  float layers (`_richness`, `_reading_noise`), each base64-encoded via
-  `Marshalls.raw_to_base64` (float arrays go through
-  `to_byte_array()`/`to_float32_array()` first, since `Marshalls` only
-  handles raw bytes).
+  float layers (`_richness`, `_amount` — finite-deposits rework —,
+  `_reading_noise`), each base64-encoded via `Marshalls.raw_to_base64`
+  (float arrays go through `to_byte_array()`/`to_float32_array()` first,
+  since `Marshalls` only handles raw bytes). `from_dict` refills `_amount`
+  from richness when a save predates it (see `_amount` above).
 - **`Colony.to_dict()` / static `from_dict(map, defs, d)`** (`sim/colony.gd`):
   everything except the map (saved separately) — stockpile, population,
   status, `_next_id`, starve/growth streak counters, `_life_accum`,
   `built_types`, and every building instance. `_inst_to_dict`/
   `_inst_from_dict` flatten `origin`/`cells` `Vector2i`s to `[x, y]` pairs
-  and carry the optional `scan_ring`/`scan_progress` and
-  `deposit_type`/`richness`/`mine_accum` fields. `from_dict` rebuilds the
-  cell-occupancy index from the restored buildings rather than serializing
-  it directly. Both classes stay free of any autoload/rendering dependency.
+  and carry the optional `scan_ring`/`scan_progress`/`resampling`/
+  `scan_probes` (finite-deposits rework — see "Deposits and prospecting"
+  above) and `deposit_type`/`richness`/`mine_accum` fields. `from_dict`
+  rebuilds the cell-occupancy index from the restored buildings rather
+  than serializing it directly. Both classes stay free of any
+  autoload/rendering dependency.
 
 **`Sim`** (`sim/sim.gd`) exposes the save API: `SAVE_DIR = "user://saves/"`,
 `SAVE_VERSION = 1`, `AUTOSAVE_NAME = "autosave"`, `autosave_seconds` (a var,
@@ -1432,7 +1607,13 @@ pan-gesture no longer changes zoom), `tests/test_prospecting.gd`
 (deposit generation determinism/coverage, fresh-map unscanned state, a
 survey station's coarse-then-confirmed two-sweep revelation, outward ring
 expansion, `scan_changes` reporting, mine placement gating on confirmed
-matching deposits, and richness-scaled output), `tests/test_colonists.gd`
+matching deposits; finite-deposits rework additions: richness sizes the
+reserve rather than the rate, a worked-out tile idles with the right
+reason and never yields more than its reserve held, survey stations must
+stand in existing coverage, confirming a deposit is far slower than first
+finding it and the resampling sequence is deterministic across a replay,
+every crystal tile holds xenite and nowhere else does, and a formation's
+reserve is hidden until confirmed), `tests/test_colonists.gd`
 (life support is consumed, sustained starvation kills a colonist, growth
 happens when fed/housed/under capacity, no growth once at capacity,
 workforce idles the newest understaffed building on a labor deficit,
@@ -1466,10 +1647,15 @@ the Hub's forgiveness mechanics: it sustains the base 4 colonists with an
 empty stockpile, colonists beyond that coverage still consume normally,
 covered colonists show no drain in `rates()`, placing the Hub injects an
 iron deposit when none is reachable within its scan radius, and an
-already-reachable deposit isn't duplicated. `tests/test_balance.gd` was
-updated for the new bootstrap (Hub + Mine + Smelter now fits the reduced
-120 starting metal with headroom) and gained a check that every
-non-`hub` building's `requires_built` chain roots at `hub`.
+already-reachable deposit isn't duplicated; finite-deposits rework
+additions cover the hub being free/unique/required — placeable with an
+empty stockpile, a second refused and greyed out in the build menu,
+demolishing and rebuilding it recovers a colony that went idle without
+one, and a defs dictionary with no `colony_controller` declared is
+unaffected by the whole rule. `tests/test_balance.gd` was updated for the
+new bootstrap (Hub + Mine + Smelter now fits the reduced 120 starting
+metal with headroom) and gained a check that every non-`hub` building's
+`requires_built` chain roots at `hub`.
 `tests/test_building_fx.gd` (Milestone 8 art) covers the `fx` JSON contract
 and the lamp blink curve. `tests/test_audio.gd` (Milestone 8 audio) covers
 the cue manifest contract (every required cue defined, files exist, valid
@@ -1479,8 +1665,8 @@ game-over cue mapping, including out-of-range level clamping.
 `Balance`/`balance.json` contract: the shipped file parses; an empty
 override reproduces the defaults; a partial override touches only what it
 names; JSON numbers keep their int/float type; a tuned `Balance` reaches a
-`Colony`; and sanity guards on the shipped values. 1101 assertions across
-90 tests, 0 failures.
+`Colony`; and sanity guards on the shipped values. 1182 assertions across
+111 tests, 0 failures.
 
 ### Balance regression testing
 

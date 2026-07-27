@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1127 assertions across 98 tests, 0 failures** (`make test`).
+Current test count: **1182 assertions across 111 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -104,3 +104,16 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   building/tile info moved from click-to-select to a cursor hover panel
   (`ui/hover_panel.gd`). The sidebar is now mode/speed/build-list only. See
   `docs/architecture.md`'s "UI layer".
+- **Finite deposits & required hub — done.** The biggest sim change since
+  M9: deposits now hold a finite reserve (richness sizes it, not the
+  extraction rate) and idle "worked out" at zero; xenite only generates on
+  visible CRYSTAL terrain; the Colony Hub is free, unique, and required
+  (every building, including life support, goes idle without one
+  standing); survey stations must be built inside existing coverage; and
+  confirming a deposit's richness away from the hub is now a slow,
+  scattered resample rather than a second fast sweep. Rebalanced
+  accordingly (`victory.xenite` 260, much slower extractor rates) and
+  `ColonyBot` reworked to relocate worked-out extractors and manage a
+  finite ore supply. `make playtest`: 5/5 seeds win, 24.2–24.6 min (avg
+  24.4). See `docs/architecture.md`'s "Deposits and prospecting" and
+  "Pacing harness".
