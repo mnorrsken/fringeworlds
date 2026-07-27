@@ -220,7 +220,11 @@ over-committed colony had no way to recover resources), and pacing was
 retuned (slower prospecting rings, slower mines, a higher xenite target and
 growth-tick count) so the bot's win time moved from 11–19 minutes to a
 20–41 minute average of ~30, putting a human session in the plan's 45–90
-minute window. Only the v2 hooks list remains for Milestone 9. See
+minute window. **Milestone 9 is now complete**, and with it all nine
+milestones (0–9) of the plan — `make playtest` wins 5/5 seeds with no
+dead-ends found, `tests/test_pacing.gd` guards the pacing window in CI, and
+the v2 hooks list is written down at
+[`docs/v2-candidates.md`](docs/v2-candidates.md). See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 
@@ -232,4 +236,6 @@ verified by test vs. eyeballed on screen, and what's next.
 - [`docs/architecture.md`](docs/architecture.md) — a map of the codebase for
   new contributors.
 - [`docs/progress.md`](docs/progress.md) — milestone-by-milestone status log.
+- [`docs/v2-candidates.md`](docs/v2-candidates.md) — designed-but-not-built
+  candidates for the next round of features, written per Milestone 9.
 - [`CHANGELOG.md`](CHANGELOG.md) — dated record of notable changes.

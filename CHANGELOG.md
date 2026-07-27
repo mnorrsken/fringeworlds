@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Milestone 9 — v2 candidates (M9 complete)** (2026-07-27)
+  - New `docs/v2-candidates.md`: five sketched-but-not-built candidates from
+    the plan (deposit depletion, depot/logistics radius, hostile events,
+    terrain elevation, second colonist tier), each with sim/view impact,
+    risks, and size, plus a suggested order and explicit non-goals. This
+    completes Milestone 9's acceptance criteria — three playtests without
+    exploits or dead-ends (`make playtest`: 5/5 seeds win, 20.3–41.4 min,
+    avg 29.9) and the v2 list written down — and with it all nine
+    milestones (0–9) of `colony-game-plan.md`. Docs only; no code changed.
+    Full suite: 1127 assertions across 98 tests, 0 failures (`make test`).
 - **Milestone 9 — Balance pass** (2026-07-27)
   - New `Balance.demolish_refund` (default `0.5`, clamped `0.0`–`1.0`),
     exposed as `colony.demolish_refund` in `data/balance.json`.

@@ -374,6 +374,11 @@ and `ticks_per_ring` 2 → 3 for both the hub's and the survey station's
 `scan` blocks (prospecting is the dominant term in the ramp, so slowing it
 lifted the fast seeds without over-inflating the slow ones).
 
+This completes Milestone 9, and with it all nine milestones of the plan. The
+findings above — the metal loop, the water chain, the stockpile as the
+single biggest sim assumption — shape the next round of features, sketched
+(not built) in [`docs/v2-candidates.md`](v2-candidates.md).
+
 ## The tick economy (`Colony.tick()`)
 
 As of Milestone 3, `Colony` (in `sim/colony.gd`) does more than hold

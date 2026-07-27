@@ -62,7 +62,7 @@ Current test count: **1127 assertions across 98 tests, 0 failures** (`make test`
   `tools/gen_audio.py`/`make audio` rather than downloaded — with an
   8-voice pool, pitch jitter, mute/volume persisted to
   `user://settings.cfg`, and a new pause-menu Sound toggle.
-- **M9 — Balance, polish, v2 hooks — in progress.** Every tunable sim
+- **M9 — Balance, polish, v2 hooks — done.** Every tunable sim
   number (population/capacity, starve/growth ticks, victory xenite, hub
   guaranteed richness, demolish refund, life support, starting stockpile,
   tick rate, autosave interval, low-stock floor, reading jitter) is now
@@ -78,4 +78,18 @@ Current test count: **1127 assertions across 98 tests, 0 failures** (`make test`
   rings) so the bot's win time moved from 11.1–19.4 min (avg 15.8) to
   20.3–41.4 min (avg 29.9), landing a human session in the plan's 45–90
   minute window; `tests/test_pacing.gd` now guards a 15–50 minute bot
-  window. Only the v2 hooks list remains open for M9.
+  window. The v2 hooks list is now written down:
+  [`docs/v2-candidates.md`](v2-candidates.md) sketches five candidates
+  (deposit depletion, depot/logistics radius, hostile events, terrain
+  elevation, second colonist tier) with sim/view impact, risks, size,
+  suggested order, and explicit non-goals. This completes M9 — and with it
+  all nine milestones (0–9) of `colony-game-plan.md`. Acceptance evidence:
+  `make playtest` wins 5/5 seeds (20.3–41.4 min, avg 29.9), no dead-ends
+  found in that run, and `tests/test_pacing.gd` guards the pacing window in
+  CI so a future change can't silently regress it.
+
+## All milestones complete
+
+Milestones 0 through 9 are all done — see the plan
+(`colony-game-plan.md`) for the original scope. Further work is tracked as
+v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
