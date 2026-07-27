@@ -81,7 +81,15 @@ under `assets/audio/` via `tools/gen_audio.py` — Python stdlib only, no
 downloaded assets), `make playtest` (bot-plays several seeds headlessly and
 prints win/loss, timing, and build order — see
 [`docs/architecture.md`](docs/architecture.md#pacing-harness-colonybot-milestone-9)),
-`make clean` (remove the generated `.godot/` cache).
+`make clean` (remove the generated `.godot/` cache and `build/`).
+
+## Playing / distributing
+
+`make release` (tests, then exports) or `make export` builds zipped,
+self-contained builds for macOS, Windows, and Linux into `build/`. The
+builds are unsigned, so first launch takes one extra click (macOS:
+right-click → Open; Windows: SmartScreen → More info → Run anyway; Linux:
+no warning). See [`DISTRIBUTING.md`](DISTRIBUTING.md) for the full guide.
 
 ## Folder structure
 
@@ -224,7 +232,10 @@ minute window. **Milestone 9 is now complete**, and with it all nine
 milestones (0–9) of the plan — `make playtest` wins 5/5 seeds with no
 dead-ends found, `tests/test_pacing.gd` guards the pacing window in CI, and
 the v2 hooks list is written down at
-[`docs/v2-candidates.md`](docs/v2-candidates.md). See
+[`docs/v2-candidates.md`](docs/v2-candidates.md). With all nine milestones
+done, the game now exports to distributable macOS/Windows/Linux builds
+(`make release`/`make export`, see
+[`DISTRIBUTING.md`](DISTRIBUTING.md)). See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 
@@ -238,4 +249,6 @@ verified by test vs. eyeballed on screen, and what's next.
 - [`docs/progress.md`](docs/progress.md) — milestone-by-milestone status log.
 - [`docs/v2-candidates.md`](docs/v2-candidates.md) — designed-but-not-built
   candidates for the next round of features, written per Milestone 9.
+- [`DISTRIBUTING.md`](DISTRIBUTING.md) — how to build and ship the
+  macOS/Windows/Linux distributable zips.
 - [`CHANGELOG.md`](CHANGELOG.md) — dated record of notable changes.

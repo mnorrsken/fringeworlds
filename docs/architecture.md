@@ -1285,6 +1285,7 @@ audio/      View-layer sound: audio.gd (Audio autoload), audio_cues.gd (AudioCue
 tools/      Asset generators: gen_audio.py (run via `make audio`)
 assets/     Committed art (PNG + Godot .import sidecars) and audio/ (WAV + .import sidecars)
 tests/      Headless tests: run_tests.gd (runner) + test_*.gd files
+dist/       Player-facing READ-ME-FIRST-{macos,windows,linux}.txt, bundled into each export zip
 main.gd / main.tscn   In-game scene and controller
 menu.gd / menu.tscn   Main menu (project's run/main_scene): new/continue/load/quit
 ```
@@ -1314,7 +1315,12 @@ filtering with pixel snap.
   non-zero on any failure, so it's CI-friendly.
 - `make audio` — regenerates every WAV under `assets/audio/`
   (`python3 tools/gen_audio.py`, stdlib-only, no downloaded assets).
-- `make clean` — removes the `.godot` generated cache.
+- `make export` / `make release` — builds the distributable zips (macOS/
+  Windows/Linux); `release` runs `make test` first. See `DISTRIBUTING.md`
+  for what ships and how players get past the unsigned first-run warning.
+  Export config lives in `export_presets.cfg` (committed) and player-facing
+  text in `dist/`; build output goes to `build/` (gitignored).
+- `make clean` — removes the `.godot` generated cache and `build/`.
 
 All targets wrap the `godot` binary; override the binary path with
 `make run GODOT=/path/to/godot` if it isn't on `PATH`.

@@ -93,3 +93,7 @@ Current test count: **1127 assertions across 98 tests, 0 failures** (`make test`
 Milestones 0 through 9 are all done — see the plan
 (`colony-game-plan.md`) for the original scope. Further work is tracked as
 v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
+
+- **Distribution — done.** `make release`/`make export` build unsigned,
+  self-contained macOS/Windows/Linux zips (`export_presets.cfg`,
+  `dist/READ-ME-FIRST-*.txt`). See [`DISTRIBUTING.md`](../DISTRIBUTING.md).

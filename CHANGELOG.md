@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Distribution / export support** (2026-07-27)
+  - New `export_presets.cfg` (committed): macOS (universal Intel + Apple
+    Silicon, ad-hoc signed), Windows (x86_64, pck embedded), and Linux
+    (x86_64, pck embedded) presets, all excluding `tests/*` and `tools/*`.
+  - `Makefile`: new `make export`/`make export-macos`/`make export-windows`/
+    `make export-linux` (build zips into `build/`, named from
+    `project.godot`'s new `config/version`) and `make release` (tests, then
+    all exports — a failing suite can't be packaged). `make clean` now also
+    removes `build/`.
+  - New `dist/READ-ME-FIRST-{macos,windows,linux}.txt`, bundled into each
+    zip: first-run warning steps, controls, save locations.
+  - New `DISTRIBUTING.md`: the full guide — what ships, the unsigned
+    first-run warning per platform and how to get past it, hosting
+    (itch.io), and how to cut a release.
+  - `project.godot`: `config/version="1.0.0"` and
+    `rendering/textures/vram_compression/import_etc2_astc=true` (required
+    for macOS universal/arm64 export).
+  - Built and verified all three platforms: macOS app launches from the
+    unzipped copy with its ad-hoc signature intact, Linux binary keeps its
+    executable bit, `tests/`/`tools/` confirmed absent from packed data.
+    Full suite: 1127 assertions across 98 tests, 0 failures (`make test`).
 - **Milestone 9 — v2 candidates (M9 complete)** (2026-07-27)
   - New `docs/v2-candidates.md`: five sketched-but-not-built candidates from
     the plan (deposit depletion, depot/logistics radius, hostile events,
