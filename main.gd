@@ -17,6 +17,9 @@ enum Mode { NONE, PLACE, DEMOLISH }
 @onready var _ghost: BuildingSprite = $Ghost
 @onready var _sidebar := $UI/Sidebar
 @onready var _resource_bar := $UI/ResourceBar
+@onready var _hover_panel := $UI/HoverPanel
+@onready var _help_root: Control = $HelpLayer/Root
+@onready var _help_body: Label = $HelpLayer/Root/Center/Panel/Margin/VBox/Body
 @onready var _minimap_root: Control = $MinimapLayer/Root
 @onready var _minimap: Minimap = $MinimapLayer/Root/Center/Panel/Margin/VBox/Minimap
 @onready var _gameover_root: Control = $GameOverLayer/Root
@@ -33,10 +36,34 @@ var _hover := Vector2i(-1, -1)
 var _mode := Mode.NONE
 var _place_type := ""
 var _over_ui := false
-var _selected_id := -1  # building inspected in the sidebar, -1 == none
 var _sysmenu_was_paused := false  # pause state to restore when the menu closes
 
 const MENU_SCENE := "res://menu.tscn"
+
+## Shown by the ? button in the top bar and the H key. The sidebar used to carry
+## this as a permanently-wrapped paragraph, which cost a third of its height to
+## something you read once.
+const HELP_TEXT := """MOUSE
+  Left click — place the selected building
+  Right click — demolish, or cancel placement
+  Hover — read a tile's terrain, survey reading and building
+
+CAMERA
+  WASD, arrows or middle-drag — pan
+  Z — zoom
+
+OVERLAYS
+  P — prospecting: survey state and readings
+  O — building status: what is running or idle
+  M — overhead map      F1 — debug coordinates
+
+TIME
+  Space — pause      1 / 3 — normal / fast
+
+  H — this screen      Esc — menu (save, sound, quit)
+
+Prospect before you build: deposits stay hidden until surveyed, and a
+building placed on an unsurveyed tile can bury the ore underneath it."""
 
 func _ready() -> void:
 	# The menu normally sets up the colony (new_game / load_game) before switching
@@ -51,6 +78,12 @@ func _ready() -> void:
 	_camera.position = IsoGrid.grid_to_screen(Vector2i(_map.width / 2, _map.height / 2))
 	_ghost.visible = false
 	_sidebar.build_requested.connect(_on_build_requested)
+	_resource_bar.help_requested.connect(_toggle_help)
+	_help_root.get_node("Center/Panel/Margin/VBox/CloseBtn").pressed.connect(func() -> void:
+		Audio.ui_click()
+		_help_root.visible = false)
+	_help_body.text = HELP_TEXT
+	_help_body.add_theme_font_size_override("font_size", 14)
 	_sidebar.demolish_requested.connect(func() -> void: _set_mode(Mode.DEMOLISH))
 	_sidebar.populate(Defs.buildings)
 	_resource_bar.populate(Defs.resources)
@@ -126,9 +159,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.keycode == KEY_ESCAPE:
 				_close_system_menu()
 			return
+		if _help_root.visible:
+			if event.keycode == KEY_ESCAPE or event.keycode == KEY_H:
+				_help_root.visible = false
+			return
 		match event.keycode:
 			KEY_F1:
 				_debug.visible = not _debug.visible
+			KEY_H:
+				_toggle_help()
 			KEY_M:
 				_minimap_root.visible = not _minimap_root.visible
 			KEY_P:
@@ -136,7 +175,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_O:
 				_status.toggle()
 			KEY_ESCAPE:
-				if _minimap_root.visible:
+				if _help_root.visible:
+					_help_root.visible = false
+				elif _minimap_root.visible:
 					_minimap_root.visible = false
 				elif _mode != Mode.NONE:
 					_set_mode(Mode.NONE)
@@ -168,9 +209,7 @@ func _on_left_click() -> void:
 			if not Sim.demolish_at(_hover):
 				Audio.play(AudioCues.DENIED)
 		Mode.NONE:
-			# Click a building to inspect it; click empty ground to deselect.
-			var b := Sim.building_at(_hover)
-			_selected_id = int(b.id) if not b.is_empty() else -1
+			pass  # nothing to select: hovering a tile already shows its readout
 
 func _on_right_click() -> void:
 	if _mode != Mode.NONE:
@@ -197,16 +236,21 @@ func _on_game_over(won: bool) -> void:
 		else "The last colonist is gone.\n") + "Press Enter to start a new colony."
 	_gameover_root.visible = true
 
-# Refreshes the sidebar inspector for the selected building; clears the
-# selection if that building no longer exists (e.g. it was demolished).
-func _update_inspector() -> void:
-	if _selected_id == -1:
-		_sidebar.set_inspector({})
+# The readout for whatever is under the cursor. Hidden while the cursor is over
+# the sidebar or off the map, and while a full-screen overlay is up — a panel
+# chasing the mouse across a modal would just be noise.
+func _update_hover_panel(terrain: String, reading: String) -> void:
+	if _over_ui or not _map.in_bounds(_hover) or _minimap_root.visible \
+			or _sysmenu_root.visible or _help_root.visible or _gameover_root.visible:
+		_hover_panel.hide_info()
 		return
-	var rep := Sim.building_report(_selected_id)
-	if rep.is_empty():
-		_selected_id = -1
-	_sidebar.set_inspector(rep)
+	var b := Sim.building_at(_hover)
+	var report := Sim.building_report(int(b.id)) if not b.is_empty() else {}
+	_hover_panel.show_tile(terrain, reading, report)
+	_hover_panel.place_at(get_viewport().get_mouse_position())
+
+func _toggle_help() -> void:
+	_help_root.visible = not _help_root.visible
 
 # --- System / pause menu (Save, Main Menu, Quit) ---
 
@@ -243,15 +287,11 @@ func _mode_name() -> String:
 
 func _update_info() -> void:
 	var terrain := "—"
-	var occupant := ""
 	var reading := ""
 	if _map.in_bounds(_hover):
 		terrain = ColonyMap.TERRAIN_NAMES[_map.get_terrain(_hover)]
 		reading = _map.reading_text(_hover)
-		var b := Sim.building_at(_hover)
-		if not b.is_empty():
-			occupant = str(Defs.buildings[b.type].name)
-	_sidebar.set_tile_info(_hover, terrain, occupant, reading)
+	_update_hover_panel(terrain, reading)
 	var col := Sim.colony
 	# rates() is per-tick; the HUD shows per-second.
 	var per_tick := col.rates()
@@ -259,9 +299,9 @@ func _update_info() -> void:
 	for r in per_tick:
 		per_sec[r] = per_tick[r] * Sim.ticks_per_second
 	_resource_bar.set_resources(col.stockpile, per_sec)
-	_sidebar.set_economy(col.power_produced, col.power_consumed, Sim.speed)
-	_sidebar.set_colony(col.population, col.capacity(), col.workers_used())
-	_update_inspector()
+	_resource_bar.set_stats(col.power_produced, col.power_consumed,
+		col.population, col.capacity(), col.workers_used())
+	_sidebar.set_speed(Sim.speed)
 	if _debug.visible:
 		_label.text = "cell (%d, %d)  %s\nzoom %dx  seed %d  FPS %d  [F1]" % [
 			_hover.x, _hover.y, terrain,

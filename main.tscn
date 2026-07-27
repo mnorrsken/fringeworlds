@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://b0regolithmain0"]
+[gd_scene load_steps=14 format=3 uid="uid://b0regolithmain0"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://render/terrain_view.gd" id="2_terrain"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://render/status_overlay.gd" id="10_status"]
 [ext_resource type="Script" path="res://ui/alert_ticker.gd" id="11_alerts"]
 [ext_resource type="Script" path="res://ui/resource_bar.gd" id="12_resbar"]
+[ext_resource type="Script" path="res://ui/hover_panel.gd" id="13_hover"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_main")
@@ -57,6 +58,49 @@ script = ExtResource("12_resbar")
 
 [node name="HBox" type="HBoxContainer" parent="UI/ResourceBar/Margin"]
 theme_override_constants/separation = 18
+
+[node name="Resources" type="HBoxContainer" parent="UI/ResourceBar/Margin/HBox"]
+theme_override_constants/separation = 18
+
+[node name="Spacer" type="Control" parent="UI/ResourceBar/Margin/HBox"]
+size_flags_horizontal = 3
+
+[node name="Stats" type="HBoxContainer" parent="UI/ResourceBar/Margin/HBox"]
+theme_override_constants/separation = 16
+
+[node name="Power" type="Label" parent="UI/ResourceBar/Margin/HBox/Stats"]
+text = "POWER"
+
+[node name="Colonists" type="Label" parent="UI/ResourceBar/Margin/HBox/Stats"]
+text = "CREW"
+
+[node name="HelpBtn" type="Button" parent="UI/ResourceBar/Margin/HBox/Stats"]
+tooltip_text = "Controls and help"
+text = " ? "
+
+[node name="HoverPanel" type="PanelContainer" parent="UI"]
+visible = false
+mouse_filter = 2
+script = ExtResource("13_hover")
+
+[node name="Margin" type="MarginContainer" parent="UI/HoverPanel"]
+mouse_filter = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 6
+
+[node name="VBox" type="VBoxContainer" parent="UI/HoverPanel/Margin"]
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="UI/HoverPanel/Margin/VBox"]
+mouse_filter = 2
+text = "—"
+
+[node name="Body" type="Label" parent="UI/HoverPanel/Margin/VBox"]
+mouse_filter = 2
+text = "—"
 
 [node name="Sidebar" parent="UI" instance=ExtResource("7_sidebar")]
 
@@ -220,6 +264,56 @@ text = "Main Menu"
 
 [node name="QuitBtn" type="Button" parent="SystemMenuLayer/Root/Center/Panel/Margin/VBox"]
 text = "Quit"
+
+[node name="HelpLayer" type="CanvasLayer" parent="."]
+
+[node name="Root" type="Control" parent="HelpLayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 1
+
+[node name="Backdrop" type="ColorRect" parent="HelpLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.65)
+
+[node name="Center" type="CenterContainer" parent="HelpLayer/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Panel" type="PanelContainer" parent="HelpLayer/Root/Center"]
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="HelpLayer/Root/Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 26
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 26
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="HelpLayer/Root/Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="HelpLayer/Root/Center/Panel/Margin/VBox"]
+theme_override_font_sizes/font_size = 22
+text = "CONTROLS"
+horizontal_alignment = 1
+
+[node name="Sep" type="HSeparator" parent="HelpLayer/Root/Center/Panel/Margin/VBox"]
+
+[node name="Body" type="Label" parent="HelpLayer/Root/Center/Panel/Margin/VBox"]
+text = "controls"
+
+[node name="CloseBtn" type="Button" parent="HelpLayer/Root/Center/Panel/Margin/VBox"]
+text = "Close"
 
 [node name="Debug" type="CanvasLayer" parent="."]
 

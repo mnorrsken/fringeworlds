@@ -36,44 +36,6 @@ text = "◈ SELECT"
 [node name="SpeedLabel" type="Label" parent="Margin/VBox"]
 text = "▶ 1x"
 
-[node name="Hint" type="Label" parent="Margin/VBox"]
-autowrap_mode = 2
-text = "controls"
-
-[node name="Sep1" type="HSeparator" parent="Margin/VBox"]
-
-[node name="TileHeader" type="Label" parent="Margin/VBox"]
-text = "TILE"
-
-[node name="TileInfo" type="Label" parent="Margin/VBox"]
-text = "—"
-
-[node name="Sep2" type="HSeparator" parent="Margin/VBox"]
-
-[node name="PowerHeader" type="Label" parent="Margin/VBox"]
-text = "POWER"
-
-[node name="PowerInfo" type="Label" parent="Margin/VBox"]
-text = "—"
-
-[node name="ColonyHeader" type="Label" parent="Margin/VBox"]
-text = "COLONISTS"
-
-[node name="ColonyInfo" type="Label" parent="Margin/VBox"]
-text = "—"
-
-[node name="SepInspect" type="HSeparator" parent="Margin/VBox"]
-visible = false
-
-[node name="InspectHeader" type="Label" parent="Margin/VBox"]
-visible = false
-text = "SELECTED"
-
-[node name="InspectInfo" type="Label" parent="Margin/VBox"]
-visible = false
-autowrap_mode = 2
-text = "—"
-
 [node name="Sep3" type="HSeparator" parent="Margin/VBox"]
 
 [node name="BuildHeader" type="Label" parent="Margin/VBox"]
