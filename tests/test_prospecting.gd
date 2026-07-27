@@ -197,13 +197,14 @@ func test_survey_stations_must_stand_in_existing_coverage(t: Object) -> void:
 # scattered resample that can waste a probe on ground it has already done.
 func test_confirming_is_much_slower_than_discovering(t: Object) -> void:
 	var c := Colony.new(_flat(), _coverage_defs(), {})
-	c.place("beacon", Vector2i(12, 12))
-	var station: Dictionary = c.place("survey", Vector2i(12, 12))
+	var cell := Vector2i(15, 12)
+	var station: Dictionary = _lone_station(c, cell)
+	t.ok(not station.is_empty(), "the station was placed")
 	var coarse_at := -1
 	var confirmed_at := -1
 	for i in 4000:
 		c.tick()
-		var state := c.map.get_scan(Vector2i(12, 12))
+		var state := c.map.get_scan(cell)
 		if coarse_at < 0 and state >= ColonyMap.Scan.COARSE:
 			coarse_at = i
 		if confirmed_at < 0 and state == ColonyMap.Scan.CONFIRMED:
@@ -220,10 +221,19 @@ func test_resampling_is_deterministic(t: Object) -> void:
 	var b := _resample_probes()
 	t.eq(a, b, "the same colony replayed confirms the same tiles in the same order")
 
+# Stands a survey station at `cell`, using a temporary beacon purely to satisfy
+# the coverage rule, then tears the beacon down so the station is the only thing
+# scanning — otherwise the beacon's own systematic sweep confirms the ground
+# before the resampler ever gets to it, and the test measures nothing.
+func _lone_station(c: Colony, cell: Vector2i) -> Dictionary:
+	c.place("beacon", Vector2i(12, 12))
+	var station: Variant = c.place("survey", cell)
+	c.demolish_at(Vector2i(12, 12))
+	return station if station != null else {}
+
 func _resample_probes() -> Array:
 	var c := Colony.new(_flat(), _coverage_defs(), {})
-	c.place("beacon", Vector2i(12, 12))
-	c.place("survey", Vector2i(12, 12))
+	_lone_station(c, Vector2i(15, 12))
 	var order := []
 	for i in 600:
 		c.tick()
