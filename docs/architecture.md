@@ -885,9 +885,19 @@ nothing about the simulation.
   down over a rift's near rim at the far wall, only the two edges facing
   the camera can ever be visible (the near edges face away); `_void_mask()`
   encodes which of those two neighbours — `x-1` and `y-1` — are solid
-  ground into a 2-bit mask (off-map counts as open, so a canyon runs off
-  the world edge instead of dead-ending in a wall), and `_build_tileset()`
-  pre-renders all 4 masks × `VOID_VARIANTS` into the atlas. `_draw_void`
+  ground into a 3-bit mask (off-map counts as open, so a canyon runs off
+  the world edge instead of dead-ending in a wall). The third bit,
+  `VOID_N` (`x-1, y-1`), exists because grid diagonals are screen
+  cardinals in this projection: that cell is the tile directly *north* on
+  screen, and when it's solid ground but both edge neighbours are rift,
+  the cliff's vertical corner column still has to project down into this
+  tile (the two flanking walls meet above it). Without it, a lone mesa
+  bit a black notch out from under its south corner. `_draw_void` folds
+  the bit in as the max of the two edge depth measures — both hit zero at
+  the shared top corner, so their max is a wedge radiating from it,
+  matching how the corner column reads — and it's a no-op wherever an
+  edge wall already covers the same area. `_build_tileset()` pre-renders
+  all 8 masks × `VOID_VARIANTS` into the atlas. `_draw_void`
   shades each pixel by its distance below whichever lit rim(s) apply,
   through a dark-to-light ramp (`_wall_ramp`, `Palette.VOID_RIM` at the lip
   down to `Palette.VOID_ABYSS`) picked via `_ramp_color`'s Bayer dither so

@@ -518,6 +518,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `Makefile`: `run`, `editor`, `build`/`import`, `test`, `clean`.
   - Headless test harness: `tests/run_tests.gd`, `tests/test_defs.gd`.
 
+### Fixed
+
+- **Canyon rendering: missing wall on lone mesas' south corner**: grid
+  diagonals are screen cardinals in this projection, so `_void_mask()` was
+  missing the case where the tile directly north on screen (`x-1, y-1`) is
+  solid ground but both edge neighbours are rift — the two flanking walls'
+  corner column has to project down through this tile, and without it the
+  tile got a black notch instead. New `VOID_N` mask bit in
+  `render/terrain_view.gd` (atlas grown 4→8 masks × variants).
+
 ### Changed
 
 - **Colony Hub early-game rework** (2026-07-22)
