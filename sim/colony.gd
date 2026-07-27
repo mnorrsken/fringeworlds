@@ -563,4 +563,18 @@ func demolish_at(cell: Vector2i) -> Variant:
 	for c in inst.cells:
 		_occupancy.erase(c)
 	buildings.erase(id)
+	_refund(str(inst.type))
 	return inst
+
+# Demolition returns part of the build cost (balance.demolish_refund), rounded
+# down per resource. Without it a colony that over-commits has no way back:
+# switching a building off isn't possible, so a parts factory that eats the
+# entire metal income would pin the stockpile at zero permanently.
+func _refund(type_id: String) -> void:
+	if balance.demolish_refund <= 0.0:
+		return
+	var cost: Dictionary = defs[type_id].get("cost", {})
+	for res in cost:
+		var amount := int(floor(float(cost[res]) * balance.demolish_refund))
+		if amount > 0:
+			stockpile[res] = int(stockpile.get(res, 0)) + amount

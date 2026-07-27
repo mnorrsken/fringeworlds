@@ -39,10 +39,20 @@ func test_the_full_chain_is_exercised(t: Object) -> void:
 	for res in ["iron_ore", "metal", "copper_ore", "parts", "xenite"]:
 		t.ok(r.timeline.has(res), "seed %d produces %s" % [SEEDS[0], res])
 
-# A floor on session length: if a tuning change ever makes the beacon reachable
-# in a couple of minutes, the prospect-then-build loop has stopped mattering.
-func test_a_session_is_not_trivially_short(t: Object) -> void:
+# The intended session length (Milestone 9). The bot buys the instant it can
+# afford to, so it runs faster than a person: the target is a bot win around
+# half an hour, which puts a human session in the plan's 45-90 minute window.
+# Tuning that drifts outside this band should fail loudly rather than quietly
+# turn the game into a five-minute clicker or an hour of waiting.
+const BOT_MINUTES_MIN := 15.0
+const BOT_MINUTES_MAX := 50.0
+
+func test_sessions_land_in_the_intended_window(t: Object) -> void:
 	for seed in SEEDS:
 		var r := _run(seed)
-		t.ok(r.minutes > 5.0,
-			"seed %d takes more than five minutes (took %.1f)" % [seed, r.minutes])
+		t.ok(r.minutes >= BOT_MINUTES_MIN,
+			"seed %d isn't over too fast (%.1f min, floor %.0f)" % [
+				seed, r.minutes, BOT_MINUTES_MIN])
+		t.ok(r.minutes <= BOT_MINUTES_MAX,
+			"seed %d doesn't drag (%.1f min, ceiling %.0f)" % [
+				seed, r.minutes, BOT_MINUTES_MAX])

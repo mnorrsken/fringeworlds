@@ -104,17 +104,25 @@ func _act() -> void:
 	if not colony.built_types.has("hub"):
 		_place_near("hub", colony.map.width / 2, func(_c): return true)
 		return
-	# 1. Power headroom, so the next consumer can actually run.
+	# 1. Wait for the hub's first survey before building anything else. Until a
+	#    deposit is confirmed the bot can't see it, and the tiles next to the hub
+	#    are exactly where the guaranteed iron sits — carpeting them with solar
+	#    panels buries the colony's only metal source with no way to get it back.
+	#    Watching the overlay before building is what a player does too.
+	if not colony.built_types.has("mine") \
+			and _find_deposit(ColonyMap.Deposit.IRON) == null:
+		return
+	# 2. Power headroom, so the next consumer can actually run.
 	if _power_headroom() < POWER_MARGIN and _try("solar_panel"):
 		return
-	# 2. Metal loop. Spending the starting stockpile on anything else first is
+	# 3. Metal loop. Spending the starting stockpile on anything else first is
 	#    the classic dead-end: no income, nothing affordable.
 	if _try_mine("mine", ColonyMap.Deposit.IRON, 1):
 		return
 	if _count("smelter") < 1 and _try("smelter"):
 		return
 
-	# 3. Life support, before growth makes colonists draw on the stockpile.
+	# 4. Life support, before growth makes colonists draw on the stockpile.
 	if _count("ice_harvester") < 1 \
 			and _try_on_terrain("ice_harvester", ColonyMap.Terrain.ICE):
 		return
@@ -127,15 +135,15 @@ func _act() -> void:
 	var short := _draining_life_support()
 	if short != "" and _build_producer(short):
 		return
-	# 4. Housing: the smelter, factory and extractor need 7 workers between them,
+	# 5. Housing: the smelter, factory and extractor need 7 workers between them,
 	#    and population only grows while there's room spare.
 	if colony.capacity() - colony.population <= 1 and colony.population < MAX_POPULATION \
 			and _try("habitat"):
 		return
-	# 5. Push prospecting out to find copper and xenite.
+	# 6. Push prospecting out to find copper and xenite.
 	if _needs_more_prospecting() and _try_survey():
 		return
-	# 6. Parts chain. Widen metal supply *first*: a running parts factory eats
+	# 7. Parts chain. Widen metal supply *first*: a running parts factory eats
 	#    2 metal every 4 ticks, which is more than a couple of mines and one
 	#    smelter can replace, and the colony then never affords the extractor.
 	if _try_mine("mine", ColonyMap.Deposit.COPPER, 1):
@@ -149,7 +157,7 @@ func _act() -> void:
 		return
 	if _try_mine("crystal_extractor", ColonyMap.Deposit.XENITE, 2):
 		return
-	# 7. Nothing gating: widen the metal supply and the power margin.
+	# 8. Nothing gating: widen the metal supply and the power margin.
 	if _try_mine("mine", ColonyMap.Deposit.IRON, 3):
 		return
 	if _count("smelter") < 2 and _try("smelter"):

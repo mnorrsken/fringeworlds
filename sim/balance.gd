@@ -34,6 +34,10 @@ var autosave_seconds := 180.0
 var low_stock := 8
 ## Spread of the noise on an unconfirmed prospecting reading (± this, roughly).
 var reading_jitter := 0.25
+## Fraction of a building's cost returned when it is demolished. This is the
+## colony's only way to turn a building back into resources, so it is what makes
+## an over-committed base recoverable instead of a dead end.
+var demolish_refund := 0.5
 
 ## Builds a Balance from parsed JSON. Unknown sections and keys are ignored;
 ## anything absent keeps its default above.
@@ -45,6 +49,8 @@ static func from_dict(d: Dictionary) -> Balance:
 	b.starve_ticks = int(colony.get("starve_ticks", b.starve_ticks))
 	b.growth_ticks = int(colony.get("growth_ticks", b.growth_ticks))
 	b.guaranteed_richness = float(colony.get("guaranteed_richness", b.guaranteed_richness))
+	b.demolish_refund = clampf(
+		float(colony.get("demolish_refund", b.demolish_refund)), 0.0, 1.0)
 
 	var victory: Dictionary = d.get("victory", {})
 	b.victory_xenite = int(victory.get("xenite", b.victory_xenite))

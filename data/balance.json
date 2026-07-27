@@ -10,12 +10,13 @@
     "starting_population": 4,
     "base_capacity": 0,
     "starve_ticks": 24,
-    "growth_ticks": 80,
-    "guaranteed_richness": 0.6
+    "growth_ticks": 110,
+    "guaranteed_richness": 0.6,
+    "demolish_refund": 0.5
   },
 
   "victory": {
-    "xenite": 50
+    "xenite": 150
   },
 
   "sim": {

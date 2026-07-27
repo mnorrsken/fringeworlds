@@ -3,7 +3,7 @@
     "id": "hub", "name": "Colony Hub", "size": 2,
     "cost": { "metal": 40 }, "power": 15, "workers": 0,
     "capacity": 4, "life_support": 4,
-    "scan": { "max_radius": 6, "ticks_per_ring": 2 },
+    "scan": { "max_radius": 6, "ticks_per_ring": 3 },
     "guarantees_deposit": "IRON",
     "sprite": "res://assets/hub.png",
     "fx": [
@@ -85,7 +85,7 @@
     "id": "survey_station", "name": "Survey Station", "size": 1,
     "cost": { "metal": 25 }, "power": -3, "workers": 0,
     "requires_built": ["hub"],
-    "scan": { "max_radius": 7, "ticks_per_ring": 2 },
+    "scan": { "max_radius": 7, "ticks_per_ring": 3 },
     "sprite": "res://assets/prospector.png",
     "fx": [
       { "type": "lamp", "at": [-2, -43], "color": "ff4a3a", "period": 1.4, "duty": 0.2, "radius": 1.8 }
@@ -99,7 +99,7 @@
     "cost": { "metal": 20 }, "power": -4, "workers": 0,
     "requires_built": ["hub"],
     "requires_deposit": ["IRON", "COPPER"],
-    "mine": { "base_per_tick": 0.5 },
+    "mine": { "base_per_tick": 0.35 },
     "sprite": "res://assets/miner.png",
     "fx": [
       { "type": "dust", "at": [0, 2], "rate": 10, "scale": 1.4 },
@@ -145,7 +145,7 @@
     "cost": { "metal": 20, "parts": 8 }, "power": -6, "workers": 2,
     "requires_built": ["parts_factory"],
     "requires_deposit": ["XENITE"],
-    "mine": { "base_per_tick": 0.25 },
+    "mine": { "base_per_tick": 0.15 },
     "sprite": "res://assets/crystalextractor.png",
     "fx": [
       { "type": "shimmer", "at": [12, -18], "rate": 8, "scale": 1.2 },

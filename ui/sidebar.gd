@@ -56,6 +56,8 @@ func _ready() -> void:
 	_demolish.pressed.connect(func() -> void:
 		Audio.ui_click()
 		demolish_requested.emit())
+	_demolish.tooltip_text = "Removes a building and refunds %d%% of its cost." \
+		% int(round(Defs.balance.demolish_refund * 100))
 	_hint.text = "LMB place/inspect · RMB demolish · WASD pan · Z zoom · P/O/M overlays · Space,1,3 speed · Esc menu · F1"
 
 var _build_buttons: Dictionary = {}  # building id -> Button

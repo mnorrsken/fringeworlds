@@ -92,3 +92,44 @@ func test_shipped_values_are_sane(t: Object) -> void:
 	for res in b.life_support:
 		t.ok(int(b.starting_stockpile.get(res, 0)) > 0,
 			"%s is stocked at the start, so the colony doesn't begin starving" % res)
+
+# --- demolition refund (M9 safety valve) -------------------------------------
+
+func _refund_colony(refund: float) -> Colony:
+	var b := Balance.from_dict({"colony": {"demolish_refund": refund}})
+	return Colony.new(_map(), _refund_defs(), {"metal": 100}, b)
+
+func _refund_defs() -> Dictionary:
+	return {
+		"shed": {"size": 1, "cost": {"metal": 21}, "power": 0, "workers": 0,
+			"allowed_terrain_ids": [ColonyMap.Terrain.REGOLITH]},
+	}
+
+func test_demolition_refunds_part_of_the_cost(t: Object) -> void:
+	var c := _refund_colony(0.5)
+	c.place("shed", Vector2i(2, 2))
+	t.eq(int(c.stockpile.metal), 79, "cost is deducted on placement")
+	c.demolish_at(Vector2i(2, 2))
+	t.eq(int(c.stockpile.metal), 89, "half of 21, rounded down, comes back")
+
+# Rounding down matters: a refund must never be a way to print resources by
+# building and demolishing the same thing repeatedly.
+func test_refund_cannot_be_farmed(t: Object) -> void:
+	var c := _refund_colony(0.5)
+	var before := int(c.stockpile.metal)
+	for i in 5:
+		c.place("shed", Vector2i(2, 2))
+		c.demolish_at(Vector2i(2, 2))
+	t.ok(int(c.stockpile.metal) < before, "a build/demolish cycle is a net loss")
+
+func test_refund_can_be_switched_off(t: Object) -> void:
+	var c := _refund_colony(0.0)
+	c.place("shed", Vector2i(2, 2))
+	c.demolish_at(Vector2i(2, 2))
+	t.eq(int(c.stockpile.metal), 79, "nothing comes back at a refund of 0")
+
+func test_refund_is_clamped_to_a_sane_range(t: Object) -> void:
+	t.eq(Balance.from_dict({"colony": {"demolish_refund": 5.0}}).demolish_refund, 1.0,
+		"a refund above 100% would make demolition a resource printer")
+	t.eq(Balance.from_dict({"colony": {"demolish_refund": -2.0}}).demolish_refund, 0.0,
+		"a negative refund would charge the player to demolish")
