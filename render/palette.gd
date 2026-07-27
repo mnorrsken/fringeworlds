@@ -36,10 +36,12 @@ const CRYSTAL_HI := Color("a774c6")
 const CRYSTAL_LO := Color("593671")
 const CRYSTAL_SPARKLE := Color("dcb6ef")
 
-# Canyon / void — near-black pits with faint "stars".
+# Canyon / void — a bottomless rift: sunlit rock at the lip falling away through
+# shadow into an abyss with no floor. VOID is the tone the minimap paints a rift
+# tile; the rendered tiles themselves run from VOID_RIM down to VOID_ABYSS.
 const VOID := Color("140d12")
-const VOID_HI := Color("221a22")
-const VOID_STAR := Color("5b5570")
+const VOID_RIM := Color("a08a6c")
+const VOID_ABYSS := Color("060409")
 
 # Building detailing.
 const LIGHT_ON := Color("ffd97a")      # lit indicator lamp

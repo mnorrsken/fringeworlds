@@ -30,8 +30,18 @@ const SPEC := {
 	ColonyMap.Terrain.HIGHLANDS: {"variants": 5, "frames": 1, "clutter": 3, "clutter_pct": 34},
 	ColonyMap.Terrain.ICE: {"variants": 2, "frames": 3, "clutter": 2, "clutter_pct": 22},
 	ColonyMap.Terrain.CRYSTAL: {"variants": 2, "frames": 3, "clutter": 0, "clutter_pct": 0},
-	ColonyMap.Terrain.VOID: {"variants": 2, "frames": 1, "clutter": 0, "clutter_pct": 0},
 }
+
+# Canyons are autotiled instead of picked at random: which walls a void tile
+# draws depends on which of its neighbours are solid ground. Only the two
+# *far* edges can be seen from this camera angle — you look over the near rim
+# and down at the opposite wall — so a two-bit mask covers it.
+const VOID_NW := 1   # solid ground up-left  (cell.x - 1)
+const VOID_NE := 2   # solid ground up-right (cell.y - 1)
+const VOID_VARIANTS := 2
+## How far the lit wall reaches down before everything is black, in the tile's
+## normalised space. Past this there is no bottom — that's the whole point.
+const WALL_DEPTH := 0.85
 
 # How far out the faint seam between tiles starts (1.0 == the diamond edge).
 const SEAM_START := 0.955
@@ -51,6 +61,7 @@ const TERRAIN_COLORS := {
 
 var _variant_coords: Dictionary = {}  # terrain -> Array[Vector2i] (plain variants)
 var _clutter_coords: Dictionary = {}  # terrain -> Array[Vector2i] (cluttered variants)
+var _void_coords: Dictionary = {}     # wall mask (0-3) -> Array[Vector2i]
 
 func _ready() -> void:
 	tile_set = _build_tileset()
@@ -61,6 +72,10 @@ func render_map(map: ColonyMap) -> void:
 		for x in map.width:
 			var cell := Vector2i(x, y)
 			var terrain := map.get_terrain(cell)
+			if terrain == ColonyMap.Terrain.VOID:
+				var walls: Array = _void_coords[_void_mask(map, cell)]
+				set_cell(cell, 0, walls[_cell_variant(cell, walls.size())])
+				continue
 			var coords: Array = _variant_coords[terrain]
 			var clutter: Array = _clutter_coords.get(terrain, [])
 			# A second, independent hash decides clutter, so a tile's texture and
@@ -69,6 +84,20 @@ func render_map(map: ColonyMap) -> void:
 					and _cell_hash(cell, 26699) % 100 < int(SPEC[terrain].clutter_pct):
 				coords = clutter
 			set_cell(cell, 0, coords[_cell_variant(cell, coords.size())])
+
+# Which walls a canyon tile shows: one per neighbouring tile of solid ground on
+# the two edges facing the camera. Off-map counts as open, so the canyon runs off
+# the edge of the world rather than ending in a wall.
+func _void_mask(map: ColonyMap, cell: Vector2i) -> int:
+	var mask := 0
+	if _is_solid(map, cell + Vector2i(-1, 0)):
+		mask |= VOID_NW
+	if _is_solid(map, cell + Vector2i(0, -1)):
+		mask |= VOID_NE
+	return mask
+
+func _is_solid(map: ColonyMap, cell: Vector2i) -> bool:
+	return map.in_bounds(cell) and map.get_terrain(cell) != ColonyMap.Terrain.VOID
 
 # Deterministic per-cell variant pick, so the ground looks varied but stable.
 func _cell_variant(cell: Vector2i, n: int) -> int:
@@ -80,7 +109,7 @@ func _cell_hash(cell: Vector2i, salt: int) -> int:
 func _build_tileset() -> TileSet:
 	var w := IsoGrid.TILE_W
 	var h := IsoGrid.TILE_H
-	var total := 0
+	var total := 4 * VOID_VARIANTS
 	for t in SPEC:
 		total += (int(SPEC[t].variants) + int(SPEC[t].clutter)) * int(SPEC[t].frames)
 	var img := Image.create(total * w, h, false, Image.FORMAT_RGBA8)
@@ -109,6 +138,15 @@ func _build_tileset() -> TileSet:
 		if not cluttered.is_empty():
 			_clutter_coords[t] = cluttered
 
+	_void_coords.clear()
+	for mask in 4:
+		var walls := []
+		for vi in VOID_VARIANTS:
+			walls.append(Vector2i(col, 0))
+			_draw_void(img, col, mask, vi)
+			col += 1
+		_void_coords[mask] = walls
+
 	var src := TileSetAtlasSource.new()
 	src.texture_region_size = Vector2i(w, h)
 	src.texture = ImageTexture.create_from_image(img)
@@ -120,6 +158,9 @@ func _build_tileset() -> TileSet:
 				src.set_tile_animation_frames_count(base, frames)
 				for fi in frames:
 					src.set_tile_animation_frame_duration(base, fi, 0.4)
+	for mask in _void_coords:
+		for base in _void_coords[mask]:
+			src.create_tile(base)
 
 	var ts := TileSet.new()
 	ts.tile_shape = TileSet.TILE_SHAPE_ISOMETRIC
@@ -181,6 +222,76 @@ func _draw_terrain(img: Image, col: int, terrain: int, variant: int, frame: int,
 			var sy := srng.randi_range(6, h - 7)
 			if _in_diamond(sx, sy, cx, cy, w, h):
 				img.set_pixel(ox + sx, sy, pal.sparkle)
+
+# --- canyons ----------------------------------------------------------------
+
+# Draws one canyon tile: the sunlit tops of whichever walls face the camera,
+# falling away through a dithered ramp into black. Nothing draws a floor,
+# because there isn't one — the unbroken darkness is what sells the depth.
+#
+# Only the two far walls are drawn. From this camera you look over a rift's near
+# rim and see the *opposite* wall; the near one faces away and is never visible.
+func _draw_void(img: Image, col: int, mask: int, variant: int) -> void:
+	var w := IsoGrid.TILE_W
+	var h := IsoGrid.TILE_H
+	var ox := col * w
+	var cx := (w - 1) / 2.0
+	var cy := (h - 1) / 2.0
+	var ramp := _wall_ramp()
+
+	# Per-column depth jitter, so the walls bottom out in a ragged line of strata
+	# instead of a clean bevel.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([mask, variant, 8123])
+	var strata := PackedFloat32Array()
+	var grain := PackedFloat32Array()
+	for i in w:
+		strata.append(rng.randf_range(0.74, 1.26))
+		grain.append(rng.randf_range(0.82, 1.06))
+
+	for ly in h:
+		for lx in w:
+			var dx := (lx - cx) / (w / 2.0)
+			var dy := (ly - cy) / (h / 2.0)
+			if absf(dx) + absf(dy) > MASK_LIMIT:
+				continue
+			# Distance below each lit rim, 0 at the edge and growing inward.
+			var depth := 99.0
+			if mask & VOID_NW:
+				depth = minf(depth, 1.0 + dx + dy)
+			if mask & VOID_NE:
+				depth = minf(depth, 1.0 - dx + dy)
+			var c: Color = Palette.VOID_ABYSS
+			var wall := WALL_DEPTH * strata[lx]
+			if depth < wall:
+				# Falls off faster than linear, so the lit band hugs the lip and
+				# the eye reads a long drop rather than a shallow bevel. The
+				# per-column grain breaks the face into rough vertical strata.
+				var b := pow(1.0 - depth / wall, 1.35) * grain[lx]
+				c = _ramp_color(ramp, b, lx, ly)
+			img.set_pixel(ox + lx, ly, c)
+
+# Canyon rock from the abyss up to the sunlit lip. The lip is lighter than any
+# ground tone, so the rim reads as a hard edge against the dark.
+func _wall_ramp() -> Array:
+	var lip := Palette.VOID_RIM
+	return [
+		Palette.VOID_ABYSS,
+		lip.darkened(0.84),
+		lip.darkened(0.62),
+		lip.darkened(0.38),
+		lip.darkened(0.16),
+		lip,
+	]
+
+# Picks from a dark-to-light ramp, dithering between neighbouring steps so the
+# gradient stays pixel-art rather than a smooth blend.
+func _ramp_color(ramp: Array, b: float, lx: int, ly: int) -> Color:
+	var f := clampf(b, 0.0, 1.0) * (ramp.size() - 1)
+	var i := int(floor(f))
+	if f - i > BAYER[ly % 4][lx % 4] / 16.0:
+		i += 1
+	return ramp[clampi(i, 0, ramp.size() - 1)]
 
 func _in_diamond(px: float, py: float, cx: float, cy: float, w: int, h: int) -> bool:
 	return absf((px - cx) / (w / 2.0)) + absf((py - cy) / (h / 2.0)) <= 0.85
@@ -307,7 +418,7 @@ func _palette(terrain: int) -> Dictionary:
 			}
 		_:  # VOID
 			return {
-				"hi": Palette.VOID_HI, "lo": Palette.VOID,
-				"seam": Palette.VOID.darkened(0.3),
-				"fleck": Palette.VOID_STAR, "fleck_dk": Palette.VOID, "fleck_n": 5,
+				"hi": Palette.VOID, "lo": Palette.VOID_ABYSS,
+				"seam": Palette.VOID_ABYSS,
+				"fleck": Palette.VOID, "fleck_dk": Palette.VOID_ABYSS, "fleck_n": 0,
 			}
