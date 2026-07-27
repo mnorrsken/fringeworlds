@@ -30,10 +30,12 @@ where the crystal is from the start, but not how much is in it. Colonists
 need oxygen, water, and food every tick, drawn from a production chain
 you build (ice → water → oxygen/food); go hungry too long and the colony
 starts losing colonists, keep everyone fed and housed under capacity and
-it grows. Refine ore into metal into parts, extract xenite once you've
-got enough parts to build the extractor, and hit the victory threshold to
-"launch the beacon" — or lose everyone and see the colony end, either way
-followed by a one-key restart.
+it grows. Storage is limited too — the Colony Hub's yard is small and can't
+hold xenite at all, so a full store stalls whatever's feeding it until you
+build Warehouses. Refine ore into metal into parts, extract xenite once
+you've got enough parts to build the extractor, and hit the victory
+threshold to "launch the beacon" — or lose everyone and see the colony
+end, either way followed by a one-key restart.
 
 The build menu unlocks new buildings as you build their prerequisites —
 🔒 marks what's still out of reach — so a first playthrough naturally
@@ -81,7 +83,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1182 assertions across 111 tests, 0 failures.**
+**1208 assertions across 123 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
@@ -151,7 +153,9 @@ On/Off" button mutes/unmutes, persisted across sessions.
 Mouse wheel / trackpad scroll do **not** zoom (removed — it felt twitchy on
 a trackpad); use `Z`, pinch, or `+`/`-` instead. A top status bar shows each
 stockpiled resource as a coloured glyph + amount + per-second rate (e.g.
-`⬢ 185`), revealing new resources as they enter the stockpile, plus the
+`⬢ 185`), switching to `amount/cap` once a resource is close to its storage
+limit and turning amber at capacity, revealing new resources as they enter
+the stockpile, plus the
 colony's standing numbers on the right — power drawn/generated (red on
 deficit) and colonists/capacity/workers (amber at capacity) — and a `?`
 button (or `H`) opening a help popup with the full controls list. Hover a
@@ -166,11 +170,11 @@ any resource running low while being net-drained (not just life support —
 ore/metal/parts too), and newly confirmed deposits. When the colony wins or
 loses, press **Enter** on the game-over screen to start a fresh colony.
 
-## Buildings (current 11)
+## Buildings (current 12)
 
 | Building | Footprint | Cost | Power | Workers | Produces | Requires built | Terrain / deposit |
 |---|---|---|---|---|---|---|---|
-| Colony Hub | 2×2 | free | +15 | 0 | sustains 4 colonists free; scans; guarantees nearby iron | — | Regolith |
+| Colony Hub | 2×2 | free | +15 | 0 | sustains 4 colonists free; scans; guarantees nearby iron; holds up to 75 metal, 50 of each ore/parts, no xenite | — | Regolith |
 | Solar Panel | 1×1 | 10 metal | +15 | 0 | — | Hub | Regolith, Highlands |
 | Habitat | 2×2 | 30 metal | −2 | 0 | houses +6 colonists | Hub | Regolith |
 | Ice Harvester | 1×1 | 15 metal | −5 | 0 | 1 water / 4 ticks (no inputs) | Hub | Ice |
@@ -180,9 +184,19 @@ loses, press **Enter** on the game-over screen to start a fresh colony.
 | Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore, 0.30 / tick until the tile's reserve runs out | Hub | confirmed Iron or Copper |
 | Smelter | 1×1 | 25 metal | −4 | 2 | 2 iron ore → 1 metal / 2 ticks | Mine | Regolith, Highlands |
 | Parts Factory | 2×2 | 35 metal | −5 | 3 | 2 metal + 1 copper ore → 1 parts / 4 ticks | Smelter | Regolith, Highlands |
+| Warehouse | 2×2 | 45 metal + 6 parts | −2 | 0 | holds up to 100 metal/ore, 60 parts, 90 xenite, 150 life support | Parts Factory | Regolith, Highlands |
 | Crystal Extractor | 1×1 | 20 metal + 8 parts | −6 | 2 | xenite, 0.022 / tick until the formation's reserve runs out | Parts Factory | confirmed Xenite, Crystal terrain |
 
-Defined in `data/buildings.json`. The Hub is free, unique (only one may
+Defined in `data/buildings.json`. Storage is capped and physical: a
+building's `storage` block adds to what the colony can hold of each
+resource whether or not it's powered, and a full store stalls the producer
+feeding it ("Storage full") rather than destroying the output — extractors
+idle the same way, leaving the ore in the ground. The Hub's yard is
+deliberately small and holds no xenite at all, so reaching the beacon's
+xenite target requires building Warehouses (three, at 90 xenite each).
+Demolishing a storage building spills whatever no longer fits.
+
+The Hub is free, unique (only one may
 stand at a time), and required: with none active, every other building —
 including life support — goes idle ("No colony hub") until one is rebuilt.
 It's also the only building unlocked at game start and the root of the

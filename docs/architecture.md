@@ -170,7 +170,7 @@ consumed by the view layer, not `Colony`. Building/resource content:
 
 - `data/resources.json` — an array of 9 objects (`id`, `name`, `category`,
   `unit`), loaded into `Defs.resources`.
-- `data/buildings.json` — an array of 11 building objects (up from 10 with
+- `data/buildings.json` — an array of 12 building objects (up from 10 with
   the Colony Hub rework, up from 6 as of Milestone 5): `hub` (2×2, the tech
   root, `requires_built` empty), `solar_panel` and `ice_harvester` (1×1),
   `habitat` and `survey_station` (2×2), `mine` and `crystal_extractor`
@@ -247,7 +247,19 @@ consumed by the view layer, not `Colony`. Building/resource content:
   `crystal_extractor`'s `mine.base_per_tick` dropped to `0.30`/`0.022`
   (from `0.35`/`0.15`) as part of the same rebalance;
   `crystal_extractor`'s `allowed_terrain` narrowed to `["CRYSTAL"]` (from
-  `["REGOLITH", "HIGHLANDS"]`), since xenite now only generates there.
+  `["REGOLITH", "HIGHLANDS"]`), since xenite now only generates there. The
+  storage/warehouse feature added `storage` (`Dictionary[String, int]`, a
+  resource→capacity map — see "Storage limits" below): `hub` gained one
+  (400 water/oxygen/food, 75 metal, 50 of each ore and parts, no xenite),
+  and a new twelfth building, `warehouse` (2×2, 45 metal + 6 parts, −2
+  power, `requires_built: ["parts_factory"]`), declares a much larger one
+  (100 metal/ore, 60 parts, 90 xenite, 150 of each life-support resource) —
+  the only building that can hold xenite at all. `warehouse` currently
+  reuses `hub`'s neighbour `assets/partsfactory.png` as placeholder
+  `sprite` (it renders identically to the Parts Factory in-game) pending
+  its own art. `starting_stockpile.metal` in `data/balance.json` dropped
+  120 → 50 to match the smaller hub yard (a colony can't land with more
+  metal than its own storage can hold).
 
 There is no separate `data/recipes.json` — recipes live inline on the
 building that runs them, one recipe per building, which is enough for the
@@ -434,6 +446,20 @@ for a long while (deposit base 600 units), but a crystal formation holds
 only ~18 units against a 260-unit beacon target, so finishing the game
 means working through many formations, not sitting at one.
 
+**After the storage/warehouse feature** (see "Storage limits" above): the
+bot now builds Warehouses (`_needs_storage()`), holds only a 1-mine metal
+reserve instead of 2 (`MINE_RESERVE` — storage caps mean metal can't be
+hoarded anyway, so a deeper reserve just makes expensive buildings
+permanently unaffordable), and rebuilds the parts factory only once its
+bank drops under `PARTS_LOW` (12) rather than the instant it's demolished,
+which stopped a bank→demolish→rebuild oscillation the tighter economy
+otherwise fell into. `_metal_reserve()` also now exempts zero-cost
+buildings (i.e. the hub) from ever being gated by a reserve — with the hub
+free, an unconditional reserve could block the very first building and
+starve the colony before it began. 5/5 seeds win, 25.4–26.4 minutes,
+average 25.9 — close to the finite-deposits figure above, since the tuning
+goal was a tighter opening and mandatory warehouses, not a longer session.
+
 The findings above — the metal loop, the water chain, the stockpile as the
 single biggest sim assumption — shaped the v2 candidates written up in
 [`docs/v2-candidates.md`](v2-candidates.md); deposit depletion (candidate
@@ -490,13 +516,16 @@ buildings, for the HUD.
 **Production (`_run_production`)**: for every *active* building with a
 `recipe`, increments a per-instance `progress` counter (a field on the
 building instance dict, alongside `active`, both initialized in `place()`).
-Once `progress >= recipe.ticks`, it checks whether `recipe.inputs` are
-affordable in the stockpile: if so, it spends the inputs, adds the outputs,
-and resets `progress` to `0`; if not, it **stalls** — holds `progress` at
-the threshold (doesn't consume, doesn't reset, doesn't lose the built-up
-progress) until inputs become available on a later tick. Inactive
-(unpowered) buildings don't advance `progress` at all, so a power outage
-doesn't cause a burst of production the instant power returns.
+Once `progress >= recipe.ticks`, it first checks whether `recipe.outputs`
+would fit in the stockpile (`_fits()` — see "Storage limits" below): if
+not, it **stalls for room**, holding `progress` at the threshold with
+`idle_reason = "Storage full"` without touching the inputs at all, so a
+full store never quietly eats the ore that would have become metal.
+Otherwise it checks whether `recipe.inputs` are affordable: if so, it
+spends the inputs, adds the outputs, and resets `progress` to `0`; if not,
+it **stalls for inputs** the same way. Inactive (unpowered) buildings don't
+advance `progress` at all, so a power outage doesn't cause a burst of
+production the instant power returns.
 
 Since Milestone 4, `_run_production` special-cases buildings with a `mine`
 def block (extractors — see below) before the recipe branch, calling
@@ -513,6 +542,62 @@ per-resource rate is the true net figure, not just what buildings are doing.
 Callers that want a per-second figure for display multiply by
 `Sim.ticks_per_second` themselves (see `main.gd` below); `Colony` has no
 concept of real time, only ticks.
+
+## Storage limits (`Colony`, storage/warehouse feature)
+
+The colony's stockpile is capped, not infinite: `Colony.storage_for(res)`
+sums the `storage` block (see "Data-driven content" above) of every
+*standing* building — active or not, since storage is physical, an
+unpowered Warehouse still holds its contents. `space_for(res)` is
+`storage_for(res) - stockpile.get(res, 0)`, clamped at `0`; `_fits(flow)`
+checks a whole `{res: amount}` dict against `space_for()` at once and is
+what `_run_production()`/`_run_mine()` call before spending anything (see
+above and below). `_gain()` clamps every gain to `storage_for()`, as a
+backstop for demolition refunds and partial draws rather than the primary
+mechanism — production and extraction are meant to stall before they ever
+overflow.
+
+`_init()` sets a private `_storage_limited` flag if *any* def in the
+passed-in `defs` dictionary declares a non-empty `storage` — the same
+opt-in pattern as `_needs_controller` (see "The hub is free, unique, and
+required" below). Content that declares no storage at all (every
+hand-rolled test-defs dictionary except `tests/test_storage.gd`'s) gets
+`UNLIMITED` (`1 << 30`) back from `storage_for()` instead of `0`, so the
+rule can't retroactively cap unit-test colonies that never opted into it.
+
+**Mines idle the same way as production.** `_run_mine()` checks
+`space_for(res) <= 0` before accumulating any output; if the store is
+full it sets `idle_reason = "Storage full"` and returns without touching
+`map` at all, leaving the ore in the ground rather than discarding it.
+
+**Demolition spills the excess.** `demolish_at()` refunds part of the
+build cost as usual, then reclamps every stockpiled resource to the new
+(now smaller) `storage_for()` — tearing down a Warehouse that's holding
+more than what's left can stand loses whatever no longer fits.
+
+**The shipped numbers are deliberately tight.** The Hub's yard (400
+water/oxygen/food, 75 metal, 50 of each ore and parts, **no xenite**) is
+sized so the colony can bootstrap but not coast, and can't hold any of the
+beacon's win condition at all — the Warehouse (100 metal/ore, 60 parts, 90
+xenite, 150 of each life-support resource) is the only place xenite can
+go, and at 90 per warehouse against a 260-unit `victory.xenite` target,
+three are mandatory (two hold only 180). `starting_stockpile.metal` (50)
+was dropped from 120 so a new colony lands within its own hub yard rather
+than starting over capacity. `tests/test_storage.gd` guards all of this:
+capacity summing, the hub holding no xenite, clamped gains, stalling
+without consuming inputs, resuming when room appears, extractors idling
+with ore left in the ground, spillage on demolition, the
+unlimited-when-unmodelled rule, and three guards on the shipped numbers —
+three warehouses required for the beacon, the starting stockpile fits the
+hub yard, and the hub yard can afford the single costliest building (a
+regression guard: `tests/test_balance.gd`'s bootstrap-headroom check was
+relaxed from a 20-metal cushion to 5, since the opening is now meant to be
+tight).
+
+**`ColonyBot`** (see "Pacing harness" below) learned to build Warehouses:
+when the colony's xenite capacity is short of the beacon target, or when a
+line is genuinely stalled ("Storage full") — capped at 4, since reacting
+to every full store instead just paves the map with them.
 
 ## Colonists, life support, and win/lose (`Colony`, Milestone 5)
 
@@ -843,7 +928,9 @@ always means "running fine" — the inspector's running/idle line is just
 
 `Colony.building_report(id) -> Dictionary` (pure, no formatting) merges an
 instance's live state with its def into a display-ready dict: `name`,
-`active`, `idle_reason`, `power`, `workers`, `capacity`, `life_support`
+`active`, `idle_reason`, `storage` (the storage/warehouse feature — the
+def's `storage` dict verbatim, `{}` for non-storage buildings), `power`,
+`workers`, `capacity`, `life_support`
 (Colony Hub rework — the def's `life_support` field, `0` unless it's the
 Hub), `scans` (bool), plus `recipe` (with the instance's `progress`) or
 `mine` (resource/richness/per-tick rate, plus — finite-deposits rework —
@@ -1394,12 +1481,17 @@ Like the sidebar it holds no game logic:
   `"<name>\n<desc>"` from `data/resources.json`'s `desc` field, with
   `mouse_filter = Control.MOUSE_FILTER_STOP` so hovering a glyph pops up
   its name and a one-line description.
-- `set_resources(stock, rates)`, pushed every frame by `main.gd`, shows
-  each label as `"<glyph> <amount>"` plus a `"  %+.1f"` rate suffix when
-  the rate is non-negligible (e.g. `⬢ 185`, `≈ 100 -0.3`), and hides a
-  resource entirely while the colony has none of it and no meaningful
-  rate — so ore/parts/xenite stay hidden until the production chain that
-  makes them comes online.
+- `set_resources(stock, rates, caps)`, pushed every frame by `main.gd`
+  (`caps` built from `Colony.storage_for()` per resource id), shows each
+  label as `"<glyph> <amount>"`, switching to `"<glyph> <amount>/<cap>"`
+  once `amount` is within 80% of `cap`, plus a `"  %+.1f"` rate suffix
+  when the rate is non-negligible (e.g. `⬢ 185`, `≈ 100/100 -0.3`), and
+  hides a resource entirely while the colony has none of it and no
+  meaningful rate — so ore/parts/xenite stay hidden until the production
+  chain that makes them comes online. The label's font color (stashed as
+  `tint` metadata in `populate()`) switches to `AMBER` at `amount >= cap`,
+  the same "full" signal a stalled building's `idle_reason` gives, so a
+  line jammed for want of room is visible without hovering it.
 - `set_stats(power_produced, power_consumed, population, capacity,
   workers_used)` — the colony's two standing numbers, formerly the
   sidebar's POWER and COLONISTS sections. Pushed every frame by `main.gd`.
@@ -1433,7 +1525,9 @@ click-to-select: it follows the cursor and shows whatever tile is under
 it — terrain, `ColonyMap.reading_text()`, and, if a building sits there,
 `Colony.building_report()` rendered the same way the old sidebar inspector
 did (running/idle line first, then power/workers/capacity/life
-support/scans, then recipe or mine progress, then the terrain line).
+support/scans, a "stores <res> <n>, ..." line for any building with a
+non-empty `storage` block, then recipe or mine progress, then the terrain
+line).
 Screen-space and stateless like the other UI panels: `main.gd` pushes the
 hovered tile's report each frame via `show_tile(terrain, reading, report)`;
 it never reads `Colony` itself.

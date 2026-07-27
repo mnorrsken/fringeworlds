@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1182 assertions across 111 tests, 0 failures** (`make test`).
+Current test count: **1208 assertions across 123 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -117,3 +117,14 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   finite ore supply. `make playtest`: 5/5 seeds win, 24.2–24.6 min (avg
   24.4). See `docs/architecture.md`'s "Deposits and prospecting" and
   "Pacing harness".
+- **Limited storage & Warehouse — done.** Storage is now capped, not
+  infinite: buildings declare a `storage` block, `Colony.storage_for()`
+  sums it over everything standing, and a full store stalls the producer
+  feeding it ("Storage full") rather than destroying output or the ore
+  underground. The Hub's small yard can't hold xenite at all, so a new
+  Warehouse (12th building) is required — three of them, to hold the
+  beacon's 260-xenite target. `ColonyBot` learned to build them; starting
+  metal dropped 120 → 50 to fit the smaller hub yard. `make playtest`:
+  5/5 seeds win, 25.4–26.4 min (avg 25.9). Warehouse currently reuses the
+  Parts Factory sprite as placeholder art — still needs its own. See
+  `docs/architecture.md`'s "Storage limits".

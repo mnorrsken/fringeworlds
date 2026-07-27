@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Limited storage and a Warehouse building.** Buildings can declare a
+  `storage` block in `buildings.json`; `Colony.storage_for(res)` sums it
+  over everything standing (storage is physical, so an unpowered warehouse
+  still holds its contents), with `space_for()`/`_fits()` on top. Gains
+  clamp to capacity, producers check `_fits()` before consuming inputs so a
+  full store stalls a line ("Storage full") instead of destroying output,
+  extractors idle the same way with the ore left in the ground, and
+  demolishing storage spills whatever no longer fits. Content that
+  declares no storage anywhere is unlimited, so unit-test colonies built
+  from synthetic defs are unaffected. New 2×2 **Warehouse** (45 metal + 6
+  parts, −2 power, requires Parts Factory) holds 100 metal/ore, 60 parts,
+  90 xenite, 150 life support — the only place xenite can be kept, since
+  the Hub's yard holds none at all, so three warehouses are required to
+  hold the beacon's 260 xenite target. The top status bar shows
+  `amount/cap` once a resource is near its ceiling (amber at capacity),
+  and the hover readout lists what a storage building holds.
 - **Deposits are now finite.** A tile's richness sizes its reserve
   (`deposit_units`: IRON 600, COPPER 260, XENITE 30) instead of its output
   rate; extractors run at a flat rate and idle with "Deposit worked out"
@@ -44,6 +60,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **`ColonyBot` learned warehouses**: builds them when xenite capacity falls
+  short of the beacon target or a line is genuinely stalled for want of
+  room (capped at 4 — reacting to any full store instead paved the map,
+  since fresh capacity just refills). Also: a reserve can no longer gate a
+  *free* building (it was blocking the free hub, starving the colony), the
+  parts factory now has rebuild hysteresis (bank 40, don't rebuild until
+  under 12) to stop it oscillating, and the mine metal reserve dropped
+  2 → 1 since storage caps mean metal can't be hoarded anyway. Starting
+  metal 120 → 50 so the colony lands within its own (now much smaller)
+  hub yard. `make playtest`: 5/5 seeds win, 25.4–26.4 minutes (avg 25.9).
 - **Rebalance for finite deposits**: `victory.xenite` 150 → 260, crystal
   extractor rate 0.15 → 0.022, mine rate 0.35 → 0.30, `growth_ticks`
   default in `sim/balance.gd` synced to the shipped 110. The endgame is now
