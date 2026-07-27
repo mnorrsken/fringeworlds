@@ -89,7 +89,10 @@ prints win/loss, timing, and build order — see
 self-contained builds for macOS, Windows, and Linux into `build/`. The
 builds are unsigned, so first launch takes one extra click (macOS:
 right-click → Open; Windows: SmartScreen → More info → Run anyway; Linux:
-no warning). See [`DISTRIBUTING.md`](DISTRIBUTING.md) for the full guide.
+no warning). Pushing a version tag (`vX.Y.Z`, matching `config/version` in
+`project.godot`) builds and publishes all three platforms as a GitHub
+release via `.github/workflows/release.yml`. See
+[`DISTRIBUTING.md`](DISTRIBUTING.md) for the full guide.
 
 ## Folder structure
 

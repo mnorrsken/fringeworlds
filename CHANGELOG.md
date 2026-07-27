@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **CI release workflow** (2026-07-27)
+  - New `.github/workflows/release.yml`: on a `vX.Y.Z` tag (also
+    `workflow_dispatch` for a build-only dry run), tests, cross-builds all
+    three platforms (macOS on a real Mac runner so its ad-hoc signature is
+    produced and verified by real `codesign`, Linux/Windows cross-exported
+    from Ubuntu), and publishes them to a GitHub release. Refuses to build if
+    the tag doesn't match `config/version` in `project.godot`.
+  - New `.github/actions/setup-godot/action.yml`: composite action that
+    installs and caches the pinned Godot editor + matching export templates.
+  - CI/docs only — no game code, no test-count change.
 - **Distribution / export support** (2026-07-27)
   - New `export_presets.cfg` (committed): macOS (universal Intel + Apple
     Silicon, ad-hoc signed), Windows (x86_64, pck embedded), and Linux

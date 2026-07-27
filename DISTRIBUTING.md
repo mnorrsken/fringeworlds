@@ -94,6 +94,14 @@ needed.
 
 ## Cutting a release
 
+Two ways to get the three zips: by hand (`make release`, below) or
+automatically via CI when you push a tag. The manual path is still useful for
+a quick local build or a one-off; CI is the normal way to actually ship a
+release, since it builds real macOS/Windows/Linux binaries you don't have to
+own three machines for.
+
+### Manual
+
 1. Bump `config/version` in `project.godot` (it names the zips and fills in the
    macOS bundle version).
 2. `make release` — this runs the full test suite **first** and stops if
@@ -104,6 +112,33 @@ needed.
 4. Upload, and tell people about the first-run warning.
 
 `make export` skips the tests if you just want artifacts quickly.
+
+### Automated (tag → GitHub release)
+
+`.github/workflows/release.yml` builds all three platforms on GitHub's
+runners and publishes them as a GitHub release when you push a version tag:
+
+```sh
+make test && git tag v1.0.1 && git push origin v1.0.1
+```
+
+**The tag must match `config/version` in `project.godot`** (`v1.0.1` ↔
+`"1.0.1"`) — the workflow's `test` job checks this and fails before building
+anything if they disagree, so a release can't ship with a stale version baked
+into the macOS bundle and archive names. Bump the version and commit it
+before tagging.
+
+The workflow mirrors the manual steps (test → export → verify) but runs the
+macOS build on a real Mac runner so the ad-hoc signature comes from actual
+`codesign` and is verified in CI (`codesign --verify`, checked as ad-hoc, and
+launched headless) rather than only ever tested on the maintainer's machine.
+Godot itself and the export templates are cached across runs by
+`.github/actions/setup-godot`, keyed to the pinned version.
+
+To test a change to the workflow without cutting a real release, run it via
+**Actions → Release → Run workflow** (`workflow_dispatch`). This runs test and
+build (and the macOS signature check) but skips the publish step, which only
+runs when the ref is an actual tag.
 
 ## Where saves live
 

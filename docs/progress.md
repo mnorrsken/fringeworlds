@@ -96,4 +96,6 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
 
 - **Distribution — done.** `make release`/`make export` build unsigned,
   self-contained macOS/Windows/Linux zips (`export_presets.cfg`,
-  `dist/READ-ME-FIRST-*.txt`). See [`DISTRIBUTING.md`](../DISTRIBUTING.md).
+  `dist/READ-ME-FIRST-*.txt`). A tagged push (`vX.Y.Z`) also builds and
+  publishes a GitHub release via `.github/workflows/release.yml`. See
+  [`DISTRIBUTING.md`](../DISTRIBUTING.md).
