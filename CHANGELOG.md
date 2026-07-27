@@ -14,6 +14,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **VOID terrain now renders as bottomless canyons instead of flat dark
+  diamonds**: `TerrainView` autotiles rift walls per-cell from a 2-bit
+  neighbour mask (only the two far edges are ever visible from this camera
+  angle) and shades each one through a dithered dark-to-light ramp from a
+  sunlit rim down to an unbroken abyss with no floor, so adjoining rift
+  tiles merge into one continuous void. `Palette.VOID_HI`/`VOID_STAR`
+  replaced by `VOID_RIM`/`VOID_ABYSS`.
+
 - **Terrain rendering reworked to flow rather than tile as separate plates**:
   removed the black rim outline and lit/shadowed bevel from `TerrainView`,
   replaced with a faint per-terrain seam at tile boundaries and a flatter

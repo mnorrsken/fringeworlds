@@ -852,8 +852,9 @@ nothing about the simulation.
   in code, no external art files committed. A `SPEC` dict declares, per
   `ColonyMap.Terrain`, how many static plain **variants** and animation
   **frames** to generate (regolith/highlands: 5 variants, 1 frame; ice/
-  crystal: 2 variants, 3 frames each; void: 2 variants, 1 frame), plus how
-  many **clutter** variants and what percentage of tiles should use one.
+  crystal: 2 variants, 3 frames each), plus how many **clutter** variants
+  and what percentage of tiles should use one. `VOID` is not in `SPEC` —
+  it's autotiled instead (see below).
   Each plain variant is drawn (`_draw_terrain`) as a near-flat 4x4 ordered
   (Bayer) dither between a light and dark tone (`MASK_LIMIT` relaxes the
   diamond mask slightly past the true edge so neighbours overlap a pixel
@@ -879,6 +880,23 @@ nothing about the simulation.
   pixels shift and the tiles shimmer. `TERRAIN_COLORS` (still used by the
   minimap) maps to `Palette`'s base tones instead of inline `Color`
   literals.
+- **`VOID` (canyon) tiles are a bottomless rift, not dark ground**, and are
+  autotiled rather than randomly varianted. Since the camera always looks
+  down over a rift's near rim at the far wall, only the two edges facing
+  the camera can ever be visible (the near edges face away); `_void_mask()`
+  encodes which of those two neighbours — `x-1` and `y-1` — are solid
+  ground into a 2-bit mask (off-map counts as open, so a canyon runs off
+  the world edge instead of dead-ending in a wall), and `_build_tileset()`
+  pre-renders all 4 masks × `VOID_VARIANTS` into the atlas. `_draw_void`
+  shades each pixel by its distance below whichever lit rim(s) apply,
+  through a dark-to-light ramp (`_wall_ramp`, `Palette.VOID_RIM` at the lip
+  down to `Palette.VOID_ABYSS`) picked via `_ramp_color`'s Bayer dither so
+  the gradient stays pixel-art; a faster-than-linear falloff keeps the lit
+  band hugging the lip, and per-column jitter/grain break the wall into
+  ragged strata instead of a clean bevel. Below the wall nothing is drawn
+  but flat `VOID_ABYSS` — there's no floor to draw, and adjacent rift tiles
+  are identical black inside so a multi-tile canyon reads as one continuous
+  void with no seams.
 - `render/prospect_overlay.gd` (`ProspectOverlay`, extends `TileMapLayer`,
   Milestone 4) is a toggleable overlay of semi-transparent iso diamonds
   tinting each tile by prospecting knowledge: `enum Cat { UNSCANNED,
