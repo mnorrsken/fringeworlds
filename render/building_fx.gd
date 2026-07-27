@@ -15,6 +15,9 @@ extends Node2D
 ##     at = pixel - Vector2(tex_w / 2, tex_h - IsoGrid.TILE_H / 2)
 ## i.e. measure the smokestack's mouth in the art, subtract that, done.
 
+## Discs a glow is built from, outermost first.
+const RINGS := 4
+
 ## Effect kinds accepted in a def's `fx` list (data/buildings.json).
 const TYPES := ["smoke", "steam", "dust", "sparks", "shimmer", "lamp", "glow"]
 
@@ -115,16 +118,19 @@ func _draw_lamp(lamp: Dictionary) -> void:
 		draw_circle(at, radius * 1.9, halo)
 	draw_circle(at, radius, Palette.LIGHT_OFF.lerp(lamp.color, lit))
 
-# Three nested discs, brightest in the middle — a cheap pulsing bloom for a
-# furnace mouth or a crystal hopper.
+# Nested discs, brightest in the middle — a pulsing bloom for a furnace mouth or
+# a crystal hopper. Four rings rather than three, and each carries more alpha:
+# the old version was so faint that a furnace read as unlit next to its own
+# baked-in art.
 func _draw_glow(glow: Dictionary) -> void:
 	if not _active:
 		return
-	var k := 0.55 + 0.45 * sin(_t * TAU / float(glow.period) + float(glow.phase))
+	var k := 0.6 + 0.4 * sin(_t * TAU / float(glow.period) + float(glow.phase))
 	var col: Color = glow.color
-	for i in 3:
-		col.a = float(glow.alpha) * k * (0.16 + i * 0.15)
-		draw_circle(glow.at, float(glow.radius) * (1.0 - i * 0.28), col)
+	for i in RINGS:
+		# Wide and faint on the outside, tight and hot in the middle.
+		col.a = float(glow.alpha) * k * (0.22 + i * 0.20)
+		draw_circle(glow.at, float(glow.radius) * (1.0 - i * 0.22), col)
 
 # --- emitters ---------------------------------------------------------------
 

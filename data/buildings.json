@@ -51,7 +51,7 @@
     "sprite": "res://assets/iceharvester.png",
     "fx": [
       { "type": "steam", "at": [-1, -41], "rate": 8 },
-      { "type": "glow", "at": [-1, -16], "color": "ff8a3a", "radius": 7, "alpha": 0.5, "period": 1.4 }
+      { "type": "glow", "at": [-1, -16], "color": "ff9a4a", "radius": 9, "alpha": 0.85, "period": 1.4 }
     ],
     "allowed_terrain": ["ICE"],
     "color": "7cc7d6",
@@ -79,7 +79,7 @@
     "sprite": "res://assets/hydroponics.png",
     "fx": [
       { "type": "steam", "at": [30, -28], "color": "cfe8d2", "rate": 5, "scale": 1.0, "life_scale": 1.4, "alpha": 0.4 },
-      { "type": "glow", "at": [-8, -45], "color": "ff6ad5", "radius": 14, "alpha": 0.4, "period": 4.0 }
+      { "type": "glow", "at": [-8, -45], "color": "ff6ad5", "radius": 15, "alpha": 0.5, "period": 4.0 }
     ],
     "allowed_terrain": ["REGOLITH"],
     "color": "6bbf59",
@@ -123,7 +123,7 @@
     "fx": [
       { "type": "smoke", "at": [-9, -38], "rate": 4 },
       { "type": "sparks", "at": [21, -2], "color": "ffd27a", "rate": 9 },
-      { "type": "glow", "at": [16, -6], "color": "ff7a3a", "radius": 5, "alpha": 0.4, "period": 1.1 }
+      { "type": "glow", "at": [16, -6], "color": "ff8a3a", "radius": 7, "alpha": 0.7, "period": 1.1 }
     ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "c4693a",
@@ -153,7 +153,13 @@
       "water": 150, "oxygen": 150, "food": 150,
       "metal": 100, "iron_ore": 100, "copper_ore": 100, "parts": 60, "xenite": 90
     },
-    "sprite": "res://assets/partsfactory.png",
+    "sprite": "res://assets/warehouse.png",
+    "fx": [
+      { "type": "steam", "at": [-2, -86], "rate": 6, "scale": 1.0, "alpha": 0.5, "life_scale": 1.5 },
+      { "type": "lamp", "at": [11, -59], "color": "ff4a3a", "period": 3.4, "duty": 0.16, "radius": 1.3 },
+      { "type": "lamp", "at": [-37, -15], "color": "ff6a4a", "period": 2.8, "duty": 0.2, "radius": 1.2 },
+      { "type": "lamp", "at": [-21, -16], "color": "ffd97a", "period": 4.2, "duty": 0.22, "radius": 1.2 }
+    ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "8a7f6a",
     "desc": "Storage for everything, and the only place xenite can be kept. The beacon needs more xenite than any two warehouses can hold."
@@ -167,7 +173,7 @@
     "sprite": "res://assets/crystalextractor.png",
     "fx": [
       { "type": "shimmer", "at": [12, -18], "rate": 8, "scale": 1.2 },
-      { "type": "glow", "at": [12, -9], "color": "a774c6", "radius": 6, "alpha": 0.55, "period": 2.2 }
+      { "type": "glow", "at": [12, -9], "color": "b98adb", "radius": 8, "alpha": 0.8, "period": 2.2 }
     ],
     "allowed_terrain": ["CRYSTAL"],
     "color": "9a5ac4",
