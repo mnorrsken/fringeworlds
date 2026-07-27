@@ -844,27 +844,40 @@ nothing about the simulation.
   the special terrains, and building-detail tones (`LIGHT_ON`/`LIGHT_OFF`
   lamp colours, `SMOKE`, `EDGE`/`RIM_LIGHT`). `TerrainView` and
   `BuildingSprite` both pull from it so the whole screen reads as one
-  palette; never instantiated.
+  palette; never instantiated. Shared visual convention: everything is
+  lit from the upper left, so raised or dished detail (buildings, craters,
+  stones) always shadows on its lower-right and catches light on its
+  upper-left — one consistent light source across terrain and buildings.
 - `render/terrain_view.gd` (`TerrainView`) builds a procedural iso tileset
-  in code, no external art files committed. As of the Milestone 8 art
-  pass this is a multi-variant, dithered, raised-edge atlas rather than
-  one flat diamond per terrain: a `SPEC` dict declares, per
-  `ColonyMap.Terrain`, how many static **variants** and animation
-  **frames** to generate (regolith/highlands: 4 variants, 1 frame; ice/
-  crystal: 2 variants, 3 frames each; void: 2 variants, 1 frame). Each
-  variant is drawn (`_draw_terrain`) as a 4x4 ordered (Bayer) dither
-  between a light and dark tone with a top-lit gradient, per-variant
-  mottling, a dark rim outline, a lit top bevel / shadowed bottom bevel
-  (the SC2000 raised-tile look), and sparse seeded flecks for grain. All
-  variants (and each one's animation frames) are packed into successive
-  columns of one atlas image; `_variant_coords` records each terrain's
-  variant base coords, and ice/crystal frames get
+  in code, no external art files committed. A `SPEC` dict declares, per
+  `ColonyMap.Terrain`, how many static plain **variants** and animation
+  **frames** to generate (regolith/highlands: 5 variants, 1 frame; ice/
+  crystal: 2 variants, 3 frames each; void: 2 variants, 1 frame), plus how
+  many **clutter** variants and what percentage of tiles should use one.
+  Each plain variant is drawn (`_draw_terrain`) as a near-flat 4x4 ordered
+  (Bayer) dither between a light and dark tone (`MASK_LIMIT` relaxes the
+  diamond mask slightly past the true edge so neighbours overlap a pixel
+  at the corners), with per-variant mottling and sparse seeded flecks for
+  grain. The tile boundary carries no rim or bevel — only a faint darken
+  toward a per-terrain `seam` tone (a darker relative of that terrain,
+  not shared black) past `SEAM_START`, so same-terrain neighbours read as
+  continuous ground and the grid is a hint rather than an outline;
+  legibility of the current tile comes from the hover cursor and overlays
+  instead. Clutter variants (`_draw_clutter`) add terrain-specific incident
+  — stones on regolith, craters and rubble on highlands, pressure cracks
+  in ice — each following the shared top-lit convention (e.g. `_draw_crater`
+  shadows its near/upper wall and lights its far rim); `render_map()`
+  picks plain vs. clutter per cell via one hash (`_cell_hash` salted for
+  clutter) and the specific variant via another (`_cell_variant`), kept
+  independent so texture and clutter don't correlate into visible
+  banding. All variants (plain then clutter, and each one's animation
+  frames) are packed into successive columns of one atlas image;
+  `_variant_coords`/`_clutter_coords` record each terrain's base coords,
+  and ice/crystal frames get
   `TileSetAtlasSource.set_tile_animation_frames_count`/
   `set_tile_animation_frame_duration` (~0.4s/frame) so their sparkle
-  pixels shift and the tiles shimmer. `render_map()` picks a variant per
-  cell via a deterministic hash (`_cell_variant`) so the ground looks
-  varied but stable across renders. `TERRAIN_COLORS` (still used by the
-  minimap) now maps to `Palette`'s base tones instead of inline `Color`
+  pixels shift and the tiles shimmer. `TERRAIN_COLORS` (still used by the
+  minimap) maps to `Palette`'s base tones instead of inline `Color`
   literals.
 - `render/prospect_overlay.gd` (`ProspectOverlay`, extends `TileMapLayer`,
   Milestone 4) is a toggleable overlay of semi-transparent iso diamonds

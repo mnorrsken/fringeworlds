@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Ground clutter**: regolith, highlands and ice tiles now generate extra
+  "cluttered" atlas variants — stones, craters/rubble, pressure cracks —
+  used by a percentage of tiles, independent of the base texture pick.
+
+### Changed
+
+- **Terrain rendering reworked to flow rather than tile as separate plates**:
+  removed the black rim outline and lit/shadowed bevel from `TerrainView`,
+  replaced with a faint per-terrain seam at tile boundaries and a flatter
+  fill, so the grid reads as a hint (via hover cursor/overlays) instead of
+  an outline around every diamond.
+
 - **UI restructure: top-bar stats, popup help, hover readout** (2026-07-27)
   - `ui/resource_bar.gd` gained a right-aligned `set_stats()` showing
     power drawn/generated and colonists/capacity/workers (same
