@@ -1,0 +1,40 @@
+REGOLITH — Windows
+==================
+
+A retro isometric alien-colony builder. Prospect for hidden subsurface
+deposits, mine them, and build toward launching the xenite beacon.
+
+
+HOW TO RUN IT
+-------------
+
+1. Unzip the folder anywhere and run Regolith.exe.
+
+2. THE FIRST TIME ONLY: Windows SmartScreen will show a blue box saying
+   "Windows protected your PC". Click "More info", then "Run anyway".
+
+   This appears because the game isn't signed with a paid code-signing
+   certificate — not because anything is wrong with it. Every unsigned
+   indie build gets the same warning.
+
+
+CONTROLS
+--------
+
+  Left mouse    place a building / inspect one
+  Right mouse   demolish (refunds half the cost) / cancel placement
+  WASD          pan the camera
+  Z             zoom
+  P             prospecting overlay        O  building status overlay
+  M             overhead map               F1 debug coordinates
+  Space         pause          1 / 3       game speed
+  Esc           menu (save, sound on/off, quit)
+
+
+WHERE SAVES LIVE
+----------------
+
+  %APPDATA%\Godot\app_userdata\Regolith\
+
+The game autosaves every few minutes, and Esc -> Save Game makes a manual
+save. Deleting that folder resets everything.

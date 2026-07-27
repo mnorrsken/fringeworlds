@@ -1,0 +1,38 @@
+REGOLITH — Linux
+================
+
+A retro isometric alien-colony builder. Prospect for hidden subsurface
+deposits, mine them, and build toward launching the xenite beacon.
+
+
+HOW TO RUN IT
+-------------
+
+  unzip Regolith-linux.zip
+  chmod +x Regolith.x86_64
+  ./Regolith.x86_64
+
+x86_64 only. The binary is self-contained — no dependencies beyond the
+usual desktop OpenGL stack.
+
+
+CONTROLS
+--------
+
+  Left mouse    place a building / inspect one
+  Right mouse   demolish (refunds half the cost) / cancel placement
+  WASD          pan the camera
+  Z             zoom
+  P             prospecting overlay        O  building status overlay
+  M             overhead map               F1 debug coordinates
+  Space         pause          1 / 3       game speed
+  Esc           menu (save, sound on/off, quit)
+
+
+WHERE SAVES LIVE
+----------------
+
+  ~/.local/share/godot/app_userdata/Regolith/
+
+The game autosaves every few minutes, and Esc -> Save Game makes a manual
+save. Deleting that folder resets everything.

@@ -1,0 +1,49 @@
+REGOLITH — macOS
+================
+
+A retro isometric alien-colony builder. Prospect for hidden subsurface
+deposits, mine them, and build toward launching the xenite beacon.
+
+
+HOW TO RUN IT
+-------------
+
+1. Drag Regolith.app wherever you like (Applications is a good spot).
+
+2. THE FIRST TIME ONLY: right-click (or Control-click) Regolith.app and
+   choose "Open", then click "Open" again in the dialog that appears.
+
+   If you just double-click it instead, macOS will say something like
+   "Regolith can't be opened because Apple cannot check it for malicious
+   software". That is macOS being careful about apps that weren't signed
+   with a paid Apple Developer account — it is not a sign that anything is
+   wrong with the game. Right-click -> Open is the normal way past it, and
+   you only have to do it once.
+
+3. If macOS instead claims the app "is damaged and can't be opened", that's
+   the quarantine flag macOS attaches to downloaded files. Open Terminal and
+   run this against wherever you put it:
+
+       xattr -dr com.apple.quarantine /Applications/Regolith.app
+
+
+CONTROLS
+--------
+
+  Left mouse    place a building / inspect one
+  Right mouse   demolish (refunds half the cost) / cancel placement
+  WASD          pan the camera
+  Z             zoom
+  P             prospecting overlay        O  building status overlay
+  M             overhead map               F1 debug coordinates
+  Space         pause          1 / 3       game speed
+  Esc           menu (save, sound on/off, quit)
+
+
+WHERE SAVES LIVE
+----------------
+
+  ~/Library/Application Support/Godot/app_userdata/Regolith/
+
+The game autosaves every few minutes, and Esc -> Save Game makes a manual
+save. Deleting that folder resets everything.
