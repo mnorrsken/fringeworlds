@@ -273,7 +273,9 @@ pacing (how hard it presses) — starting population/capacity,
 starve/growth tick counts, the xenite victory target, the hub's
 guaranteed-deposit richness, the demolition refund fraction, life-support
 draw per colonist, the starting stockpile, sim tick rate, autosave
-interval, the low-stock alert floor, prospecting reading jitter, and (the
+interval, the low-stock alert floor, prospecting reading jitter, each
+building's internal buffer size (`building_buffer`, default `4` — see
+"Storage limits" below), and (the
 finite-deposits rework) `deposit_units` — extractable units per deposit
 type at full richness (`IRON: 600, COPPER: 260, XENITE: 30`), read by
 `ColonyMap.set_deposit()` to size a tile's reserve. Tuning the game means
@@ -516,14 +518,16 @@ buildings, for the HUD.
 **Production (`_run_production`)**: for every *active* building with a
 `recipe`, increments a per-instance `progress` counter (a field on the
 building instance dict, alongside `active`, both initialized in `place()`).
-Once `progress >= recipe.ticks`, it first checks whether `recipe.outputs`
-would fit in the stockpile (`_fits()` — see "Storage limits" below): if
-not, it **stalls for room**, holding `progress` at the threshold with
-`idle_reason = "Storage full"` without touching the inputs at all, so a
-full store never quietly eats the ore that would have become metal.
-Otherwise it checks whether `recipe.inputs` are affordable: if so, it
-spends the inputs, adds the outputs, and resets `progress` to `0`; if not,
-it **stalls for inputs** the same way. Inactive (unpowered) buildings don't
+Before anything else it calls `_flush(inst)` (see "Internal buffers" below)
+so a stalled line notices space the moment it appears anywhere. Once
+`progress >= recipe.ticks`, it checks whether `recipe.outputs` would fit in
+the building's own hopper (`_buffer_fits()`, not the colony stockpile
+directly): if not, it **stalls for room**, holding `progress` at the
+threshold with `idle_reason = "Storage full"` without touching the inputs
+at all. Otherwise it checks whether `recipe.inputs` are affordable: if so,
+it spends the inputs, adds the outputs to the hopper (`_buffer_gain()`),
+flushes again immediately, and resets `progress` to `0`; if not, it
+**stalls for inputs** the same way. Inactive (unpowered) buildings don't
 advance `progress` at all, so a power outage doesn't cause a burst of
 production the instant power returns.
 
@@ -565,10 +569,31 @@ hand-rolled test-defs dictionary except `tests/test_storage.gd`'s) gets
 `UNLIMITED` (`1 << 30`) back from `storage_for()` instead of `0`, so the
 rule can't retroactively cap unit-test colonies that never opted into it.
 
-**Mines idle the same way as production.** `_run_mine()` checks
-`space_for(res) <= 0` before accumulating any output; if the store is
-full it sets `idle_reason = "Storage full"` and returns without touching
-`map` at all, leaving the ore in the ground rather than discarding it.
+**Internal buffers.** Every building with a `recipe` or a `mine` gets a
+small internal hopper: `place()` adds an `inst["buffer"]` dict (`{res:
+amount}`, empty at first), sized per resource by `balance.building_buffer`
+(default `4`). Output lands in the hopper, not straight in the stockpile —
+`_run_production()`/`_run_mine()` check hopper space (`_buffer_space()`/
+`_buffer_fits()`) rather than colony `space_for()`, and add output with
+`_buffer_gain()`. `_flush(inst)` drains the hopper into `stockpile` as far
+as `space_for()` allows and is called both **before** a building acts (so a
+stalled line restarts the instant room appears anywhere in the colony) and
+**immediately after** it produces (so when there's room in the store the
+hopper is invisible and output arrives the same tick, exactly as before
+buffers existed). The upshot: a full colony store no longer stops a
+building dead — it keeps working until its *own* hopper backs up too, then
+stalls with `idle_reason = "Storage full"` same as before. The buffer is
+deliberately small: it buys a moment of slack and a visible signal (see
+"Two visual states" below), not a second tier of storage. `buffer` is
+serialized (`_inst_to_dict`/`_inst_from_dict`) so a reload doesn't discard
+held output, and `building_report()` exposes it as `"buffer"` for the UI.
+
+**Mines idle the same way as production**, against their own hopper rather
+than the colony store directly. `_run_mine()` flushes first, then checks
+`_buffer_space(inst, res) <= 0`; if the hopper is full it sets
+`idle_reason = "Storage full"` and returns without touching `map` at all,
+leaving the ore in the ground rather than discarding it — extraction is
+also capped per-tick at whatever room is left in the hopper.
 
 **Demolition spills the excess.** `demolish_at()` refunds part of the
 build cost as usual, then reclamps every stockpiled resource to the new
@@ -584,10 +609,13 @@ go, and at 90 per warehouse against a 260-unit `victory.xenite` target,
 three are mandatory (two hold only 180). `starting_stockpile.metal` (50)
 was dropped from 120 so a new colony lands within its own hub yard rather
 than starting over capacity. `tests/test_storage.gd` guards all of this:
-capacity summing, the hub holding no xenite, clamped gains, stalling
-without consuming inputs, resuming when room appears, extractors idling
-with ore left in the ground, spillage on demolition, the
-unlimited-when-unmodelled rule, and three guards on the shipped numbers —
+capacity summing, the hub holding no xenite, clamped gains, that a full
+colony store backs up through the hopper before a line stalls, that the
+hopper is small and doesn't delay normal production, resuming (and the
+hopper draining) when room appears, extractors idling with the ore left in
+the ground having pulled no more than one hopper's worth, spillage on
+demolition, the unlimited-when-unmodelled rule, and three guards on the
+shipped numbers —
 three warehouses required for the beacon, the starting stockpile fits the
 hub yard, and the hub yard can afford the single costliest building (a
 regression guard: `tests/test_balance.gd`'s bootstrap-headroom check was
@@ -929,8 +957,9 @@ always means "running fine" — the inspector's running/idle line is just
 `Colony.building_report(id) -> Dictionary` (pure, no formatting) merges an
 instance's live state with its def into a display-ready dict: `name`,
 `active`, `idle_reason`, `storage` (the storage/warehouse feature — the
-def's `storage` dict verbatim, `{}` for non-storage buildings), `power`,
-`workers`, `capacity`, `life_support`
+def's `storage` dict verbatim, `{}` for non-storage buildings), `buffer`
+(the internal-buffers feature — the instance's live hopper contents, `{}`
+if it has none), `power`, `workers`, `capacity`, `life_support`
 (Colony Hub rework — the def's `life_support` field, `0` unless it's the
 Hub), `scans` (bool), plus `recipe` (with the instance's `progress`) or
 `mine` (resource/richness/per-tick rate, plus — finite-deposits rework —
@@ -1234,8 +1263,9 @@ nothing about the simulation.
   the same way single-tile buildings always did. `_sprites: Dictionary`
   changed shape accordingly: instance id → `Array[BuildingSprite]`
   (previously → a single sprite). `_on_removed` frees every sprite in the
-  array; `_on_ticked`'s dimming loop iterates the array too, so all of a
-  building's tiles dim/undim together. `bind()`'s responsibilities
+  array; `_on_ticked`'s loop iterates the array too, so all of a building's
+  tiles push both visual states (see "Two visual states" below) together.
+  `bind()`'s responsibilities
   (connecting `Events.building_placed`/`building_removed`/`ticked`,
   backfilling for buildings already in `Sim.colony.buildings`) are
   unchanged. As of the Milestone 8 art pass, `_on_placed` also reads the
@@ -1303,16 +1333,42 @@ soft pulsing glows, all driven by a building def's optional `fx` array
 - **`set_active(active: bool)`** stops/resumes emitter `emitting` and
   darkens/relights lamps and glows (glows simply don't draw while
   inactive). `render/building_sprite.gd`'s `attach_fx(fx)` parents a
-  `BuildingFX` as a child (so it shares the sprite's y-sort depth), and
-  `set_dimmed(dimmed)` now also calls `fx.set_active(not dimmed)` — the
-  same shut-down signal that greys out the sprite also stops its vents and
-  darkens its lights.
+  `BuildingFX` as a child (so it shares the sprite's y-sort depth). As of
+  the internal-buffers follow-up, `set_active` is driven by
+  `BuildingSprite.set_working()`, not `set_dimmed()` — see "Two visual
+  states: dimmed vs. working" below.
 - **`render/buildings_view.gd`**'s `_attach_fx(spr, def, id)` reads the
   def's `fx` array and, if non-empty, builds one `BuildingFX`,
   `spr.attach_fx()`s it, then `configure()`s it with `phase = id * 0.37`.
   It's only called on the textured (art-backed) path — the procedural
   block fallback keeps its own built-in lamps/smoke instead, so a building
   never gets both.
+
+### Two visual states: dimmed vs. working (internal-buffers follow-up)
+
+Before internal buffers, "shut down" and "not currently producing" were the
+same thing, so one signal (`set_dimmed`) covered both. They aren't anymore —
+a building with nowhere to put its output keeps its power, workers, and hub
+coverage; it just idles with `idle_reason = "Storage full"`. `BuildingSprite`
+now exposes two independent setters and `BuildingsView._on_ticked` pushes
+both every tick:
+
+- **`set_dimmed(dimmed)`** — unchanged: `not inst.active`, i.e. genuinely
+  shut down (no power, no workers, no hub). Greys the sprite's modulate; for
+  the procedural fallback path only, also darkens its built-in lamps and
+  kills its built-in smoke (that path is otherwise unused — see above).
+- **`set_working(working)`** — new. `working := inst.active and
+  inst.get("idle_reason", "") == ""`, i.e. the building is not just powered
+  and staffed but actually mid-production this tick. Drives `BuildingFX.
+  set_active()` on the textured (art-backed) path: plumes, vents, dust,
+  sparks, shimmer, lamps, and glows run only while `working` is true.
+
+So a smelter that's active/staffed but stalled on "Storage full" stays lit
+and undimmed — the plume simply stops. That's the intended player-visible
+cue: a colony that's run out of room reads as buildings going quiet across
+the map, not as buildings going dark (which still means power/workforce/hub
+trouble). The hover panel's new "holding <res> <n>" line (see "Hover panel"
+below) gives the specific reason once you mouse over it.
 
 The placement ghost is the one place still using a single multi-cell
 `BuildingSprite`: `main.gd`'s `_ghost` is configured with the *entire*
@@ -1525,9 +1581,10 @@ click-to-select: it follows the cursor and shows whatever tile is under
 it — terrain, `ColonyMap.reading_text()`, and, if a building sits there,
 `Colony.building_report()` rendered the same way the old sidebar inspector
 did (running/idle line first, then power/workers/capacity/life
-support/scans, a "stores <res> <n>, ..." line for any building with a
-non-empty `storage` block, then recipe or mine progress, then the terrain
-line).
+support/scans, a "holding <n> <res>, ..." line for any building whose
+internal `buffer` isn't empty — see "Internal buffers" above — then a
+"stores <res> <n>, ..." line for any building with a non-empty `storage`
+block, then recipe or mine progress, then the terrain line).
 Screen-space and stateless like the other UI panels: `main.gd` pushes the
 hovered tile's report each frame via `show_tile(terrain, reading, report)`;
 it never reads `Colony` itself.

@@ -128,3 +128,10 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   5/5 seeds win, 25.4–26.4 min (avg 25.9). Warehouse currently reuses the
   Parts Factory sprite as placeholder art — still needs its own. See
   `docs/architecture.md`'s "Storage limits".
+- **Internal building buffers — done.** Producers/extractors now hold a
+  small hopper (`building_buffer`, default 4) so a full colony store backs
+  up before a line actually stalls. Overlay FX (plumes/vents/lamps) now
+  track "actually working" separately from "dimmed" (shut down), so a
+  stalled-on-storage building stays lit/staffed but goes visibly quiet.
+  `make playtest`: 5/5 seeds win, 24.9–25.8 min (avg 25.3). See
+  `docs/architecture.md`'s "Storage limits" and "Two visual states".

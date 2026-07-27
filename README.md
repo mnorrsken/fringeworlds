@@ -189,12 +189,18 @@ loses, press **Enter** on the game-over screen to start a fresh colony.
 
 Defined in `data/buildings.json`. Storage is capped and physical: a
 building's `storage` block adds to what the colony can hold of each
-resource whether or not it's powered, and a full store stalls the producer
-feeding it ("Storage full") rather than destroying the output — extractors
-idle the same way, leaving the ore in the ground. The Hub's yard is
-deliberately small and holds no xenite at all, so reaching the beacon's
-xenite target requires building Warehouses (three, at 90 xenite each).
-Demolishing a storage building spills whatever no longer fits.
+resource whether or not it's powered. Every producing/extracting building
+also holds a small internal buffer (4 units per resource) — a full colony
+store backs up through that buffer first, so a line keeps working for a
+moment before it actually stalls ("Storage full") rather than destroying
+the output; extractors idle the same way, leaving the ore in the ground.
+While a building is stalled on storage it stays lit and staffed but its
+plume/vents/lamps go quiet — that's the visible cue the colony has run out
+of room, distinct from a dimmed building, which means no power/workers/hub.
+The Hub's yard is deliberately small and holds no xenite at all, so
+reaching the beacon's xenite target requires building Warehouses (three, at
+90 xenite each). Demolishing a storage building spills whatever no longer
+fits.
 
 The Hub is free, unique (only one may
 stand at a time), and required: with none active, every other building —
@@ -249,7 +255,8 @@ buildings idle lamp/smoke animation, all in one warm palette
 sprites instead of the procedural block (the procedural path remains only
 as a fallback), each now dressed with data-driven FX overlays (plumes,
 vents, dust, sparks, shimmer, blinking lamps, glows —
-`render/building_fx.gd`) that go dark when the building shuts down; and a
+`render/building_fx.gd`) that run only while the building is actually
+producing (they also go quiet on a storage stall, not just a shutdown); and a
 new `Audio` autoload plays a data-driven, synthesized sound set (ambient
 bed + SFX, `make audio` regenerates the WAVs). Milestone 9 (balance,
 polish, v2 hooks) is now in progress: every tunable simulation number has

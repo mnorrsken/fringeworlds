@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Internal building buffers.** Producers and extractors now hold a small
+  hopper (`building_buffer` balance key, default 4 units per resource)
+  instead of writing straight to the colony stockpile. Output lands in the
+  hopper and flushes into the store as room allows, both before a building
+  acts (so a stalled line restarts the moment space appears) and right
+  after it produces (so normal play is unaffected when the store has
+  room). A full colony store now backs up through the hopper before a line
+  actually stalls with "Storage full"; a stalled extractor leaves the ore
+  in the ground, pulling no more than one hopper's worth. The hopper is
+  serialized and shown in the hover readout ("holding ...").
 - **Limited storage and a Warehouse building.** Buildings can declare a
   `storage` block in `buildings.json`; `Colony.storage_for(res)` sums it
   over everything standing (storage is physical, so an unpowered warehouse
@@ -60,6 +70,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Stalled buildings now read differently from shut-down ones.**
+  `BuildingSprite` splits "dimmed" (no power/workers/hub — greyed out) from
+  a new "working" state (actually producing this tick): overlay FX
+  (plumes, vents, dust, lamps, glows) now run only while working, so a
+  building stalled on "Storage full" stays lit and staffed but visibly
+  goes quiet, instead of looking identical to a powered-down one.
 - **`ColonyBot` learned warehouses**: builds them when xenite capacity falls
   short of the beacon target or a line is genuinely stalled for want of
   room (capped at 4 — reacting to any full store instead paved the map,
