@@ -133,7 +133,7 @@ reads sim state and never writes game rules back. See
 | Z | Toggle zoom 1×↔2× (from 3×/4× snaps straight back to 1×) |
 | Pinch, `+`/`-` | Fine zoom (secondary controls, up to 4×) |
 | M | Toggle the overhead map (terrain, buildings, camera view; click to jump) |
-| P | Toggle the prospecting overlay (tints tiles by scan state / deposit type) |
+| P | Toggle the prospecting overlay (tints tiles by scan state, deposit type, and how much is left) |
 | O | Toggle the status overlay (green/red dot per building: running/idle) |
 | Left click | Place selected building, or demolish (in demolish mode) |
 | Right click | Demolish at cursor, or cancel current mode |

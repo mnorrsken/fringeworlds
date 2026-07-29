@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Prospecting overlay now shades confirmed/coarse tiles by how much of the
+  deposit is left, on a per-deposit-type scale (30 xenite units reads "full"
+  the same as 600 iron units) — a worked-out tile fades to dim grey, a fat
+  one is vivid. Shading updates live as extractors deplete a tile, not just
+  when a scan lands.
+
 ## [1.1.0] - 2026-07-28
 
 Regolith's first release since 1.0.0, and a lot has changed under the hood and

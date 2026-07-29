@@ -54,16 +54,20 @@ good reason.
    `ticked(tick: int)`, `stockpile_changed(stockpile: Dictionary)`,
    `building_placed(instance: Dictionary)`,
    `building_removed(instance: Dictionary)`, (Milestone 4)
-   `scan_changed(cells: Array)`, (Milestone 5) `game_over(won: bool)`, and
-   (Milestone 6) `alert(text: String, level: int)`. The sim emits; UI/render
+   `scan_changed(cells: Array)`, (Milestone 5) `game_over(won: bool)`,
+   (Milestone 6) `alert(text: String, level: int)`, and (reserve-shading
+   overlay) `reserves_changed(cells: Array)`. The sim emits; UI/render
    layers connect. UI is meant to never poke `Sim` internals directly — it
    calls `Sim` methods and listens on `Events` signals instead. The
    `building_placed`/`building_removed` payload is the same instance
    dictionary `Colony.place()`/`demolish_at()` returns: `{id, type, origin,
    cells}`. `scan_changed`'s payload is the list of grid cells whose
    prospecting scan state changed on the tick just processed;
-   `ProspectOverlay` is the only current listener, using it to repaint
-   incrementally instead of rebuilding the whole overlay every tick.
+   `reserves_changed`'s is the list of cells an extractor drew ore out of
+   that tick (`Colony.reserve_changes`, reset each `tick()` alongside
+   `scan_changes`); `ProspectOverlay` is the only current listener of
+   either, using them to repaint incrementally instead of rebuilding the
+   whole overlay every tick.
    `game_over` fires exactly once when the colony reaches a terminal state;
    `main.gd` is the only listener, and shows the win/loss overlay from it.
    `alert`'s `level` is an `AlertMonitor.Level` value (`INFO`/`WARN`/`CRIT`,
@@ -757,7 +761,11 @@ until surveyed, and extraction is gated on a confirmed reading.
   Serialized (`amount` key in `to_dict`/`from_dict`); a save from before
   this rework has no `amount` key, so `from_dict` refills every deposit's
   reserve from its richness on load, so an old save reads as an
-  untouched map rather than a dead one.
+  untouched map rather than a dead one. `remaining_fraction(cell)`
+  (prospecting-overlay shading) divides `_amount` by `deposit_units` for
+  that cell's deposit type — the per-type scale that makes "how much is
+  left" comparable across ores and crystal (600 iron units and 30 xenite
+  units both count as "full"); `0.0` for a barren or worked-out cell.
 - `_reading_noise` (`PackedFloat32Array`) — a fixed per-cell random value
   in `-1.0..1.0`, generated once at map creation from a seeded
   `RandomNumberGenerator`. `coarse_richness(cell)` adds
@@ -863,7 +871,8 @@ Since the finite-deposits rework, `_run_mine` (called from
 longer scales its rate by richness: it adds a flat `base_per_tick` to
 `mine_accum` every tick and pays out whole units, capped at
 `map.get_amount(origin)`, drawing that reserve down by the same amount
-(`map.set_amount`). Once the reserve hits `0.0`, `_run_mine` idles the
+(`map.set_amount`) and appending `origin` to `Colony.reserve_changes` (see
+"Signals" above). Once the reserve hits `0.0`, `_run_mine` idles the
 building (`active = false`, `idle_reason = "Deposit worked out"`) instead
 of accumulating further — the extractor has to be demolished (for the
 refund) and rebuilt elsewhere. `rates()` mirrors this: a worked-out tile
@@ -875,10 +884,11 @@ a confirmed tile instead of a richness percentage, and "worked out" at
 zero; `ui/hover_panel.gd`'s mine line does the same via
 `building_report()`'s new `remaining` field.
 
-`Sim._advance_tick()` emits `Events.scan_changed(colony.scan_changes)`
-after `colony.tick()`, but only when the list is non-empty, so idle ticks
-(no active survey buildings, or a survey mid-ring/mid-resample with
-nothing revealed this tick) don't spam the signal.
+`Sim._advance_tick()` emits `Events.scan_changed(colony.scan_changes)` and
+`Events.reserves_changed(colony.reserve_changes)` after `colony.tick()`,
+each only when its list is non-empty, so idle ticks (no active survey
+buildings, or a survey mid-ring/mid-resample with nothing revealed this
+tick, or no active extractor) don't spam either signal.
 
 ### Colony Hub and guaranteed deposits (Colony Hub rework)
 
@@ -1202,18 +1212,35 @@ nothing about the simulation.
   Milestone 4) is a toggleable overlay of semi-transparent iso diamonds
   tinting each tile by prospecting knowledge: `enum Cat { UNSCANNED,
   COARSE_EMPTY, COARSE_DEP, CONFIRMED_EMPTY, IRON, COPPER, XENITE }`, each
-  with its own `Color` (including alpha, so terrain shows through) in a
-  `COLORS` dict, painted into a procedurally-built tileset the same way
-  `TerrainView` builds its. `setup(map)` builds the tileset and connects
-  `Events.scan_changed`. `rebuild()` repaints every cell from current scan
-  state — called when the overlay is toggled on, since it doesn't track
-  state while hidden. While `visible`, `_on_scan_changed(cells)` repaints
-  only the cells in the signal's payload, so an active survey doesn't
-  force a full-map repaint every tick. `_category(cell)` picks the `Cat`
+  with its own base `Color` (including alpha, so terrain shows through) in a
+  `COLORS` dict. `setup(map)` builds the tileset and connects
+  `Events.scan_changed` and `Events.reserves_changed`, both to the same
+  `_on_cells_changed(cells)`. `rebuild()` repaints every cell from current
+  scan state — called when the overlay is toggled on, since it doesn't track
+  state while hidden. While `visible`, `_on_cells_changed` repaints only the
+  cells in the signal's payload, so an active survey or a mining tick
+  doesn't force a full-map repaint. `_atlas_coords(cell)` picks the `Cat`
   from `map.get_scan(cell)`/`map.get_deposit(cell)`: `COARSE` shows only
   whether *something* is there (`COARSE_DEP`) or not (`COARSE_EMPTY`), not
   which resource — matching the "coarse readings are imprecise" design;
   only `CONFIRMED` reveals the specific ore/crystal color.
+
+  **Reserve shading**: the tileset atlas is 2D — category on x, a shade
+  *band* (`0..BANDS-1`, `BANDS = 5`) on y — for the categories with a
+  quantity to show (`SHADED`: `COARSE_DEP`, `IRON`, `COPPER`, `XENITE`; the
+  rest only ever paint band `0`). `_band(fraction)` maps a `0..1` fraction
+  to a band via `BAND_FLOORS` (`[0.15, 0.30, 0.50]`, tuned to how the
+  generator spreads richness — a median seam lands near `0.35`); a
+  `CONFIRMED` tile's fraction is `map.remaining_fraction(cell)` (see
+  `ColonyMap` above), a `COARSE_DEP` tile's is its jittered
+  `coarse_richness(cell)` reading (never worked-out, since nothing can have
+  mined an unconfirmed tile yet). `_shade(base, band)` dims `COLORS[cat]`
+  toward `DIM` (a flat grey) and toward transparent as the band drops, so
+  band `0` — worked out — barely marks the terrain while the top band is
+  the full, vivid color. `Events.reserves_changed` (emitted by `Sim` after
+  `_run_mine` draws a tile down — see "Extractor gating and output" below)
+  is what keeps this shading current as a tile depletes, not just when a
+  new scan lands.
 - `render/building_sprite.gd` (`BuildingSprite`, extends `Node2D`) — 
   **rewritten in the pre-M6 fixes pass**. It used to draw one whole
   building's footprint (any size) as a single node, but that meant a
