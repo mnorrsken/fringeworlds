@@ -48,6 +48,11 @@ var _needs_controller := false
 # Cells whose scan state changed during the most recent tick (for the overlay).
 var scan_changes: Array = []
 
+# Cells an extractor drew ore out of during the most recent tick. The overlay
+# shades confirmed tiles by what's left, so it has to repaint as they deplete —
+# not just when a scan lands.
+var reserve_changes: Array = []
+
 func _init(p_map: ColonyMap, p_defs: Dictionary, p_stockpile: Dictionary = {},
 		p_balance: Balance = null) -> void:
 	map = p_map
@@ -293,6 +298,7 @@ func life_support_covered() -> int:
 ## then win/lose evaluation.
 func tick() -> void:
 	scan_changes = []
+	reserve_changes = []
 	_balance_power()
 	_require_hub()
 	_balance_workforce()
@@ -577,6 +583,7 @@ func _run_mine(inst: Dictionary, def: Dictionary) -> void:
 		_flush(inst)
 		map.set_amount(inst.origin, remaining - whole)
 		inst.mine_accum = float(inst.mine_accum) - whole
+		reserve_changes.append(inst.origin)
 
 func _mine_per_tick(inst: Dictionary, def: Dictionary) -> float:
 	return float(def.mine.base_per_tick)

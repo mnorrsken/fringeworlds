@@ -53,7 +53,8 @@ CAMERA
   Z — zoom
 
 OVERLAYS
-  P — prospecting: survey state and readings
+  P — prospecting: survey state, ore type, and how much is left
+      (brighter = more in the ground; grey = worked out)
   O — building status: what is running or idle
   M — overhead map      F1 — debug coordinates
 

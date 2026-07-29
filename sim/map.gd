@@ -102,6 +102,21 @@ func set_deposit(cell: Vector2i, dep: int, richness: float) -> void:
 	_richness[i] = richness
 	_amount[i] = richness * float(deposit_units.get(Deposit.keys()[dep], 100.0))
 
+## What's left in the ground here as a fraction of what a full-richness deposit
+## of this type holds (0..1). Deposit sizes differ by an order of magnitude — 600
+## units of iron against 30 of xenite — so the raw unit count says nothing on its
+## own: 20 units left is a nearly-untouched crystal and an exhausted iron seam.
+## This is the per-type scale that makes "how much is left" comparable, and it is
+## what the prospecting overlay shades by.
+func remaining_fraction(cell: Vector2i) -> float:
+	var dep := get_deposit(cell)
+	if dep == Deposit.NONE:
+		return 0.0
+	var full := float(deposit_units.get(Deposit.keys()[dep], 100.0))
+	if full <= 0.0:
+		return 0.0
+	return clampf(get_amount(cell) / full, 0.0, 1.0)
+
 func get_scan(cell: Vector2i) -> int:
 	return _scan[cell.y * width + cell.x]
 

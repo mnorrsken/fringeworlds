@@ -133,6 +133,50 @@ func test_a_tile_yields_no_more_than_its_reserve(t: Object) -> void:
 	t.eq(int(c.stockpile.get("iron_ore", 0)), reserve,
 		"total ore mined equals the tile's reserve")
 
+# The overlay shades by remaining_fraction, so it has to be a per-type scale:
+# deposits differ by an order of magnitude in size, and a raw unit count would
+# paint every crystal formation as good as exhausted.
+func test_remaining_fraction_is_scaled_per_deposit_type(t: Object) -> void:
+	var m := ColonyMap.new(8, 8)
+	var iron := Vector2i(1, 1)
+	var xenite := Vector2i(2, 2)
+	m.set_deposit(iron, ColonyMap.Deposit.IRON, 1.0)
+	m.set_deposit(xenite, ColonyMap.Deposit.XENITE, 1.0)
+	t.eq(m.remaining_fraction(iron), 1.0, "a full-richness iron seam reads full")
+	t.eq(m.remaining_fraction(xenite), 1.0, "so does a full crystal, on its own scale")
+
+	# The same 15 units left is half a crystal and a spent trace of iron.
+	m.set_amount(iron, 15.0)
+	m.set_amount(xenite, 15.0)
+	t.ok(m.remaining_fraction(iron) < 0.1, "15 units of iron is nearly nothing")
+	t.ok(absf(m.remaining_fraction(xenite) - 0.5) < 0.01,
+		"15 units of xenite is half a deposit")
+
+func test_remaining_fraction_of_barren_and_worked_out_ground(t: Object) -> void:
+	var m := ColonyMap.new(8, 8)
+	var cell := Vector2i(3, 3)
+	t.eq(m.remaining_fraction(cell), 0.0, "barren ground has nothing left")
+	m.set_deposit(cell, ColonyMap.Deposit.COPPER, 0.5)
+	m.set_amount(cell, 0.0)
+	t.eq(m.remaining_fraction(cell), 0.0, "neither does a worked-out deposit")
+
+# The overlay repaints depleting tiles off this list, so mining has to report it.
+func test_mining_reports_the_cells_it_drew_down(t: Object) -> void:
+	var c := _mine_colony(1.0)
+	var cell := Vector2i(4, 4)
+	var drawn := false
+	for i in 20:
+		c.tick()
+		if c.reserve_changes.has(cell):
+			drawn = true
+	t.ok(drawn, "the mined cell is reported while it still holds ore")
+
+	for i in 4000:
+		c.tick()
+	t.eq(c.map.get_amount(cell), 0.0, "the tile is worked out")
+	c.tick()
+	t.eq(c.reserve_changes.size(), 0, "a dead tile reports no further change")
+
 func _mine_colony(richness: float) -> Colony:
 	var m := ColonyMap.new(8, 8)
 	var cell := Vector2i(4, 4)

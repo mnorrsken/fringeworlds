@@ -200,6 +200,8 @@ func _advance_tick() -> void:
 	colony.tick()
 	if not colony.scan_changes.is_empty():
 		Events.scan_changed.emit(colony.scan_changes)
+	if not colony.reserve_changes.is_empty():
+		Events.reserves_changed.emit(colony.reserve_changes)
 	for a in _alerts.check(colony):
 		Events.alert.emit(a.text, a.level)
 	Events.stockpile_changed.emit(colony.stockpile)
