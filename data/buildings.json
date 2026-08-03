@@ -104,7 +104,7 @@
     "cost": { "metal": 20 }, "power": -4, "workers": 0,
     "requires_built": ["hub"],
     "requires_deposit": ["IRON", "COPPER"],
-    "mine": { "base_per_tick": 0.30 },
+    "mine": { "base_per_tick": 0.30, "radius": 1 },
     "sprite": "res://assets/miner.png",
     "fx": [
       { "type": "dust", "at": [0, 2], "rate": 10, "scale": 1.4 },
@@ -112,7 +112,7 @@
     ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "b0623a",
-    "desc": "On a confirmed ore deposit. Automated. Faster on richer tiles."
+    "desc": "On a confirmed ore deposit. Works the 3×3 patch around it, drawing only its own ore. Slows as the patch runs out. Automated."
   },
   {
     "id": "smelter", "name": "Smelter", "size": 1,
@@ -162,14 +162,14 @@
     ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "8a7f6a",
-    "desc": "Storage for everything, and the only place xenite can be kept. The beacon needs more xenite than any two warehouses can hold."
+    "desc": "Storage for everything, and the only place xenite can be kept. The phase-1 quota is more xenite than any two warehouses can hold."
   },
   {
     "id": "crystal_extractor", "name": "Crystal Extractor", "size": 1,
     "cost": { "metal": 20, "parts": 8 }, "power": -6, "workers": 2,
     "requires_built": ["parts_factory"],
     "requires_deposit": ["XENITE"],
-    "mine": { "base_per_tick": 0.022 },
+    "mine": { "base_per_tick": 0.022, "radius": 1 },
     "sprite": "res://assets/crystalextractor.png",
     "fx": [
       { "type": "shimmer", "at": [12, -18], "rate": 8, "scale": 1.2 },
@@ -177,6 +177,6 @@
     ],
     "allowed_terrain": ["CRYSTAL"],
     "color": "9a5ac4",
-    "desc": "Stands on a crystal formation, once prospecting has confirmed how rich it is. Needs 2 colonists. A single formation won't fill the beacon — plan on several."
+    "desc": "Stands on a crystal formation, once prospecting has confirmed how rich it is. Works the 3×3 patch of crystal around it, slowing as it empties. Needs 2 colonists. A single formation won't fill the phase-1 quota — plan on several."
   }
 ]

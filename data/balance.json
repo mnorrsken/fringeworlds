@@ -28,9 +28,14 @@
   },
 
   "deposit_units": {
-    "IRON": 600,
-    "COPPER": 260,
-    "XENITE": 30
+    "IRON": 1400,
+    "COPPER": 620,
+    "XENITE": 70
+  },
+
+  "mining": {
+    "min_rate": 0.2,
+    "full_rate_above": 0.5
   },
 
   "life_support": {

@@ -42,6 +42,8 @@ func test_empty_dict_keeps_defaults(t: Object) -> void:
 	t.eq(b.reading_jitter, d.reading_jitter, "reading jitter")
 	t.eq(b.life_support, d.life_support, "life support table")
 	t.eq(b.starting_stockpile, d.starting_stockpile, "starting stockpile")
+	t.eq(b.mine_min_rate, d.mine_min_rate, "extraction floor rate")
+	t.eq(b.mine_full_rate_above, d.mine_full_rate_above, "extraction taper point")
 
 func test_partial_override_leaves_the_rest_alone(t: Object) -> void:
 	var d := Balance.new()
@@ -87,6 +89,12 @@ func test_shipped_values_are_sane(t: Object) -> void:
 	t.ok(b.reading_jitter >= 0.0 and b.reading_jitter < 1.0,
 		"prospecting noise leaves the reading meaningful")
 	t.ok(b.low_stock > 0, "the low-stock warning can fire before zero")
+	t.ok(b.mine_min_rate > 0.0 and b.mine_min_rate <= 1.0,
+		"a worked-out patch still comes up, however slowly — a floor of 0 would never finish")
+	t.ok(b.mine_full_rate_above > 0.0 and b.mine_full_rate_above <= 1.0,
+		"and a fresh patch runs at the def's rate for a while first")
+	for dep in b.deposit_units:
+		t.ok(float(b.deposit_units[dep]) > 0.0, "%s deposits hold something" % dep)
 	for res in b.life_support:
 		t.ok(float(b.life_support[res]) >= 0.0, "%s draw is not negative" % res)
 	for res in b.life_support:

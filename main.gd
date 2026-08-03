@@ -228,8 +228,8 @@ func _set_mode(mode: Mode) -> void:
 	_sidebar.set_mode_label(_mode_name())
 
 func _on_game_over(won: bool) -> void:
-	_gameover_title.text = "BEACON LAUNCHED" if won else "COLONY LOST"
-	_gameover_subtitle.text = ("The colony endures — victory!\n" if won
+	_gameover_title.text = "PHASE 1 COMPLETE" if won else "COLONY LOST"
+	_gameover_subtitle.text = ("Xenite quota met, beacon away — the colony endures.\n" if won
 		else "The last colonist is gone.\n") + "Press Enter to start a new colony."
 	_gameover_root.visible = true
 

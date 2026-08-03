@@ -221,6 +221,11 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 		inst["deposit_type"] = map.get_deposit(origin)
 		inst["richness"] = map.get_richness(origin)
 		inst["mine_accum"] = 0.0
+		# What the patch it works held when it was sited. Extraction slows as
+		# this is drawn down, and it is measured against the patch's own opening
+		# reserve so a lean tile still starts at full speed (richness sizes the
+		# reserve, never the rate).
+		inst["mine_initial"] = _mine_remaining(inst)
 	buildings[id] = inst
 	for c in cells:
 		_occupancy[c] = id
@@ -556,16 +561,50 @@ func _buffer_gain(inst: Dictionary, flow: Dictionary) -> void:
 	for res in flow:
 		buffer[res] = int(buffer.get(res, 0)) + int(flow[res])
 
-# Extractors run at a flat rate and draw the tile's reserve down until it's
-# gone. Richness sizes that reserve rather than the rate, so a rich tile lasts
-# longer instead of pumping faster — and every extractor eventually stands on
-# dead ground and has to be moved.
+## The cells an extractor works: every tile within its `mine.radius` (1 == a 3×3
+## patch) that holds the same deposit it was sited on. A machine drills sideways
+## as well as down, so one is worth siting where the seam is thickest — but it
+## still only draws the one ore, so an iron mine ignores the copper next door.
+##
+## Derived from the map each time rather than latched at placement, so the patch
+## survives a save/load without being stored.
+func mine_cells(inst: Dictionary) -> Array:
+	var dep := int(inst.get("deposit_type", ColonyMap.Deposit.NONE))
+	if dep == ColonyMap.Deposit.NONE:
+		return []
+	var origin: Vector2i = inst.origin
+	var r := int(defs[inst.type].mine.get("radius", 1))
+	# Centre first: an extractor eats the ground it stands on before it reaches.
+	var cells := [origin]
+	for dy in range(-r, r + 1):
+		for dx in range(-r, r + 1):
+			var c := origin + Vector2i(dx, dy)
+			if c == origin or not map.in_bounds(c):
+				continue
+			if map.get_deposit(c) == dep:
+				cells.append(c)
+	return cells
+
+## Units still in the ground across the whole patch an extractor works.
+func _mine_remaining(inst: Dictionary) -> float:
+	var total := 0.0
+	for c in mine_cells(inst):
+		total += map.get_amount(c)
+	return total
+
+# Extractors draw their patch down until it's gone, slowing as it empties (see
+# _mine_per_tick). Richness sizes the reserve rather than the rate, so a rich
+# patch lasts longer instead of pumping faster — and every extractor eventually
+# stands on dead ground and has to be moved.
 func _run_mine(inst: Dictionary, def: Dictionary) -> void:
 	var res: String = ColonyMap.DEPOSIT_RESOURCE.get(int(inst.deposit_type), "")
 	if res == "":
 		return
 	_flush(inst)
-	var remaining := map.get_amount(inst.origin)
+	var cells := mine_cells(inst)
+	var remaining := 0.0
+	for c in cells:
+		remaining += map.get_amount(c)
 	if remaining <= 0.0:
 		inst.active = false
 		inst.idle_reason = "Deposit worked out"
@@ -578,15 +617,38 @@ func _run_mine(inst: Dictionary, def: Dictionary) -> void:
 		return
 	inst.mine_accum = float(inst.mine_accum) + _mine_per_tick(inst, def)
 	var whole := minf(minf(float(int(inst.mine_accum)), remaining), float(room))
-	if whole > 0.0:
-		_buffer_gain(inst, {res: int(whole)})
-		_flush(inst)
-		map.set_amount(inst.origin, remaining - whole)
-		inst.mine_accum = float(inst.mine_accum) - whole
-		reserve_changes.append(inst.origin)
+	if whole <= 0.0:
+		return
+	_buffer_gain(inst, {res: int(whole)})
+	_flush(inst)
+	inst.mine_accum = float(inst.mine_accum) - whole
+	# Take it out of the ground nearest-first, so the tile under the machine is
+	# the one the overlay watches go dark first.
+	var left := whole
+	for c in cells:
+		if left <= 0.0:
+			break
+		var have := map.get_amount(c)
+		if have <= 0.0:
+			continue
+		var take := minf(have, left)
+		map.set_amount(c, have - take)
+		left -= take
+		reserve_changes.append(c)
 
+# The thinner the ground gets, the harder it is to work: extraction runs at the
+# def's flat rate while the patch is still better than `mine_full_rate_above` of
+# what it started with, then tapers linearly to `mine_min_rate` of it as the
+# patch empties. It never reaches zero, so a patch does finish — it just takes
+# far longer to scrape out the last of a seam than to skim the top off it.
 func _mine_per_tick(inst: Dictionary, def: Dictionary) -> float:
-	return float(def.mine.base_per_tick)
+	var base := float(def.mine.base_per_tick)
+	var initial := float(inst.get("mine_initial", 0.0))
+	var full_above := balance.mine_full_rate_above
+	if initial <= 0.0 or full_above <= 0.0:
+		return base
+	var left := _mine_remaining(inst) / initial
+	return base * lerpf(balance.mine_min_rate, 1.0, minf(left / full_above, 1.0))
 
 ## Net stockpile change per tick from currently-active buildings (for the HUD).
 func rates() -> Dictionary:
@@ -598,7 +660,7 @@ func rates() -> Dictionary:
 		var def: Dictionary = defs[inst.type]
 		if def.has("mine"):
 			var res: String = ColonyMap.DEPOSIT_RESOURCE.get(int(inst.deposit_type), "")
-			if res != "" and map.get_amount(inst.origin) > 0.0:
+			if res != "" and _mine_remaining(inst) > 0.0:
 				r[res] = float(r.get(res, 0.0)) + _mine_per_tick(inst, def)
 			continue
 		if not def.has("recipe"):
@@ -663,11 +725,16 @@ func building_report(id: int) -> Dictionary:
 		rep["progress"] = int(inst.get("progress", 0))
 	if def.has("mine"):
 		var dep := int(inst.get("deposit_type", ColonyMap.Deposit.NONE))
+		var live := 0
+		for c in mine_cells(inst):
+			if map.get_amount(c) > 0.0:
+				live += 1
 		rep["mine"] = {
 			"resource": ColonyMap.DEPOSIT_RESOURCE.get(dep, ""),
 			"richness": float(inst.get("richness", 0.0)),
 			"per_tick": _mine_per_tick(inst, def),
-			"remaining": map.get_amount(inst.origin),
+			"remaining": _mine_remaining(inst),
+			"tiles": live,
 		}
 	return rep
 
@@ -725,6 +792,7 @@ func _inst_to_dict(inst: Dictionary) -> Dictionary:
 		d["deposit_type"] = int(inst.deposit_type)
 		d["richness"] = float(inst.richness)
 		d["mine_accum"] = float(inst.mine_accum)
+		d["mine_initial"] = float(inst.get("mine_initial", 0.0))
 	return d
 
 ## Rebuilds a Colony from a to_dict() snapshot, injecting the (already
@@ -754,6 +822,11 @@ static func from_dict(p_map: ColonyMap, p_defs: Dictionary, d: Dictionary,
 		c.buildings[id] = inst
 		for cell in inst.cells:
 			c._occupancy[cell] = id
+		# Saves from before extraction slowed with depletion carry no opening
+		# reserve; take what the patch holds now, so an old save resumes at full
+		# rate rather than crawling.
+		if inst.has("deposit_type") and not inst.has("mine_initial"):
+			inst["mine_initial"] = c._mine_remaining(inst)
 	return c
 
 static func _inst_from_dict(bd: Dictionary) -> Dictionary:
@@ -782,6 +855,8 @@ static func _inst_from_dict(bd: Dictionary) -> Dictionary:
 		inst["deposit_type"] = int(bd.deposit_type)
 		inst["richness"] = float(bd.richness)
 		inst["mine_accum"] = float(bd.mine_accum)
+		if bd.has("mine_initial"):
+			inst["mine_initial"] = float(bd.mine_initial)
 	return inst
 
 ## Removes the building covering `cell` (any of its footprint cells works).

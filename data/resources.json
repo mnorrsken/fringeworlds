@@ -7,5 +7,5 @@
   { "id": "copper_ore", "name": "Copper Ore", "category": "raw",          "unit": "u", "glyph": "◇", "color": "c4844a", "desc": "Mined from confirmed copper deposits. Used to make parts." },
   { "id": "metal",      "name": "Metal",      "category": "refined",      "unit": "u", "glyph": "⬢", "color": "b8b8c0", "desc": "Refined from iron ore. The main building material." },
   { "id": "parts",      "name": "Parts",      "category": "refined",      "unit": "u", "glyph": "⚙", "color": "8a8f9a", "desc": "Built from metal and copper. Needed for advanced buildings." },
-  { "id": "xenite",     "name": "Xenite",     "category": "special",      "unit": "u", "glyph": "✦", "color": "9a5ac4", "desc": "Rare crystal. Accumulate it to launch the beacon and win." }
+  { "id": "xenite",     "name": "Xenite",     "category": "special",      "unit": "u", "glyph": "✦", "color": "9a5ac4", "desc": "Rare high-energy crystal, the feedstock for power-hungry technology. Banking enough of it launches the beacon and completes phase 1." }
 ]

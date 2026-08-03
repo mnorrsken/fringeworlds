@@ -117,8 +117,15 @@ func _lines(report: Dictionary, terrain: String, reading: String) -> Array:
 	if report.has("mine"):
 		var m: Dictionary = report.mine
 		out.append("mining %s  (%.2f/t)" % [str(m.resource), float(m.per_tick)])
+		# The reserve is the whole patch the machine reaches, not just the tile it
+		# stands on, so say how many tiles are still feeding it.
 		var left := int(round(float(m.get("remaining", 0.0))))
-		out.append("reserve %d left" % left if left > 0 else "reserve worked out")
+		var tiles := int(m.get("tiles", 0))
+		if left <= 0:
+			out.append("reserve worked out")
+		else:
+			out.append("reserve %d left across %d tile%s" % [
+				left, tiles, "" if tiles == 1 else "s"])
 
 	out.append("")
 	out.append(terrain + ("  ·  " + reading if reading != "" else ""))

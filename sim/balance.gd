@@ -18,7 +18,9 @@ var base_capacity := 0
 var starve_ticks := 24
 ## Consecutive ticks of met needs (with housing spare) before one is born.
 var growth_ticks := 110
-## Xenite that must be stockpiled to launch the beacon and win.
+## Xenite that must be banked to launch the beacon and complete phase 1. Xenite
+## is an ordinary high-energy material otherwise — later technology will burn it
+## — this is simply the quota the first phase of the colony is judged on.
 var victory_xenite := 260
 ## Richness of the iron deposit the hub guarantees within its survey range.
 var guaranteed_richness := 0.6
@@ -40,11 +42,19 @@ var reading_jitter := 0.25
 ## its own right.
 var building_buffer := 4
 ## Extractable units a deposit holds at full richness, keyed by deposit name. A
-## tile's actual reserve is its richness times this, so richness now means "how
-## much is down there", not "how fast it comes up" — extraction runs at a flat
-## rate and a tile simply runs dry. Xenite is deliberately small against the
-## victory target: one crystal formation can't finish the beacon.
-var deposit_units := {"IRON": 600.0, "COPPER": 260.0, "XENITE": 30.0}
+## tile's actual reserve is its richness times this, so richness means "how much
+## is down there", not "how fast it comes up" — the rate depends only on how
+## worked-out the patch is (below), and a tile eventually runs dry. Xenite is
+## deliberately small against the phase-1 quota: one crystal formation can't
+## fill it on its own.
+var deposit_units := {"IRON": 1400.0, "COPPER": 620.0, "XENITE": 70.0}
+## Extraction slows as the patch an extractor works empties out. It runs at the
+## def's full rate while the patch still holds more than `mine_full_rate_above`
+## of what it held when the machine was sited, then tapers linearly down to
+## `mine_min_rate` of that rate as the patch approaches empty. The floor is what
+## keeps a patch finite: scraping out the last of a seam is slow, not endless.
+var mine_min_rate := 0.2
+var mine_full_rate_above := 0.5
 ## Fraction of a building's cost returned when it is demolished. This is the
 ## colony's only way to turn a building back into resources, so it is what makes
 ## an over-committed base recoverable instead of a dead end.
@@ -65,6 +75,11 @@ static func from_dict(d: Dictionary) -> Balance:
 
 	var victory: Dictionary = d.get("victory", {})
 	b.victory_xenite = int(victory.get("xenite", b.victory_xenite))
+
+	var mining: Dictionary = d.get("mining", {})
+	b.mine_min_rate = clampf(float(mining.get("min_rate", b.mine_min_rate)), 0.0, 1.0)
+	b.mine_full_rate_above = clampf(
+		float(mining.get("full_rate_above", b.mine_full_rate_above)), 0.0, 1.0)
 
 	var sim: Dictionary = d.get("sim", {})
 	b.ticks_per_second = float(sim.get("ticks_per_second", b.ticks_per_second))
