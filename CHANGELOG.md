@@ -6,8 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Extractors now work a 3×3 patch instead of one tile.** New `mine.radius`
+  (1) on `mine`/`crystal_extractor`; `Colony.mine_cells()` collects every
+  same-deposit tile in range (derived from the map, so it survives
+  save/load), drawn down nearest-first each tick and reported via
+  `reserve_changes`. Still only draws its own ore — an iron mine ignores
+  copper next door — and idles "Deposit worked out" only once the whole
+  patch is empty.
+- **Extraction slows as a patch empties.** New `mining.min_rate`/
+  `full_rate_above` balance keys (`Balance.mine_min_rate` 0.2,
+  `mine_full_rate_above` 0.5): an extractor runs at its def's flat rate
+  while the patch still holds more than half of what it held when sited
+  (`mine_initial`, serialized; backfilled for older saves), then tapers
+  linearly to 20% of that rate as it empties. Never reaches zero, so a
+  patch always finishes — the tail just takes much longer than the top.
+
 ### Changed
 
+- Deposit sizes roughly doubled (`deposit_units`: IRON 600→1400, COPPER
+  260→620, XENITE 30→70); combined with 3×3 patches, extractors relocate
+  far less often (seed 1337: 8 mines/6 crystal extractors vs. ~35/~25
+  before). `make playtest`: 5/5 seeds win, average 29.1 min (up from 25.3).
+- Xenite reframed as an ordinary high-energy material (feedstock for future
+  power-hungry tech) rather than a bespoke victory token; banking the
+  `victory.xenite` quota (still 260) is now "phase 1", not the whole game.
+  Game-over screen: "BEACON LAUNCHED" → "PHASE 1 COMPLETE".
+- Building inspector's mine report now covers the whole patch — "reserve
+  N left across M tiles" — instead of one tile's remaining units; Mine's
+  description no longer claims richer tiles extract faster (they never
+  did, once richness became reserve size rather than rate).
 - Prospecting overlay now shades confirmed/coarse tiles by how much of the
   deposit is left, on a per-deposit-type scale (30 xenite units reads "full"
   the same as 600 iron units) — a worked-out tile fades to dim grey, a fat

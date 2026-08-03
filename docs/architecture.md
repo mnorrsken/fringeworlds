@@ -279,10 +279,14 @@ guaranteed-deposit richness, the demolition refund fraction, life-support
 draw per colonist, the starting stockpile, sim tick rate, autosave
 interval, the low-stock alert floor, prospecting reading jitter, each
 building's internal buffer size (`building_buffer`, default `4` — see
-"Storage limits" below), and (the
+"Storage limits" below), (the
 finite-deposits rework) `deposit_units` — extractable units per deposit
-type at full richness (`IRON: 600, COPPER: 260, XENITE: 30`), read by
-`ColonyMap.set_deposit()` to size a tile's reserve. Tuning the game means
+type at full richness (`IRON: 1400, COPPER: 620, XENITE: 70` since the
+patch-mining rework, up from `600/260/30`), read by `ColonyMap.set_deposit()`
+to size a tile's reserve, and (the depletion-taper rework) `mining.min_rate`/
+`mining.full_rate_above` (`Balance.mine_min_rate`/`mine_full_rate_above`,
+defaults `0.2`/`0.5`) — how far and how soon extraction rate tapers as a
+patch empties, see "Deposits and prospecting" below. Tuning the game means
 editing that file, not engine code.
 
 `sim/balance.gd` (`Balance`, `class_name`, `RefCounted`) holds every one of
@@ -465,6 +469,14 @@ free, an unconditional reserve could block the very first building and
 starve the colony before it began. 5/5 seeds win, 25.4–26.4 minutes,
 average 25.9 — close to the finite-deposits figure above, since the tuning
 goal was a tighter opening and mandatory warehouses, not a longer session.
+
+**After patch mining** (see "Deposits and prospecting" below): no rate
+retune was needed, because the 3×3 patch and the depletion taper pull in
+opposite directions — an extractor gathers from far more ground but runs
+slower as it strips it — and the doubled `deposit_units` mostly buy back
+downtime rather than throughput. 5/5 seeds win, 27.9–31.4 minutes, average
+29.1, with a fraction of the relocations (seed 1337: 8 mines and 6 crystal
+extractors, against roughly 35 and 25 before).
 
 The findings above — the metal loop, the water chain, the stockpile as the
 single biggest sim assumption — shaped the v2 candidates written up in
@@ -866,23 +878,66 @@ only cell to check. On placement, `place()` latches `deposit_type`,
 `richness`, and a `mine_accum` float onto the instance — the deposit is
 fixed at build time, not re-read every tick.
 
-Since the finite-deposits rework, `_run_mine` (called from
-`_run_production` for any `active` building with a `mine` def block) no
-longer scales its rate by richness: it adds a flat `base_per_tick` to
-`mine_accum` every tick and pays out whole units, capped at
-`map.get_amount(origin)`, drawing that reserve down by the same amount
-(`map.set_amount`) and appending `origin` to `Colony.reserve_changes` (see
-"Signals" above). Once the reserve hits `0.0`, `_run_mine` idles the
-building (`active = false`, `idle_reason = "Deposit worked out"`) instead
-of accumulating further — the extractor has to be demolished (for the
-refund) and rebuilt elsewhere. `rates()` mirrors this: a worked-out tile
-contributes nothing to the projected per-tick figure, not just to actual
-output. Richness now determines how much ore a tile ever holds, not how
-fast it comes up — see `_amount`/`deposit_units` above.
-`ColonyMap.reading_text()` reports units-left ("IRON · 240 units left") on
-a confirmed tile instead of a richness percentage, and "worked out" at
-zero; `ui/hover_panel.gd`'s mine line does the same via
-`building_report()`'s new `remaining` field.
+**Extractors work a 3×3 patch, not one tile** (patch-mining rework). A
+`mine` def block can carry `radius` (both `mine` and `crystal_extractor`
+ship `radius: 1`, i.e. a 3×3 area). `Colony.mine_cells(inst)` returns
+every cell within that radius of the extractor's origin that currently
+holds the *same* deposit type it was sited on, origin first — derived
+fresh from the map each call rather than latched at placement, so the
+patch is correct after a save/load without needing its own serialized
+field. A mine still only ever draws its own ore: an iron mine standing
+next to a copper vein ignores the copper cells entirely, since
+`mine_cells` filters by matching deposit type. `_mine_remaining(inst)`
+sums `map.get_amount()` over the patch — the reserve an extractor now
+tracks is the whole patch's total, not one cell's.
+
+`_run_mine` (called from `_run_production` for any `active` building with
+a `mine` def block) draws the tick's whole units out of the patch
+nearest-first: it accumulates `_mine_per_tick()` (below) into
+`mine_accum`, pays out whole units capped by both the patch's total
+remaining and available buffer room, then walks `mine_cells()` in order
+taking from each cell in turn until the payout is spent, appending every
+cell it actually drew from to `Colony.reserve_changes` (so the overlay can
+shade more than one tile per tick). Only once the *whole* patch sums to
+`0.0` does it idle (`active = false`, `idle_reason = "Deposit worked
+out"`) — a partially-emptied patch keeps running, just off whatever cells
+still have ore.
+
+**Extraction slows as the patch empties** (depletion-taper rework).
+`_mine_per_tick(inst, def)` no longer returns a flat `def.mine.base_per_tick`
+for the extractor's whole life: it compares the patch's current total
+(`_mine_remaining`) against `inst.mine_initial` — the patch's total at the
+moment the extractor was sited, serialized, and back-filled from the
+patch's current contents for saves from before this rework (so an old save
+reads as "still full" rather than instantly cliffing to minimum rate). While
+the patch still holds more than `balance.mine_full_rate_above` (new
+`mining.full_rate_above`, default `0.5`, i.e. half) of that opening amount,
+extraction runs at the full `base_per_tick`; below that it tapers linearly
+down to `balance.mine_min_rate` (new `mining.min_rate`, default `0.2`, i.e.
+20%) of the base rate as the patch approaches empty, and never drops below
+that floor — a patch always finishes, but scraping out the last of a seam
+takes far longer than skimming the top off it. Measuring against the
+patch's own *opening* reserve, not a full-richness deposit, keeps the old
+rule intact: richness still only sizes the reserve (via `deposit_units`,
+below), never the rate. `rates()` mirrors both the patch and the taper for
+its projected-per-tick figure; a worked-out patch contributes nothing.
+
+`deposit_units` (the per-type full-richness reserve size, read by
+`ColonyMap.set_deposit()`) roughly doubled in the same pass — IRON
+600→1400, COPPER 260→620, XENITE 30→70. Together with the 3×3 patch and
+the taper, that turns extraction from a treadmill of relocations into
+something you site and leave running: a bot run on seed 1337 now builds 8
+mines and 6 crystal extractors across a game, down from roughly 35 and 25,
+and wins in 29.1 min rather than 25.3.
+
+`ColonyMap.reading_text()` still reports one tile's units-left ("IRON ·
+240 units left") on a confirmed cell, and "worked out" at zero, since a
+scan reading is necessarily per-tile; `building_report()`'s `mine` field
+now separately reports the *patch's* total remaining plus a `tiles` count
+of cells still holding ore, and `ui/hover_panel.gd`'s mine line reads
+"reserve 816 left across 2 tiles" from those two numbers instead of one
+tile's remaining units. Mine's `desc` no longer claims richer tiles
+extract faster — richness only ever sized the reserve, never the rate.
 
 `Sim._advance_tick()` emits `Events.scan_changed(colony.scan_changes)` and
 `Events.reserves_changed(colony.reserve_changes)` after `colony.tick()`,
@@ -1676,8 +1731,10 @@ time or the UI. It also calls `sidebar.set_speed(Sim.speed)` every frame.
 Finally it refreshes the F1 debug label.
 
 **Game over (Milestone 5)**: `_on_game_over(won: bool)`, connected to
-`Events.game_over`, sets the game-over panel's title to "BEACON LAUNCHED"
-(win) or "COLONY LOST" (loss), a matching subtitle plus "Press Enter to
+`Events.game_over`, sets the game-over panel's title to "PHASE 1 COMPLETE"
+(win, reframed from "BEACON LAUNCHED" — xenite is an ordinary material now,
+banking the quota is phase 1 of the colony's life, not the whole game) or
+"COLONY LOST" (loss), a matching subtitle plus "Press Enter to
 start a new colony.", and shows `_gameover_root`. `_unhandled_input`
 checks `_gameover_root.visible` first, before the normal input `match`: while
 it's visible, `Enter`/numpad-`Enter` calls `get_tree().reload_current_scene()`

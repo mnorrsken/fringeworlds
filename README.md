@@ -23,10 +23,13 @@ in expanding rings, upgrading each tile's reading from unscanned to a
 coarse guess to a confirmed deposit — toggle the `P` overlay to see it
 happen. Finding a deposit is quick; away from the hub, confirming how
 rich it is is a slow, scattered resample. Deposits are finite: richness
-sizes how many units are down there, not how fast they come up, so an
-extractor runs at a flat rate and eventually works its tile dry and has
-to be moved. Xenite lives visibly in crystal formations — you can see
-where the crystal is from the start, but not how much is in it. Colonists
+sizes how many units are down there, not how fast they come up. An
+extractor works the whole 3×3 patch of matching ore around where it's
+sited, drawing it down nearest-first and slowing as the patch empties, and
+eventually runs the whole patch dry and has to be moved. Xenite lives
+visibly in crystal formations — an ordinary high-energy material now, not
+just a victory token — you can see where the crystal is from the start,
+but not how much is in it. Colonists
 need oxygen, water, and food every tick, drawn from a production chain
 you build (ice → water → oxygen/food); go hungry too long and the colony
 starts losing colonists, keep everyone fed and housed under capacity and
@@ -34,8 +37,8 @@ it grows. Storage is limited too — the Colony Hub's yard is small and can't
 hold xenite at all, so a full store stalls whatever's feeding it until you
 build Warehouses. Refine ore into metal into parts, extract xenite once
 you've got enough parts to build the extractor, and hit the victory
-threshold to "launch the beacon" — or lose everyone and see the colony
-end, either way followed by a one-key restart.
+threshold to complete "phase 1" (the beacon launches) — or lose everyone
+and see the colony end, either way followed by a one-key restart.
 
 The build menu unlocks new buildings as you build their prerequisites —
 🔒 marks what's still out of reach — so a first playthrough naturally
@@ -83,7 +86,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1240 assertions across 125 tests, 0 failures.**
+**1276 assertions across 133 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
@@ -181,11 +184,11 @@ loses, press **Enter** on the game-over screen to start a fresh colony.
 | Survey Station | 1×1 | 25 metal | −3 | 0 | scans outward (ring every 3 ticks, radius 7), then slow resample to confirm | Hub, inside existing survey coverage | Regolith, Highlands |
 | Electrolysis Plant | 1×1 | 20 metal | −4 | 0 | water → 1 oxygen / 3 ticks | Ice Harvester | Regolith, Highlands |
 | Hydroponics Farm | 2×2 | 20 metal | −3 | 0 | water → 1 food / 3 ticks | Ice Harvester | Regolith |
-| Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore, 0.30 / tick until the tile's reserve runs out | Hub | confirmed Iron or Copper |
+| Mine | 1×1 | 20 metal | −4 | 0 | iron/copper ore from a 3×3 patch, 0.30/tick tapering to 20% as it empties | Hub | confirmed Iron or Copper |
 | Smelter | 1×1 | 25 metal | −4 | 2 | 2 iron ore → 1 metal / 2 ticks | Mine | Regolith, Highlands |
 | Parts Factory | 2×2 | 35 metal | −5 | 3 | 2 metal + 1 copper ore → 1 parts / 4 ticks | Smelter | Regolith, Highlands |
 | Warehouse | 2×2 | 45 metal + 6 parts | −2 | 0 | holds up to 100 metal/ore, 60 parts, 90 xenite, 150 life support | Parts Factory | Regolith, Highlands |
-| Crystal Extractor | 1×1 | 20 metal + 8 parts | −6 | 2 | xenite, 0.022 / tick until the formation's reserve runs out | Parts Factory | confirmed Xenite, Crystal terrain |
+| Crystal Extractor | 1×1 | 20 metal + 8 parts | −6 | 2 | xenite from a 3×3 patch, 0.022/tick tapering to 20% as it empties | Parts Factory | confirmed Xenite, Crystal terrain |
 
 Defined in `data/buildings.json`. Storage is capped and physical: a
 building's `storage` block adds to what the colony can hold of each
@@ -217,10 +220,13 @@ demand exceeds supply of either. Only the processing/advanced tier
 rest of the starter loop is fully automated. Mine and Crystal Extractor
 can only be placed on a tile whose prospecting scan is CONFIRMED and whose
 hidden deposit matches (Crystal Extractor additionally requires Crystal
-terrain, since that's the only place xenite generates); a tile's richness
-sizes its extractable reserve rather than its output rate, so extraction
-runs at a flat rate and a worked-out tile idles ("Deposit worked out")
-until the extractor is demolished and rebuilt elsewhere. A locked building
+terrain, since that's the only place xenite generates); once sited, an
+extractor works every matching-ore tile in a 3×3 patch around it, not just
+the one it stands on, drawing the nearest ground first and slowing to 20%
+of its rate as the whole patch empties — a worked-out patch idles ("Deposit
+worked out") until the extractor is demolished and rebuilt elsewhere. A
+tile's richness sizes its share of that reserve rather than its output
+rate. A locked building
 (unmet "Requires built") can't be placed and shows 🔒 in the build menu
 until its prerequisite is built — the unlock persists even if that
 prerequisite is later demolished. Demolishing any building refunds half

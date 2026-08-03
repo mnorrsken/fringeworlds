@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1240 assertions across 125 tests, 0 failures** (`make test`).
+Current test count: **1276 assertions across 133 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -134,3 +134,13 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   stalled-on-storage building stays lit/staffed but goes visibly quiet.
   `make playtest`: 5/5 seeds win, 24.9–25.8 min (avg 25.3). See
   `docs/architecture.md`'s "Storage limits" and "Two visual states".
+- **Patch mining & depletion taper — done.** Extractors now work a 3×3
+  patch of matching ore around where they're sited (`mine.radius`),
+  draining it nearest-first, and slow to 20% rate as the patch empties
+  rather than running flat-out to the last unit. `deposit_units` roughly
+  doubled (IRON 1400, COPPER 620, XENITE 70) so extractors relocate far
+  less often. Xenite is now framed as an ordinary high-energy material
+  rather than a bespoke victory token — banking the quota is "phase 1"
+  (game-over title "PHASE 1 COMPLETE"), not the whole game. `make
+  playtest`: 5/5 seeds win, average 29.1 min (up from 25.3). See
+  `docs/architecture.md`'s "Deposits and prospecting".
