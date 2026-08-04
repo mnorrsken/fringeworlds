@@ -33,7 +33,10 @@ but not how much is in it. Colonists
 need oxygen, water, and food every tick, drawn from a production chain
 you build (ice → water → oxygen/food); go hungry too long and the colony
 starts losing colonists, keep everyone fed and housed under capacity and
-it grows. Storage is limited too — the Colony Hub's yard is small and can't
+it grows. You can watch them, too — colonists walk the open ground between
+buildings, stepping through doors for a shift and back out again; it's a
+cosmetic reading of the population number (the simulation still just
+counts colonists), not simulated individual agents. Storage is limited too — the Colony Hub's yard is small and can't
 hold xenite at all, so a full store stalls whatever's feeding it until you
 build Warehouses. Refine ore into metal into parts, extract xenite once
 you've got enough parts to build the extractor, and hit the victory
@@ -86,12 +89,14 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1276 assertions across 133 tests, 0 failures.**
+**1329 assertions across 147 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
 under `assets/audio/` via `tools/gen_audio.py` — Python stdlib only, no
-downloaded assets), `make playtest` (bot-plays several seeds headlessly and
+downloaded assets), `make sprites` (rebuilds `assets/colonist.png` from the
+per-direction GIFs in `assets/characters/` via `tools/gif_to_sheet.py`),
+`make playtest` (bot-plays several seeds headlessly and
 prints win/loss, timing, and build order — see
 [`docs/architecture.md`](docs/architecture.md#pacing-harness-colonybot-milestone-9)),
 `make clean` (remove the generated `.godot/` cache and `build/`).
@@ -284,7 +289,9 @@ the v2 hooks list is written down at
 [`docs/v2-candidates.md`](docs/v2-candidates.md). With all nine milestones
 done, the game now exports to distributable macOS/Windows/Linux builds
 (`make release`/`make export`, see
-[`DISTRIBUTING.md`](DISTRIBUTING.md)). See
+[`DISTRIBUTING.md`](DISTRIBUTING.md)). Post-launch, colonists now walk
+around the base — a cosmetic view-layer crowd (`render/colonist_crowd.gd`)
+with no effect on the simulation or its pacing. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

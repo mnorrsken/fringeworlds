@@ -8,6 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Walking colonists.** The colony now has a visible crowd: colonists step
+  out of building doors, cross open ground, and go back in for a shift —
+  purely a view-layer reading of the population number, not simulated
+  agents (the sim itself is untouched; `make playtest` tick counts are
+  identical to before). New `render/colonist_crowd.gd` (`ColonistCrowd`, a
+  pure, headlessly-tested `RefCounted`) reads `Colony` — population, which
+  buildings are active and how many workers they want, where their doors
+  are — and never writes to it; pathing is an `AStarGrid2D` over open
+  ground (regolith/highlands/ice only — crystal and canyons stay
+  impassable). New `render/colonist_sprite.gd`/`render/colonists_view.gd`
+  draw and step the crowd in real time (frozen while paused, scaled by game
+  speed); walker sprites are parented into the same y-sorted layer as
+  buildings so a colonist can walk behind one building and in front of
+  another. New `data/colonists.json` (`Defs.colonists`) holds the sprite
+  sheet contract and movement tuning — cosmetic only, no sim rule reads it.
+  New `data/buildings.json` `door` block (six buildings so far) and
+  `sim/iso_grid.gd` additions (`grid_to_screen_f`/`screen_to_grid_f`/
+  `screen_offset_to_grid`) support fractional, between-tile positions and
+  turn a door's pixel anchor on the art into a point on the ground. New art
+  pipeline: `tools/gif_to_sheet.py` + `make sprites` converts a folder of
+  per-direction GIFs (Godot can't read animated GIFs) into
+  `assets/colonist.png`; the shipped sheet is built from
+  `assets/characters/*.gif`. No sheet at all falls back to a drawn
+  placeholder figure, the same idiom `BuildingSprite` already uses.
 - **Extractors now work a 3×3 patch instead of one tile.** New `mine.radius`
   (1) on `mine`/`crystal_extractor`; `Colony.mine_cells()` collects every
   same-deposit tile in range (derived from the map, so it survives

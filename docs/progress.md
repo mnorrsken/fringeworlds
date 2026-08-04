@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1276 assertions across 133 tests, 0 failures** (`make test`).
+Current test count: **1329 assertions across 147 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -144,3 +144,8 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   (game-over title "PHASE 1 COMPLETE"), not the whole game. `make
   playtest`: 5/5 seeds win, average 29.1 min (up from 25.3). See
   `docs/architecture.md`'s "Deposits and prospecting".
+- **Walking colonists — done.** A visible crowd (`ColonistCrowd`,
+  `ColonistsView`) now walks the base — out of building doors, across open
+  ground, back in for a shift — purely a view-layer reading of the
+  population number; the sim is untouched (`make playtest` tick counts are
+  identical). See `docs/architecture.md`'s "The colonist crowd".

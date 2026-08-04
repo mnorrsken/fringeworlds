@@ -154,7 +154,8 @@ good reason.
   isometric `TileMapLayer` and asserts equality cell-by-cell.
 - `IsoGrid.screen_to_grid(pos: Vector2) -> Vector2i` — inverse: which cell's
   diamond contains a screen/world point. Round-trip-tested against
-  `grid_to_screen` for a range of cells.
+  `grid_to_screen` for a range of cells. Implemented as `screen_to_grid_f`
+  (below) rounded to the nearest cell.
 
 Everything that needs to place or pick a tile is expected to go through
 `IsoGrid` rather than re-deriving the formula. Today that's `TerrainView`
@@ -164,13 +165,35 @@ and `BuildingSprite`, which uses `IsoGrid.grid_to_screen` to place itself at
 a building's front tile and to compute its footprint diamond's corners in
 `_draw()`.
 
+**Fractional and offset variants (walking-colonists feature).** Three more
+statics support things that don't sit neatly on one cell:
+
+- `IsoGrid.grid_to_screen_f(p: Vector2) -> Vector2` / `screen_to_grid_f(pos:
+  Vector2) -> Vector2` — the same projection as `grid_to_screen`/
+  `screen_to_grid`, but for a fractional grid position rather than an
+  integer cell (whole numbers still land on cell centres). This is how a
+  colonist standing between two tiles, mid-stride, gets a screen position.
+- `IsoGrid.screen_offset_to_grid(off: Vector2) -> Vector2` — converts a
+  screen-space *delta* (not a position) into the equivalent offset in grid
+  units: the projection's linear part with the half-tile origin shift left
+  out. This is how a door's pixel offset, measured on a building's art (the
+  same convention as the `fx` anchors), becomes a point on the ground —
+  see "The colonist crowd" below.
+
 ## Data-driven content
 
 Per the plan's architecture principles, building/resource/recipe content is
 meant to live in JSON under `data/`, not in engine code. `data/audio.json`
-(the sound cue manifest, loaded into `Defs.audio`) follows the same pattern
-— see "Audio" below — but is described there rather than here since it's
-consumed by the view layer, not `Colony`. Building/resource content:
+(the sound cue manifest, loaded into `Defs.audio`) and `data/colonists.json`
+(the walking-colonist crowd's art contract and movement tuning, loaded into
+`Defs.colonists`) follow the same pattern — see "Audio" and "The colonist
+crowd" below — but are described there rather than here since they're
+consumed by the view layer, not `Colony`. `Defs._load_object()` is the
+loader colonists.json uses: like `_load_json` but for a single JSON object
+rather than a list of id'd entries (the same shape `_load_balance` already
+special-cased for `balance.json`), returning `{}` on any failure so a
+missing/broken file just means default tuning, not a broken game. Building/
+resource content:
 
 - `data/resources.json` — an array of 9 objects (`id`, `name`, `category`,
   `unit`), loaded into `Defs.resources`.
@@ -263,7 +286,12 @@ consumed by the view layer, not `Colony`. Building/resource content:
   three blinking status lamps on its tanks and tower.
   `starting_stockpile.metal` in `data/balance.json` dropped 120 → 50 to
   match the smaller hub yard (a colony can't land with more metal than its
-  own storage can hold).
+  own storage can hold). The walking-colonists feature added an optional
+  `door` block (`{cell: [dx, dy], offset: [px, py]}`, both parts optional —
+  see "The colonist crowd" below): six buildings (hub, habitat, smelter,
+  parts_factory, warehouse, crystal_extractor) declare one so far; a
+  building with none is entered at the front of its footprint. Read only
+  by `ColonistCrowd`, not `Colony`.
 
 There is no separate `data/recipes.json` — recipes live inline on the
 building that runs them, one recipe per building, which is enough for the
@@ -1514,6 +1542,107 @@ Draw order is controlled two ways, set on the nodes in `main.tscn`:
   see `docs/progress.md`'s Milestone 2 section and the class doc-comment at
   the top of `tile_cursor.gd`.
 
+## The colonist crowd (`ColonistCrowd`/`ColonistsView`)
+
+The colony's population has always been a plain number on `Colony` (per the
+plan's design: "a number, not simulated individuals walking around — no
+pathfinding in v1"). This feature gives that number a body: colonists now
+walk the open ground between buildings, step through doors for a shift, and
+come back out. It is **deliberately cosmetic** — a chosen departure in
+spirit from the plan's "no pathfinding" line, not its letter, since the
+simulation itself still only ever holds a `population: int`. `Colony` is
+unmodified; `tests/test_crowd.gd::test_the_crowd_never_writes_to_the_colony`
+re-serializes a colony after 300 simulated seconds of walking and diffs it
+against itself as the regression guard for that boundary, and `make
+playtest`'s tick counts per seed are identical to before the feature.
+
+- **`render/colonist_crowd.gd`** (`ColonistCrowd`, `RefCounted`, no
+  autoload/`Events`/node dependency — tested headlessly like `Colony`/
+  `ColonyMap`) owns the walkers and their state machine: `WALKING` (crossing
+  the ground toward a target), `PAUSED` (standing a moment before choosing
+  somewhere new), `INSIDE` (through a door, off-screen, on shift). It reads
+  `Colony` — population, which buildings are active and how many `workers`
+  each currently asks for, where doors are — and never writes back to it.
+  - **`refresh()`**, called every tick by `ColonistsView`, re-reads the
+    colony. It only rebuilds the `AStarGrid2D` solid map when the buildings
+    actually changed, via a cheap fingerprint over instance ids
+    (`_ground_stamp()`) rather than diffing cell-by-cell — cheap enough that
+    100 refreshes cost ~1.2ms with a dozen walkers and 11 buildings.
+  - **Crowd size** tracks `population`, capped at `max_visible`
+    (`data/colonists.json`, default 20) so a large colony doesn't turn into
+    a swarm. With no buildings standing there is nobody outside — the
+    colonists are still aboard the lander; four figures on bare regolith
+    before the Hub exists would read as a bug.
+  - **Jobs**: one slot per `workers` a currently-*active* building asks for,
+    oldest building first (the same oldest-first convention `_balance_power`/
+    `_balance_workforce` use), handed to colonists in arrival order. A
+    building that shuts down (no power/workers/hub) stops offering slots, so
+    its crew visibly walks back out and joins the strollers — the visible
+    half of "idle", read entirely off sim state rather than invented by the
+    view.
+  - **Pathing** is an `AStarGrid2D` over open ground: walkable terrain is
+    REGOLITH/HIGHLANDS/ICE and not built on; CRYSTAL and VOID (canyons) stay
+    impassable, matching the plan's terrain rules.
+  - **Doors**: a colonist walks to the open cell in front of a building's
+    door, then takes one more step *through* the door point and disappears
+    for a shift (`shift_seconds`), later reversing the same way. `door_of`
+    on a walker is the one licence to stand on a building's footprint —
+    `_evict_stranded()` (run every `refresh()`) treats anyone else found
+    standing on a building as stranded and puts them back on open ground;
+    the very first version of this rule didn't exempt an in-progress door
+    crossing and bounced every colonist straight back out before they ever
+    got inside, which is why there's now a regression test
+    (`test_going_to_work_survives_a_refresh_every_step`) that refreshes on
+    every simulated step rather than only between phases.
+- **`render/colonist_sprite.gd`** (`ColonistSprite`) draws one frame of the
+  walk sheet — 8 facing rows × `walk_frames` columns, frame 0 doubling as
+  the standing pose — anchored so the figure's feet sit on its ground point.
+  With no sheet configured it falls back to a small procedurally-drawn
+  placeholder figure, the same idiom `BuildingSprite` uses for buildings
+  without art yet.
+- **`render/colonists_view.gd`** (`ColonistsView`) steps the `ColonistCrowd`
+  in real time — frozen while `Sim.is_paused()`, scaled by `Sim.speed` so it
+  speeds up at 3× like everything else — and keeps one `ColonistSprite` per
+  visible walker, freeing sprites for anyone who went `INSIDE` or was
+  removed. **Its sprites are parented into `BuildingsView`'s y-sorted layer
+  (`Buildings` in `main.tscn`), not under `ColonistsView` itself** — Godot's
+  y-sort only interleaves *siblings*, so sharing that parent is what lets a
+  colonist walk behind one building and in front of another rather than
+  always drawing above or below the whole buildings layer. `main.gd` calls
+  `_colonists.bind(_buildings)` after `_buildings.bind()` for exactly this
+  reason.
+- **`data/colonists.json`** (`Defs.colonists`, loaded via the new
+  `Defs._load_object()` — see "Data-driven content" above) is the art
+  contract (`sprite`, `frame_size`, `anchor`, `walk_frames`, `fps`) plus the
+  movement tuning (`speed`, `speed_jitter`, `max_visible`, `shift_seconds`,
+  `pause_seconds`, `work_chance`, `stroll_radius`). Entirely cosmetic — no
+  sim rule reads it.
+- **Doors on `data/buildings.json`** (see "Data-driven content" above): an
+  optional `door` block per building, `{cell: [dx, dy], offset: [px, py]}`,
+  both parts optional. `offset` is a pixel measurement on the building's art
+  — the same convention as the `fx` anchors — converted to a ground point
+  via the new `IsoGrid.screen_offset_to_grid()` (see "Grid math" above). Six
+  buildings declare one (hub, habitat, smelter, parts_factory, warehouse,
+  crystal_extractor); anything without one is entered at the front of its
+  footprint, which is where an isometric building's face is anyway.
+- **Art pipeline.** Godot cannot read animated GIFs, so `tools/gif_to_sheet.py`
+  (pure Python — a hand-rolled GIF89a/LZW decoder and PNG writer, no
+  third-party libraries) converts a folder of per-direction GIFs
+  (`assets/characters/*.gif`, 8 directions × 4 frames) into one sprite sheet
+  (`assets/colonist.png`), trimming every direction to a common bounding box
+  so the figure keeps its footing across facings, and prints the
+  `frame_size`/`walk_frames`/`anchor` values to paste into
+  `data/colonists.json`. `make sprites` runs it.
+- **`tests/test_crowd.gd`** covers the contract above: crowd size tracks
+  population; nobody is outside before the first building; colonists only
+  ever stand on open ground or their own doorway; they never cross
+  impassable terrain; they go to work and a shut building empties out;
+  demolition doesn't strand anyone; building on top of a colonist moves them
+  clear; behavior is deterministic per seed; the 8 facing rows follow screen
+  directions (`facing_for()`, which projects a grid-space heading through
+  the same iso projection before measuring its angle, since equal grid steps
+  aren't equal on screen).
+
 ## Overhead map (`Minimap`)
 
 `render/minimap.gd` (`Minimap`, extends `Control`) is a top-down view of
@@ -1698,7 +1827,10 @@ click in `Mode.NONE` (no build/demolish mode active) does nothing.
 top-level scene and game controller. On `_ready()` it calls
 `Sim.new_game(DEFAULT_SEED, MAP_SIZE)` (seed `1337`, 64×64), hands the
 resulting map to `TerrainView` to render, calls `_prospect.setup(_map)`
-(Milestone 4), calls `BuildingsView.bind()`, centers the `IsoCamera`, wires
+(Milestone 4), calls `BuildingsView.bind()` then `_colonists.bind(_buildings)`
+(walking-colonists feature — must come after, so the crowd's sprites share
+`BuildingsView`'s y-sorted layer; see "The colonist crowd" below), centers
+the `IsoCamera`, wires
 up the sidebar (`populate`, `build_requested` → enter place mode,
 `demolish_requested` → enter demolish mode), calls
 `_minimap.setup(_map, _camera)`, connects `Events.game_over` to
