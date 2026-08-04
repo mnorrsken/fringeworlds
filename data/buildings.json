@@ -9,6 +9,7 @@
     },
     "scan": { "max_radius": 6, "ticks_per_ring": 3 },
     "guarantees_deposit": "IRON",
+    "door": { "offset": [0, -7] },
     "sprite": "res://assets/hub.png",
     "fx": [
       { "type": "lamp", "at": [0, -81], "color": "ff4a3a", "period": 1.8, "duty": 0.22, "radius": 1.8 },
@@ -34,6 +35,7 @@
     "id": "habitat", "name": "Habitat", "size": 2,
     "cost": { "metal": 30 }, "power": -2, "workers": 0, "capacity": 6,
     "requires_built": ["hub"],
+    "door": { "offset": [-4, -8] },
     "sprite": "res://assets/habitat.png",
     "fx": [
       { "type": "steam", "at": [-6, -70], "rate": 6, "scale": 0.8, "alpha": 0.45 },
@@ -119,6 +121,7 @@
     "cost": { "metal": 25 }, "power": -4, "workers": 2,
     "requires_built": ["mine"],
     "recipe": { "inputs": { "iron_ore": 2 }, "outputs": { "metal": 1 }, "ticks": 2 },
+    "door": { "offset": [0, -5] },
     "sprite": "res://assets/smelter.png",
     "fx": [
       { "type": "smoke", "at": [-9, -38], "rate": 4 },
@@ -134,6 +137,7 @@
     "cost": { "metal": 35 }, "power": -5, "workers": 3,
     "requires_built": ["smelter"],
     "recipe": { "inputs": { "metal": 2, "copper_ore": 1 }, "outputs": { "parts": 1 }, "ticks": 4 },
+    "door": { "offset": [6, -8] },
     "sprite": "res://assets/partsfactory.png",
     "fx": [
       { "type": "smoke", "at": [-34, -80], "color": "8a7e70", "rate": 4 },
@@ -153,6 +157,7 @@
       "water": 150, "oxygen": 150, "food": 150,
       "metal": 100, "iron_ore": 100, "copper_ore": 100, "parts": 60, "xenite": 90
     },
+    "door": { "offset": [0, -8] },
     "sprite": "res://assets/warehouse.png",
     "fx": [
       { "type": "steam", "at": [-2, -86], "rate": 6, "scale": 1.0, "alpha": 0.5, "life_scale": 1.5 },
@@ -170,6 +175,7 @@
     "requires_built": ["parts_factory"],
     "requires_deposit": ["XENITE"],
     "mine": { "base_per_tick": 0.022, "radius": 1 },
+    "door": { "offset": [0, -5] },
     "sprite": "res://assets/crystalextractor.png",
     "fx": [
       { "type": "shimmer", "at": [12, -18], "rate": 8, "scale": 1.2 },

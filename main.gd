@@ -12,6 +12,7 @@ enum Mode { NONE, PLACE, DEMOLISH }
 @onready var _prospect: ProspectOverlay = $ProspectOverlay
 @onready var _status: Node2D = $StatusOverlay
 @onready var _buildings: BuildingsView = $Buildings
+@onready var _colonists: ColonistsView = $Colonists
 @onready var _camera: IsoCamera = $Camera
 @onready var _cursor: TileCursor = $TileCursor
 @onready var _ghost: BuildingSprite = $Ghost
@@ -76,6 +77,9 @@ func _ready() -> void:
 	_terrain.render_map(_map)
 	_prospect.setup(_map)
 	_buildings.bind()
+	# Walkers sort among the buildings, so their sprites live in that same
+	# y-sorted layer rather than under this node.
+	_colonists.bind(_buildings)
 	_camera.position = IsoGrid.grid_to_screen(Vector2i(_map.width / 2, _map.height / 2))
 	_ghost.visible = false
 	_sidebar.build_requested.connect(_on_build_requested)

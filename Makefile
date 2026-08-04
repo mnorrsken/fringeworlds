@@ -10,7 +10,7 @@ STAGE := build/stage
 
 .DEFAULT_GOAL := help
 
-.PHONY: help run editor build import test audio playtest \
+.PHONY: help run editor build import test audio sprites playtest \
 	export export-macos export-windows export-linux release clean
 
 help: ## Show this help
@@ -33,6 +33,9 @@ test: ## Run headless sim tests (non-zero exit on failure)
 
 audio: ## Regenerate the synthesized sound assets (assets/audio/*.wav)
 	python3 tools/gen_audio.py
+
+sprites: ## Rebuild assets/colonist.png from the per-direction GIFs in assets/characters/
+	python3 tools/gif_to_sheet.py assets/characters assets/colonist.png
 
 playtest: ## Headless pacing run: bot-plays several seeds and reports timings
 	$(GODOT) --headless --script res://tools/playtest.gd

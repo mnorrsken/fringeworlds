@@ -22,6 +22,11 @@ var balance: Balance = Balance.new()
 ## Read by the Audio autoload; see AudioCues for the cue vocabulary.
 var audio: Dictionary = {}
 
+## The walking-colonist crowd's art contract and movement numbers, from
+## data/colonists.json (see render/colonist_crowd.gd). Purely cosmetic — no sim
+## rule reads it — so a missing file just means no crowd tuning, not a broken game.
+var colonists: Dictionary = {}
+
 func _ready() -> void:
 	resources = _load_json(DATA_DIR + "resources.json")
 	print("[Defs] loaded %d resource definitions" % resources.size())
@@ -30,6 +35,7 @@ func _ready() -> void:
 	audio = _load_json(DATA_DIR + "audio.json")
 	print("[Defs] loaded %d sound definitions" % audio.size())
 	balance = _load_balance(DATA_DIR + "balance.json")
+	colonists = _load_object(DATA_DIR + "colonists.json")
 
 ## Loads the tuning file. Unlike the other data files this is a single object,
 ## not a list of id'd entries, and a missing/broken file falls back to the
@@ -44,6 +50,20 @@ func _load_balance(path: String) -> Balance:
 		return Balance.new()
 	print("[Defs] loaded balance (%d sections)" % parsed.size())
 	return Balance.from_dict(parsed)
+
+## Loads a data file that is a single JSON object rather than a list of id'd
+## entries (colonists.json). Returns {} on any failure — every caller of one of
+## these has defaults of its own.
+func _load_object(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		push_error("[Defs] missing data file: %s" % path)
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary):
+		push_error("[Defs] expected a JSON object at top level: %s" % path)
+		return {}
+	print("[Defs] loaded %s (%d keys)" % [path.get_file(), parsed.size()])
+	return parsed
 
 ## Loads buildings.json and pre-processes each entry for fast use at runtime.
 func _load_buildings(path: String) -> Dictionary:
