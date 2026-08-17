@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Falling ice asteroids** — the first entry in a new "objects on tiles"
+  layer. New sparse `ColonyMap` object layer (`get_object`/`set_object`/
+  `take_object`/`objects()`, serialized, old saves load clear) and
+  `sim/asteroids.gd` (`Asteroids`), a pure seed-deterministic scheduler
+  owned by `Colony` in the same family as `Weather`: rocks cycle
+  FALLING → CRASHING → landed onto open, unbuilt, unoccupied ground found
+  by bounded deterministic probing, capped at `asteroids.max_on_ground`
+  (6). Placing a building over a landed rock clears it, the same as
+  burying an unsurveyed deposit. New `data/objects.json`/`Defs.objects`
+  (art contract, fall trajectory, and a water/oxygen/food `yield` nothing
+  reads yet — collection isn't built). New `data/balance.json` `asteroids`
+  section (`enabled`, grace/interval/fall/crash timing, `max_on_ground`).
+  View: `render/objects_view.gd`/`render/object_sprite.gd` (falling rocks
+  render above the base, crashed/landed ones sort into the buildings
+  layer), `Events.object_landed`, `Sim.tick_fraction()` for smooth
+  sub-tick motion, hover-panel readout for a landed rock, and an
+  AlertMonitor impact announcement. New `--strip` mode in
+  `tools/gif_to_sheet.py` (wired into `make sprites`) converts the
+  authored GIFs into untrimmed animation strips. New
+  `tests/test_asteroids.gd` (18 tests). `make playtest`: unaffected
+  (5/5 seeds win, tick-identical), since nothing yet consumes the rocks.
 - **Dust storms.** New `sim/weather.gd` (`Weather`), a pure scheduler owned
   by `Colony`, cycles CLEAR → WARNING → STORM → CLEAR on a schedule
   deterministically hashed from a storm counter and the map seed (no RNG

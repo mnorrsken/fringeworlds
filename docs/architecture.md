@@ -57,8 +57,9 @@ good reason.
    `scan_changed(cells: Array)`, (Milestone 5) `game_over(won: bool)`,
    (Milestone 6) `alert(text: String, level: int)`, (reserve-shading
    overlay) `reserves_changed(cells: Array)`, (building-toggle feature)
-   `building_toggled(instance: Dictionary)`, and (dust-storms feature)
-   `weather_changed(phase: int)`. The sim emits; UI/render
+   `building_toggled(instance: Dictionary)`, (dust-storms feature)
+   `weather_changed(phase: int)`, and (falling-ice-asteroids feature)
+   `object_landed(cell: Vector2i, kind: String)`. The sim emits; UI/render
    layers connect. UI is meant to never poke `Sim` internals directly — it
    calls `Sim` methods and listens on `Events` signals instead. The
    `building_placed`/`building_removed` payload is the same instance
@@ -81,7 +82,10 @@ good reason.
    listener. `weather_changed`'s `phase` is the `Weather` phase that just
    started (`WARNING`/`STORM`/`CLEAR`); `Sim` emits it once per tick that
    `Colony.weather_event` is non-`Weather.NONE` (see "Weather" below), and
-   `render/dust_storm.gd`/`ui/sidebar.gd` listen.
+   `render/dust_storm.gd`/`ui/sidebar.gd` listen. `object_landed`'s payload
+   is the cell and object kind of a just-completed asteroid drop, emitted by
+   `Sim` from each tick's `asteroid_events` (see "Falling ice asteroids"
+   below); `AlertMonitor` is the only listener.
 2. **`Defs`** (`sim/defs.gd`) — loads read-only content definitions from
    `data/*.json` at startup into three dictionaries: `resources` (id →
    definition, unchanged since Milestone 0), `buildings` (id →
@@ -658,6 +662,82 @@ ochre screen veil plus wind-blown streaks, fading in/out) reads
 `Sim.colony.weather` directly and lives in a `WeatherLayer` between the map
 and the HUD; `ui/sidebar.gd` shows a countdown during `WARNING`/`STORM`;
 `AlertMonitor` (`sim/alerts.gd`) announces all three phase transitions.
+
+## Falling ice asteroids (`Asteroids`, `sim/asteroids.gd`, object layer)
+
+The first entry in a new "objects on tiles" layer, separate from terrain and
+buildings.
+
+**The object layer (`ColonyMap`).** A sparse `_objects` dictionary (cell →
+`{kind, ...}`), since only a handful of objects exist on a map at once — not
+worth a full per-cell array like terrain. `get_object`/`has_object`/
+`set_object(cell, obj)`/`take_object(cell)` (removes and returns) are the
+API; `take_object` is unused today but is the call the not-yet-built
+colonist fetch will use. Serialized as a list of `{x, y, obj}`; a map saved
+before this feature loads with clear ground.
+
+**`Asteroids`** (`class_name Asteroids`, `RefCounted`) is a pure scheduler
+in the same family as `Weather` — no autoload/`Events`/rendering
+dependency, constructed and owned by `Colony` so `ColonyBot` and headless
+tests see the same skyfall a real game does. A drop runs
+`enum Phase { FALLING, CRASHING }` then lands, deterministically timed by
+hashing a drop counter with the map seed (no `RandomNumberGenerator`, so a
+save resumes mid-descent exactly). `progress(a)` returns 0..1 through the
+drop's current phase, for the view to interpolate. A target tile is found
+by bounded deterministic probing (40 tries) through
+`Colony.can_hold_object(cell)`: open, walkable ground (REGOLITH/HIGHLANDS/
+ICE — not canyons, not impassable crystal), nothing built there, nothing
+already lying there. If every probe fails, or the chosen tile gets built on
+before the rock lands, the rock is simply lost — skyfall never blocks or
+queues.
+
+**`Colony` integration**: `asteroids` is advanced at the top of `tick()`
+(alongside `weather`), `asteroid_events` collects the tick's launches/
+impacts for `Sim` to turn into `Events`/alerts, and `can_hold_object()` is
+the placement-clearing hook — `place()` calls `take_object()` on every cell
+of a new building's footprint, the same way placing over an unsurveyed
+deposit buries it, rather than leaving ice trapped under a warehouse.
+Serialized on `Colony` (`to_dict`/`from_dict`); an in-flight descent
+round-trips, and a pre-feature save loads with skyfall reset to its grace
+period.
+
+**Tuning** (`data/balance.json`'s `asteroids` section, mirrored on
+`Balance`): `enabled` (skyfall can be turned off), `grace_ticks` (900,
+delays the first drop), `interval_ticks`/`interval_jitter` (1800 ± 600
+between drops), `fall_ticks`/`crash_ticks` (14/8, phase durations),
+`max_on_ground` (6 — a cap, since nothing collects these yet).
+
+**Content** (`data/objects.json`, loaded into `Defs.objects`): the art
+contract — a shared `frame_size`/`anchor` across all three animations
+(falling/crashing/resting) so the rock never jumps position between them —
+`fall_angle_deg`/`fall_px` (the descent's straight-line path in world
+pixels), and a `yield` (40 water / 15 oxygen / 6 food). Nothing reads
+`yield` yet; it's what the future colonist fetch will pay out via
+`take_object`.
+
+**View**: `render/object_sprite.gd`/`render/objects_view.gd` — falling
+rocks are parented under a high-z `Objects` node (they're in the air, above
+the whole base); crashing and resting ones are parented into the same
+y-sorted buildings layer `ColonistsView` uses, so a landed rock behind a
+habitat occludes correctly. `Sim.tick_fraction()` (0..1, how far past the
+last tick the clock is) lets a ~3-second fall spread over ~14 ticks
+interpolate smoothly instead of stepping once per tick. New
+`Events.object_landed(cell, kind)` signal. The hover panel shows a landed
+rock's name/description/contents when no building occupies the tile.
+`AlertMonitor` announces an impact at INFO ("Ice asteroid down at (x, y)").
+
+**Art pipeline**: the authored GIFs (`assets/objects/ice_asteroid_{falling,
+crashing}.gif`) are converted to horizontal strip PNGs by a new `--strip`
+mode in `tools/gif_to_sheet.py`, wired into `make sprites` alongside the
+existing colonist-sheet build. Strips are deliberately not trimmed, since
+the three animations must share one frame box.
+
+`tests/test_asteroids.gd` (18 tests) covers the object layer, save
+round-trips (including old saves and mid-descent), the fall→crash→land
+sequence and its cadence, landing rules (open ground only, one rock per
+tile, terrain/building refusal), construction clearing a landed rock, the
+ground cap, disabling skyfall, per-seed determinism, `progress()`, and the
+alert.
 
 ## Storage limits (`Colony`, storage/warehouse feature)
 

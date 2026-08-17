@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1420 assertions across 175 tests, 0 failures** (`make test`).
+Current test count: **1468 assertions across 193 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -166,3 +166,11 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   5/5 seeds win, avg 32.2 min (up from 29.1, ColonyBot unmodified — it eats
   the full storm cost since it doesn't use the switch). See
   `docs/architecture.md`'s "Weather / dust storms".
+- **Falling ice asteroids — done (new scope, first "objects on tiles"
+  entry).** New sparse object layer on `ColonyMap` plus `Asteroids`
+  (`sim/asteroids.gd`), a `Weather`-style deterministic scheduler owned by
+  `Colony`: rocks fall, crash, and land on open ground up to a cap: nothing
+  collects them yet, so the yield they carry (`data/objects.json`) and
+  `take_object` are seams for the colonist fetch to come. `make playtest`:
+  unaffected (5/5 seeds win, tick-identical). See `docs/architecture.md`'s
+  "Falling ice asteroids".

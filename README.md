@@ -92,7 +92,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1420 assertions across 175 tests, 0 failures.**
+**1468 assertions across 193 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
@@ -302,7 +302,9 @@ around the base — a cosmetic view-layer crowd (`render/colonist_crowd.gd`)
 with no effect on the simulation or its pacing — and v2 work has begun on
 the candidates list: buildings can be switched off by hand (`T`), and dust
 storms (periodic weather that dims solar power and halts prospecting,
-`sim/weather.gd`) are the second item shipped. See
+`sim/weather.gd`) are the second item shipped. Ice asteroids now fall and
+land on open ground periodically (`sim/asteroids.gd`) — the first entry in
+a new "objects on tiles" layer; nothing collects them yet. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 
