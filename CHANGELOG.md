@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Buildings can be switched off by hand.** New per-instance `enabled` flag
+  (`Colony.can_toggle`/`is_enabled`/`set_enabled`/`toggle_at`, key **T** on
+  the hovered building) alongside the existing derived `active`: switched off,
+  a building draws no power, uses no workers, and runs no recipe/mine/scan or
+  life support, but keeps its storage and housing capacity and flushes its
+  hopper into the colony store first. The Colony Hub can't be switched off.
+  `enabled` is serialized (old saves default everything on). View: dimmed
+  sprite (reusing the existing idle look), a grey status-overlay dot distinct
+  from green/red, and a hover-panel "switched off" line with the toggle hint.
+  New `tests/test_toggle.gd` (13 tests). First v2 item shipped — the
+  prerequisite `docs/v2-candidates.md` named for hostile events, since power
+  shedding is oldest-first/newest-shed and this is the only way to choose
+  *which* building gives way in a shortage without demolishing it.
+
 ## [1.2.0] - 2026-08-05
 
 ### Added

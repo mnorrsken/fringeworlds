@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1329 assertions across 147 tests, 0 failures** (`make test`).
+Current test count: **1360 assertions across 160 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -149,3 +149,12 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   ground, back in for a shift — purely a view-layer reading of the
   population number; the sim is untouched (`make playtest` tick counts are
   identical). See `docs/architecture.md`'s "The colonist crowd".
+- **Building on/off toggle — done (first v2 item).** Buildings now carry a
+  player-set `enabled` flag alongside the derived `active`: switched off
+  (`T` on hover; the Hub can't be), a building draws no power/workers and
+  runs nothing, but keeps its storage and housing and flushes its hopper
+  first. Lets the player choose which building gives way in a shortage
+  instead of demolishing it — the prerequisite `docs/v2-candidates.md`
+  named for hostile events. `make playtest` unaffected (the bot doesn't use
+  it). See `docs/architecture.md`'s "The tick economy" and "Building
+  inspector".

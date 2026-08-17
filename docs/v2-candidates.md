@@ -95,10 +95,11 @@ and a countdown in the sidebar.
 
 **Risks.** With no way to switch a building off, a storm that cuts power just
 sheds the newest buildings — which the M9 findings show can silently stop the
-smelter. Either add an on/off toggle first, or make sure the power-shedding
-order is something the player can predict and control. Also: pure downside
-mechanics need a counterplay (batteries? storm shutters?) or they read as
-arbitrary punishment.
+smelter. **The on/off toggle has since shipped** (`Colony.set_enabled`/
+`toggle_at`, key `T`), so a storm's power-shedding is now something the
+player can pre-empt rather than a purely arbitrary shed order. Pure downside
+mechanics still need a counterplay (batteries? storm shutters?) or they read
+as punishment.
 
 **Size.** Small-to-medium, well isolated, and the highest drama-per-line in this
 list. Best candidate to ship first if v2 wants a visible headline.
@@ -152,7 +153,7 @@ strategic depth without new subsystems.
 
 1. ~~**Deposit depletion**~~ — shipped; see § 1 above.
 2. **Hostile events** — isolated, visible, exercises the existing alert and FX
-   layers. Ship an on/off toggle for buildings alongside it.
+   layers. Its prerequisite, an on/off toggle for buildings, has shipped.
 3. **Second colonist tier** — depth on top of a stable economy.
 4. **Depot / logistics radius** — only with intent to re-derive pacing; treat as
    the start of a v2 branch rather than an increment.

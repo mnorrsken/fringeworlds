@@ -89,7 +89,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1329 assertions across 147 tests, 0 failures.**
+**1360 assertions across 160 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
@@ -142,7 +142,8 @@ reads sim state and never writes game rules back. See
 | Pinch, `+`/`-` | Fine zoom (secondary controls, up to 4×) |
 | M | Toggle the overhead map (terrain, buildings, camera view; click to jump) |
 | P | Toggle the prospecting overlay (tints tiles by scan state, deposit type, and how much is left) |
-| O | Toggle the status overlay (green/red dot per building: running/idle) |
+| O | Toggle the status overlay (green/red/grey dot per building: running/idle/switched off) |
+| T | Switch the hovered building off/on (not the Colony Hub) |
 | Left click | Place selected building, or demolish (in demolish mode) |
 | Right click | Demolish at cursor, or cancel current mode |
 | Hover | Read a tile's terrain, survey reading and building (see below) |
@@ -220,7 +221,11 @@ needs the Hub, not a separate Survey Station. Every building has a power
 figure and a worker requirement; generators (positive power) always run,
 and both power and workforce are allocated oldest-placed-first, with the
 newest under-supplied buildings shutting down (and dimming on screen) when
-demand exceeds supply of either. Only the processing/advanced tier
+demand exceeds supply of either — or switch a building off yourself (`T`
+on hover) to choose which one gives way instead, without demolishing it;
+a switched-off building keeps its storage and housing but draws no power,
+uses no workers, and runs nothing (the Hub can't be switched off). Only the
+processing/advanced tier
 (Smelter, Parts Factory, Crystal Extractor) needs colonists to run — the
 rest of the starter loop is fully automated. Mine and Crystal Extractor
 can only be placed on a tile whose prospecting scan is CONFIRMED and whose

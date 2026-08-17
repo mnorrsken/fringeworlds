@@ -55,8 +55,9 @@ good reason.
    `building_placed(instance: Dictionary)`,
    `building_removed(instance: Dictionary)`, (Milestone 4)
    `scan_changed(cells: Array)`, (Milestone 5) `game_over(won: bool)`,
-   (Milestone 6) `alert(text: String, level: int)`, and (reserve-shading
-   overlay) `reserves_changed(cells: Array)`. The sim emits; UI/render
+   (Milestone 6) `alert(text: String, level: int)`, (reserve-shading
+   overlay) `reserves_changed(cells: Array)`, and (building-toggle feature)
+   `building_toggled(instance: Dictionary)`. The sim emits; UI/render
    layers connect. UI is meant to never poke `Sim` internals directly — it
    calls `Sim` methods and listens on `Events` signals instead. The
    `building_placed`/`building_removed` payload is the same instance
@@ -70,6 +71,9 @@ good reason.
    whole overlay every tick.
    `game_over` fires exactly once when the colony reaches a terminal state;
    `main.gd` is the only listener, and shows the win/loss overlay from it.
+   `building_toggled`'s payload is the same instance dict, emitted by
+   `Sim.toggle_at()` so `BuildingsView`/`StatusOverlay` can refresh a single
+   building's sprites and dot immediately, including while paused.
    `alert`'s `level` is an `AlertMonitor.Level` value (`INFO`/`WARN`/`CRIT`,
    0/1/2); `Sim` emits one per entry `AlertMonitor.check()` returns each
    tick (see "Alerts" below), and `ui/alert_ticker.gd` is the only
@@ -535,6 +539,27 @@ produces this tick (e.g. an Electrolysis Plant finishing an oxygen batch)
 is available to be consumed by life support in that same tick, so
 colonists aren't falsely flagged as short on something the colony in fact
 supplied in time.
+
+**On/off toggle (building-toggle feature)**: every instance also carries a
+player-set `enabled` flag (default `true`, distinct from `active`, which is
+derived fresh each tick). `_balance_power`/`_balance_workforce`/
+`_run_production`/`_run_prospecting`/`life_support_covered()` all skip an
+`inst.enabled == false` building outright — it draws no power, uses no
+workers, runs no recipe/mine/scan, and contributes no life support — but
+`storage_for()`/`capacity()` still count it (storage and housing are
+physical, not power-gated) and `_flush(inst)` still runs so a switched-off
+building's hopper drains into the colony store rather than stranding output.
+`Colony.can_toggle(id)`/`is_enabled(id)`/`set_enabled(id, on)`/
+`toggle_at(cell)` are the API; the Colony Hub (`colony_controller`) can't be
+toggled — `can_toggle` returns `false` for it, since everything depends on
+it and the only outcome of switching it off would be losing the colony. A
+switched-off building's `idle_reason` is set to `Colony.OFF_REASON`
+(`"Switched off"`), and — the one change to the hub-required rule (finite-
+deposits rework, above) — a missing hub no longer overwrites that reason.
+`enabled` is serialized; a save from before the toggle existed loads with
+everything on. `Sim.toggle_at(cell)` wraps it and emits a new
+`Events.building_toggled(instance)` signal so the view updates immediately
+even while paused.
 
 **Power balance (`_balance_power`)**: iterates buildings **oldest-first**
 (`_ids_oldest_first()`, i.e. sorted by instance id — ids are assigned
@@ -1054,7 +1079,9 @@ def's `storage` dict verbatim, `{}` for non-storage buildings), `buffer`
 (the internal-buffers feature — the instance's live hopper contents, `{}`
 if it has none), `power`, `workers`, `capacity`, `life_support`
 (Colony Hub rework — the def's `life_support` field, `0` unless it's the
-Hub), `scans` (bool), plus `recipe` (with the instance's `progress`) or
+Hub), `scans` (bool), `enabled` and `can_toggle` (the building-toggle
+feature — the instance's player-set switch and whether `set_enabled` is
+allowed on it, false only for the Hub), plus `recipe` (with the instance's `progress`) or
 `mine` (resource/richness/per-tick rate, plus — finite-deposits rework —
 `remaining`, the tile's live `map.get_amount(origin)`) when applicable.
 Returns `{}` if
@@ -1108,7 +1135,9 @@ the power-balance section above), so there's no coverage radius to draw.
 `StatusOverlay` (`Node2D`, `z_index = 6`, hidden by default) instead marks
 every placed building with a dot at its front cell (`IsoGrid.grid_to_screen`
 of the max-`x+y` cell, matching `BuildingSprite`'s anchor) — green
-(`inst.active`) or red (idle, any reason). Toggled by `O` via
+(`inst.active`), red (idle for any other reason), or grey (the
+building-toggle feature — `inst.enabled == false`, checked first so it
+takes priority over red). Toggled by `O` via
 `main.gd` calling `_status.toggle()`; redraws every frame while visible so
 it tracks the tick loop live.
 
@@ -1796,7 +1825,10 @@ did (running/idle line first, then power/workers/capacity/life
 support/scans, a "holding <n> <res>, ..." line for any building whose
 internal `buffer` isn't empty — see "Internal buffers" above — then a
 "stores <res> <n>, ..." line for any building with a non-empty `storage`
-block, then recipe or mine progress, then the terrain line).
+block, then recipe or mine progress, then the terrain line). The
+building-toggle feature adds a dim "◌ switched off" title line and a
+"[T] switch on/off" hint whenever `report.can_toggle` is true (i.e. not the
+Hub).
 Screen-space and stateless like the other UI panels: `main.gd` pushes the
 hovered tile's report each frame via `show_tile(terrain, reading, report)`;
 it never reads `Colony` itself.
