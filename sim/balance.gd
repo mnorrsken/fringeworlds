@@ -60,6 +60,25 @@ var mine_full_rate_above := 0.5
 ## an over-committed base recoverable instead of a dead end.
 var demolish_refund := 0.5
 
+## Dust storms (see sim/weather.gd). Ticks, so 4 = one second at 1x.
+## Storms can be switched off wholesale for a calm-weather game.
+var storms_enabled := true
+## Quiet ticks before the first storm is announced — long enough that the metal
+## loop is standing before the weather starts interfering with it.
+var storm_grace_ticks := 1600
+## Between the end of one storm and the announcement of the next, ± jitter.
+var storm_interval_ticks := 1500
+var storm_interval_jitter := 400
+## Lead time between the warning and the storm arriving. This is the player's
+## window to bank resources and switch off what they can afford to lose.
+var storm_warning_ticks := 48
+## How long a storm blows for, ± jitter.
+var storm_duration_ticks := 200
+var storm_duration_jitter := 60
+## What `exposed` power production (solar) is multiplied by during a storm.
+## Not zero: a blacked-out grid would shed life support with no counterplay.
+var storm_power_factor := 0.35
+
 ## Builds a Balance from parsed JSON. Unknown sections and keys are ignored;
 ## anything absent keeps its default above.
 static func from_dict(d: Dictionary) -> Balance:
@@ -80,6 +99,17 @@ static func from_dict(d: Dictionary) -> Balance:
 	b.mine_min_rate = clampf(float(mining.get("min_rate", b.mine_min_rate)), 0.0, 1.0)
 	b.mine_full_rate_above = clampf(
 		float(mining.get("full_rate_above", b.mine_full_rate_above)), 0.0, 1.0)
+
+	var weather: Dictionary = d.get("weather", {})
+	b.storms_enabled = bool(weather.get("enabled", b.storms_enabled))
+	b.storm_grace_ticks = int(weather.get("grace_ticks", b.storm_grace_ticks))
+	b.storm_interval_ticks = int(weather.get("interval_ticks", b.storm_interval_ticks))
+	b.storm_interval_jitter = int(weather.get("interval_jitter", b.storm_interval_jitter))
+	b.storm_warning_ticks = int(weather.get("warning_ticks", b.storm_warning_ticks))
+	b.storm_duration_ticks = int(weather.get("duration_ticks", b.storm_duration_ticks))
+	b.storm_duration_jitter = int(weather.get("duration_jitter", b.storm_duration_jitter))
+	b.storm_power_factor = clampf(
+		float(weather.get("power_factor", b.storm_power_factor)), 0.0, 1.0)
 
 	var sim: Dictionary = d.get("sim", {})
 	b.ticks_per_second = float(sim.get("ticks_per_second", b.ticks_per_second))

@@ -19,6 +19,17 @@
     "xenite": 260
   },
 
+  "weather": {
+    "enabled": true,
+    "grace_ticks": 1600,
+    "interval_ticks": 1500,
+    "interval_jitter": 400,
+    "warning_ticks": 48,
+    "duration_ticks": 200,
+    "duration_jitter": 60,
+    "power_factor": 0.35
+  },
+
   "sim": {
     "ticks_per_second": 4.0,
     "autosave_seconds": 180.0,

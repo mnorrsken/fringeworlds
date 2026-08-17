@@ -12,10 +12,12 @@ signal demolish_requested()
 
 const AMBER := Color("d9a441")
 const SAND := Color("c9b892")
+const RED := Color("d65a4a")
 
 @onready var _title: Label = $Margin/VBox/Title
 @onready var _mode: Label = $Margin/VBox/ModeLabel
 @onready var _speed: Label = $Margin/VBox/SpeedLabel
+@onready var _weather: Label = $Margin/VBox/WeatherLabel
 @onready var _build_header: Label = $Margin/VBox/BuildHeader
 @onready var _build_list: VBoxContainer = $Margin/VBox/Scroll/BuildList
 @onready var _demolish: Button = $Margin/VBox/DemolishBtn
@@ -95,3 +97,18 @@ func set_speed(speed: float) -> void:
 		_speed.text = "❚❚ PAUSED"
 	else:
 		_speed.text = "▶ %dx" % int(speed)
+
+## The weather line: hidden under clear skies, a countdown otherwise. The
+## warning's timer is the one that matters — it's how long there is to switch
+## something off before the panels dim.
+func set_weather(phase: int, seconds_left: float) -> void:
+	if phase == Weather.Phase.WARNING:
+		_weather.visible = true
+		_weather.text = "☁ STORM IN %ds" % int(ceil(seconds_left))
+		_weather.add_theme_color_override("font_color", AMBER)
+	elif phase == Weather.Phase.STORM:
+		_weather.visible = true
+		_weather.text = "☁ DUST STORM  %ds" % int(ceil(seconds_left))
+		_weather.add_theme_color_override("font_color", RED)
+	else:
+		_weather.visible = false

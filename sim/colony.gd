@@ -12,6 +12,9 @@ var defs: Dictionary                  # building id -> def (needs size, cost, al
 ## Tunable numbers (data/balance.json). Injected like defs; defaults to the
 ## shipped values so a Colony can be built bare in tests.
 var balance: Balance
+## Dust-storm schedule. Owned here rather than by Sim so the pacing harness and
+## the headless tests get the same weather the real game does.
+var weather: Weather
 var stockpile: Dictionary = {}        # resource id -> amount
 
 var population := 0
@@ -51,6 +54,10 @@ var _needs_controller := false
 # Cells whose scan state changed during the most recent tick (for the overlay).
 var scan_changes: Array = []
 
+# The weather phase change from the most recent tick ("" most ticks) — see
+# Weather. AlertMonitor turns it into the announcement.
+var weather_event := Weather.NONE
+
 # Cells an extractor drew ore out of during the most recent tick. The overlay
 # shades confirmed tiles by what's left, so it has to repaint as they deplete —
 # not just when a scan lands.
@@ -61,6 +68,7 @@ func _init(p_map: ColonyMap, p_defs: Dictionary, p_stockpile: Dictionary = {},
 	map = p_map
 	defs = p_defs
 	balance = p_balance if p_balance != null else Balance.new()
+	weather = Weather.new(balance, map.seed)
 	for id in defs:
 		if defs[id].get("colony_controller", false):
 			_needs_controller = true
@@ -310,6 +318,15 @@ func toggle_at(cell: Vector2i) -> Variant:
 	set_enabled(id, on)
 	return on
 
+## What a building type contributes to the grid right now: its def figure, dimmed
+## by the weather if it is `exposed` to the sky (solar panels). Only generation
+## is dimmed — a storm doesn't make a smelter draw less.
+func power_of(type_id: String) -> int:
+	var p := int(defs[type_id].get("power", 0))
+	if p > 0 and bool(defs[type_id].get("exposed", false)):
+		return int(round(p * weather.power_factor()))
+	return p
+
 ## The building instance covering `cell`, or {} if none.
 func building_at(cell: Vector2i) -> Dictionary:
 	if _occupancy.has(cell):
@@ -347,6 +364,8 @@ func life_support_covered() -> int:
 func tick() -> void:
 	scan_changes = []
 	reserve_changes = []
+	# Weather first: a storm dims the panels on the same tick it is announced.
+	weather_event = weather.advance()
 	_balance_power()
 	_require_hub()
 	_balance_workforce()
@@ -445,7 +464,7 @@ func _balance_power() -> void:
 			inst.active = false
 			inst.idle_reason = OFF_REASON
 			continue
-		var p := int(defs[inst.type].get("power", 0))
+		var p := power_of(inst.type)
 		if p > 0:
 			power_produced += p
 			inst.active = true
@@ -460,7 +479,7 @@ func _balance_power() -> void:
 	var available := power_produced
 	for id in consumers:  # already oldest-first
 		var inst: Dictionary = buildings[id]
-		var need := -int(defs[inst.type].power)
+		var need := -power_of(inst.type)
 		if available >= need:
 			inst.active = true
 			inst.idle_reason = ""
@@ -482,6 +501,11 @@ func _run_prospecting() -> void:
 	for id in _ids_oldest_first():
 		var inst: Dictionary = buildings[id]
 		if not inst.active or not defs[inst.type].has("scan"):
+			continue
+		if weather.blocks_prospecting():
+			# Airborne dust blinds the instruments: the sweep holds where it is
+			# rather than losing its progress.
+			inst.idle_reason = "Dust storm"
 			continue
 		var scan: Dictionary = defs[inst.type].scan
 		if bool(inst.get("resampling", false)):
@@ -773,6 +797,9 @@ func building_report(id: int) -> Dictionary:
 		"storage": def.get("storage", {}),
 		"buffer": inst.get("buffer", {}),
 		"power": int(def.get("power", 0)),
+		# What it's actually worth to the grid this tick — lower than `power` on a
+		# solar panel in a dust storm.
+		"power_now": power_of(inst.type),
 		"workers": int(def.get("workers", 0)),
 		"capacity": int(def.get("capacity", 0)),
 		"life_support": int(def.get("life_support", 0)),
@@ -825,6 +852,7 @@ func to_dict() -> Dictionary:
 		"growth_ticks": _growth_ticks,
 		"life_accum": _life_accum.duplicate(),
 		"built_types": built_types.duplicate(),
+		"weather": weather.to_dict(),
 		"buildings": blds,
 	}
 
@@ -875,6 +903,9 @@ static func from_dict(p_map: ColonyMap, p_defs: Dictionary, d: Dictionary,
 	for k in d.get("built_types", {}):
 		bt[k] = true
 	c.built_types = bt
+	# Saves from before dust storms existed resume with clear skies and a fresh
+	# grace period, which is what a Weather starts with anyway.
+	c.weather.from_dict(d.get("weather", {}))
 	for bd in d.get("buildings", []):
 		var inst := _inst_from_dict(bd)
 		var id: int = inst.id

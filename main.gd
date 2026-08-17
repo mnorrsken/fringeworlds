@@ -66,7 +66,12 @@ TIME
   H — this screen      Esc — menu (save, sound, quit)
 
 Prospect before you build: deposits stay hidden until surveyed, and a
-building placed on an unsurveyed tile can bury the ore underneath it."""
+building placed on an unsurveyed tile can bury the ore underneath it.
+
+Dust storms are announced before they arrive. While one blows, solar
+panels make a third of their power and surveying stops. Power goes to
+the oldest buildings first, so switch off (T) whatever you would rather
+lose than your life support."""
 
 func _ready() -> void:
 	# The menu normally sets up the colony (new_game / load_game) before switching
@@ -320,6 +325,8 @@ func _update_info() -> void:
 	_resource_bar.set_stats(col.power_produced, col.power_consumed,
 		col.population, col.capacity(), col.workers_used())
 	_sidebar.set_speed(Sim.speed)
+	_sidebar.set_weather(col.weather.phase,
+		col.weather.ticks_left / Sim.ticks_per_second)
 	if _debug.visible:
 		_label.text = "cell (%d, %d)  %s\nzoom %dx  seed %d  FPS %d  [F1]" % [
 			_hover.x, _hover.y, terrain,

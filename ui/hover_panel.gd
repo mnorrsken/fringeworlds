@@ -95,7 +95,13 @@ func _lines(report: Dictionary, terrain: String, reading: String) -> Array:
 
 	var power := int(report.power)
 	if power != 0:
-		out.append("power %+d" % power)
+		var now := int(report.get("power_now", power))
+		# A dimmed panel says so here rather than quietly under-reporting: the
+		# grid figure in the top bar is the first thing a storm moves.
+		if now == power:
+			out.append("power %+d" % power)
+		else:
+			out.append("power %+d  (dust storm: %+d)" % [power, now])
 	if int(report.workers) > 0:
 		out.append("workers %d" % int(report.workers))
 	if int(report.capacity) > 0:

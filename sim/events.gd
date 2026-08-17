@@ -29,6 +29,10 @@ signal scan_changed(cells: Array)
 ## how much of a deposit is left.
 signal reserves_changed(cells: Array)
 
+## Emitted when the weather changes phase (a Weather.Phase value). The storm
+## overlay and the sidebar countdown read the live Weather off Sim.colony.
+signal weather_changed(phase: int)
+
 ## Emitted once when the colony reaches a terminal state (won == true means the
 ## xenite beacon was launched; false means the population died out).
 signal game_over(won: bool)

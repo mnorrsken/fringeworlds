@@ -24,6 +24,16 @@ func _init(p_balance: Balance = null) -> void:
 func check(col: Colony) -> Array:
 	var out := []
 
+	# Weather. The warning is the one alert the player is meant to act on before
+	# anything has gone wrong yet, so it leads.
+	match col.weather_event:
+		Weather.WARNING:
+			out.append({"text": "☁ Dust storm approaching", "level": Level.WARN})
+		Weather.STORM:
+			out.append({"text": "☁ Dust storm — solar output down", "level": Level.CRIT})
+		Weather.CLEAR:
+			out.append({"text": "☀ The dust settles", "level": Level.INFO})
+
 	# Power: consumers get shed when demand outstrips supply.
 	var deficit := col.power_consumed > col.power_produced
 	if deficit and not _power_deficit:

@@ -211,6 +211,8 @@ func _advance_tick() -> void:
 		Events.scan_changed.emit(colony.scan_changes)
 	if not colony.reserve_changes.is_empty():
 		Events.reserves_changed.emit(colony.reserve_changes)
+	if colony.weather_event != Weather.NONE:
+		Events.weather_changed.emit(colony.weather.phase)
 	for a in _alerts.check(colony):
 		Events.alert.emit(a.text, a.level)
 	Events.stockpile_changed.emit(colony.stockpile)

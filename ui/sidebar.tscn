@@ -36,6 +36,10 @@ text = "◈ SELECT"
 [node name="SpeedLabel" type="Label" parent="Margin/VBox"]
 text = "▶ 1x"
 
+[node name="WeatherLabel" type="Label" parent="Margin/VBox"]
+visible = false
+text = "☁ DUST STORM"
+
 [node name="Sep3" type="HSeparator" parent="Margin/VBox"]
 
 [node name="BuildHeader" type="Label" parent="Margin/VBox"]

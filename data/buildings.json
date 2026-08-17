@@ -22,6 +22,7 @@
   {
     "id": "solar_panel", "name": "Solar Panel", "size": 1,
     "cost": { "metal": 10 }, "power": 15, "workers": 0,
+    "exposed": true,
     "requires_built": ["hub"],
     "sprite": "res://assets/solar.png",
     "fx": [
@@ -29,7 +30,7 @@
     ],
     "allowed_terrain": ["REGOLITH", "HIGHLANDS"],
     "color": "e0b64a",
-    "desc": "Generates 15 power. Cheap and steady. Automated."
+    "desc": "Generates 15 power. Cheap and steady, but open to the sky: a dust storm cuts its output to a third. Automated."
   },
   {
     "id": "habitat", "name": "Habitat", "size": 2,
