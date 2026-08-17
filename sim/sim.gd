@@ -169,6 +169,15 @@ func demolish_at(cell: Vector2i) -> bool:
 	Events.building_removed.emit(inst)
 	return true
 
+## Switches the building on `cell` off or back on. Returns its new state, or
+## null when there's nothing switchable there.
+func toggle_at(cell: Vector2i) -> Variant:
+	var state = colony.toggle_at(cell)
+	if state == null:
+		return null
+	Events.building_toggled.emit(colony.building_at(cell))
+	return state
+
 func building_at(cell: Vector2i) -> Dictionary:
 	return colony.building_at(cell)
 

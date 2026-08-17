@@ -16,6 +16,10 @@ signal stockpile_changed(stockpile: Dictionary)
 signal building_placed(instance: Dictionary)
 signal building_removed(instance: Dictionary)
 
+## Emitted when the player switches a building off or back on. The tick already
+## refreshes every sprite, but a toggle has to land while paused too.
+signal building_toggled(instance: Dictionary)
+
 ## Emitted after a tick if any tiles' prospecting scan state changed. Payload is
 ## the list of changed cells; the prospecting overlay updates just those.
 signal scan_changed(cells: Array)

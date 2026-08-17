@@ -37,6 +37,9 @@ var power_consumed := 0
 ## Stand-in for "no limit" when the content models no storage at all.
 const UNLIMITED := 1 << 30
 
+## Idle reason for a building the player has switched off by hand.
+const OFF_REASON := "Switched off"
+
 # Whether the content models storage limits at all.
 var _storage_limited := false
 
@@ -200,12 +203,13 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 	# `active` = powered/running (set each tick by power balance); `progress`
 	# counts ticks toward the next recipe completion.
 	# `active` = powered/staffed/running (set each tick by the balance passes);
+	# `enabled` is the player's own switch, which the tick never touches;
 	# `progress` counts ticks toward the next recipe completion; `idle_reason` is
 	# the human-readable "why am I not running" string the inspector shows ("" ==
 	# running fine), rewritten every tick by the phase that last touched it.
 	var inst := {
 		"id": id, "type": type_id, "origin": origin, "cells": cells,
-		"active": true, "progress": 0, "idle_reason": "",
+		"active": true, "enabled": true, "progress": 0, "idle_reason": "",
 	}
 	if def.has("scan"):
 		inst["scan_ring"] = 0
@@ -267,6 +271,45 @@ func _ensure_deposit_in_range(center: Vector2i, radius: int, dep: int, richness:
 				map.set_deposit(c, dep, richness)
 				return
 
+## True while a building may be switched off by hand. The colony controller is
+## the one exception: the hub is free to run, everything depends on it, so a
+## switch on it would be a button whose only outcome is losing the colony.
+func can_toggle(id: int) -> bool:
+	if not buildings.has(id):
+		return false
+	return not defs[buildings[id].type].get("colony_controller", false)
+
+## True unless the player has switched this building off.
+func is_enabled(id: int) -> bool:
+	return buildings.has(id) and bool(buildings[id].get("enabled", true))
+
+## Stands a building down (or back up) by hand. Power and workers are allocated
+## oldest-first, so without this the player can only choose *which* building
+## loses out in a shortage by demolishing one. Returns true if the state changed.
+func set_enabled(id: int, on: bool) -> bool:
+	if not can_toggle(id) or is_enabled(id) == on:
+		return false
+	var inst: Dictionary = buildings[id]
+	inst["enabled"] = on
+	# Take effect immediately rather than waiting for the next tick, so switching
+	# something off while paused reads as done. The tick re-derives `active`
+	# anyway — a building switched back on still has to find power and workers.
+	inst.active = on
+	inst.idle_reason = "" if on else OFF_REASON
+	return true
+
+## Flips the switch on the building covering `cell`. Returns its new enabled
+## state, or null if the cell is empty or holds something that can't be switched.
+func toggle_at(cell: Vector2i) -> Variant:
+	if not _occupancy.has(cell):
+		return null
+	var id: int = _occupancy[cell]
+	if not can_toggle(id):
+		return null
+	var on := not is_enabled(id)
+	set_enabled(id, on)
+	return on
+
 ## The building instance covering `cell`, or {} if none.
 func building_at(cell: Vector2i) -> Dictionary:
 	if _occupancy.has(cell):
@@ -323,6 +366,8 @@ func _require_hub() -> void:
 				and buildings[id].active:
 			return
 	for id in buildings:
+		if not bool(buildings[id].get("enabled", true)):
+			continue  # already off by choice; don't overwrite why
 		buildings[id].active = false
 		buildings[id].idle_reason = "No colony hub"
 
@@ -394,6 +439,12 @@ func _balance_power() -> void:
 	var consumers := []  # instance ids of buildings that draw power
 	for id in _ids_oldest_first():
 		var inst: Dictionary = buildings[id]
+		# Switched off by hand: it neither makes nor draws power, and no later
+		# phase reconsiders it.
+		if not bool(inst.get("enabled", true)):
+			inst.active = false
+			inst.idle_reason = OFF_REASON
+			continue
 		var p := int(defs[inst.type].get("power", 0))
 		if p > 0:
 			power_produced += p
@@ -497,6 +548,11 @@ func _run_production() -> void:
 	for id in _ids_oldest_first():
 		var inst: Dictionary = buildings[id]
 		if not inst.active:
+			# A building switched off by hand still empties its hopper into the
+			# colony store: standing a line down shouldn't strand what it already
+			# made. Buildings idled by the sim keep holding theirs.
+			if not bool(inst.get("enabled", true)):
+				_flush(inst)
 			continue
 		var def: Dictionary = defs[inst.type]
 		if def.has("mine"):
@@ -711,6 +767,8 @@ func building_report(id: int) -> Dictionary:
 		"type": inst.type,
 		"name": str(def.get("name", inst.type)),
 		"active": bool(inst.active),
+		"enabled": is_enabled(id),
+		"can_toggle": can_toggle(id),
 		"idle_reason": str(inst.get("idle_reason", "")),
 		"storage": def.get("storage", {}),
 		"buffer": inst.get("buffer", {}),
@@ -778,7 +836,8 @@ func _inst_to_dict(inst: Dictionary) -> Dictionary:
 	var d := {
 		"id": int(inst.id), "type": str(inst.type),
 		"origin": [o.x, o.y], "cells": cells,
-		"active": bool(inst.active), "progress": int(inst.progress),
+		"active": bool(inst.active), "enabled": bool(inst.get("enabled", true)),
+		"progress": int(inst.progress),
 		"idle_reason": str(inst.get("idle_reason", "")),
 	}
 	if inst.has("scan_ring"):
@@ -838,6 +897,8 @@ static func _inst_from_dict(bd: Dictionary) -> Dictionary:
 		"origin": Vector2i(int(bd.origin[0]), int(bd.origin[1])),
 		"cells": cells,
 		"active": bool(bd.get("active", true)),
+		# Saves from before the switch existed have everything running.
+		"enabled": bool(bd.get("enabled", true)),
 		"progress": int(bd.get("progress", 0)),
 		"idle_reason": str(bd.get("idle_reason", "")),
 	}

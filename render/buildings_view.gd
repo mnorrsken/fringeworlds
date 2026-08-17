@@ -11,6 +11,7 @@ var _textures: Dictionary = {}  # sprite path -> Texture2D (cached)
 func bind() -> void:
 	Events.building_placed.connect(_on_placed)
 	Events.building_removed.connect(_on_removed)
+	Events.building_toggled.connect(_refresh)
 	Events.ticked.connect(_on_ticked)
 	for id in Sim.colony.buildings:
 		_on_placed(Sim.colony.buildings[id])
@@ -24,12 +25,16 @@ func bind() -> void:
 func _on_ticked(_tick: int) -> void:
 	for id in _sprites:
 		var inst: Dictionary = Sim.colony.buildings.get(id, {})
-		if inst.is_empty():
-			continue
-		var working: bool = inst.active and str(inst.get("idle_reason", "")) == ""
-		for spr in _sprites[id]:
-			spr.set_dimmed(not inst.active)
-			spr.set_working(working)
+		if not inst.is_empty():
+			_refresh(inst)
+
+# Pushes one building's two states onto its sprites. Also fired directly by
+# Events.building_toggled, so switching something off shows while paused.
+func _refresh(inst: Dictionary) -> void:
+	var working: bool = inst.active and str(inst.get("idle_reason", "")) == ""
+	for spr in _sprites.get(inst.id, []):
+		spr.set_dimmed(not inst.active)
+		spr.set_working(working)
 
 func _on_placed(inst: Dictionary) -> void:
 	var def: Dictionary = Defs.buildings[inst.type]

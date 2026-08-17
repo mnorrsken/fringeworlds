@@ -48,6 +48,7 @@ const HELP_TEXT := """MOUSE
   Left click — place the selected building
   Right click — demolish, or cancel placement
   Hover — read a tile's terrain, survey reading and building
+  T — switch the hovered building off or on (frees its power and workers)
 
 CAMERA
   WASD, arrows or middle-drag — pan
@@ -175,6 +176,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_toggle_prospect()
 			KEY_O:
 				_status.toggle()
+			KEY_T:
+				_toggle_hovered_building()
 			KEY_ESCAPE:
 				if _help_root.visible:
 					_help_root.visible = false
@@ -217,6 +220,17 @@ func _on_right_click() -> void:
 		_set_mode(Mode.NONE)
 	elif not Sim.demolish_at(_hover):
 		Audio.play(AudioCues.DENIED)
+
+# Stands the hovered building down (or back up). Power and workers go to the
+# oldest buildings first, so this is the only way to say *which* one gives way in
+# a shortage — short of demolishing it and paying to rebuild.
+func _toggle_hovered_building() -> void:
+	if _over_ui or not _map.in_bounds(_hover):
+		return
+	if Sim.toggle_at(_hover) == null:
+		Audio.play(AudioCues.DENIED)
+	else:
+		Audio.ui_click()
 
 func _on_build_requested(type_id: String) -> void:
 	_place_type = type_id

@@ -2,11 +2,14 @@ extends Node2D
 ## Toggleable building-status overlay (key O). Power in this game is a global
 ## capacity balance, not a spatial network, so there's no coverage radius to
 ## draw — instead this marks every building with a dot: green if it's running,
-## red if it's idle (no power, no workers, or stalled). Makes shutdowns obvious
+## red if it's idle (no power, no workers, or stalled), grey if the player
+## switched it off. Makes shutdowns obvious
 ## at a glance. A one-way read of sim state, like everything in render/.
 
 const RUNNING := Color("6bbf59")
 const IDLE := Color("e0503f")
+## Switched off by hand — grey, not red: nothing is wrong with it.
+const OFF := Color("7a6f5f")
 const OUTLINE := Color(0, 0, 0, 0.7)
 const DOT_R := 6.0
 
@@ -27,7 +30,11 @@ func _draw() -> void:
 	for id in Sim.colony.buildings:
 		var inst: Dictionary = Sim.colony.buildings[id]
 		var p := IsoGrid.grid_to_screen(_front_cell(inst.cells))
-		var col: Color = RUNNING if inst.active else IDLE
+		var col := IDLE
+		if not bool(inst.get("enabled", true)):
+			col = OFF
+		elif inst.active:
+			col = RUNNING
 		draw_circle(p, DOT_R + 1.5, OUTLINE)
 		draw_circle(p, DOT_R, col)
 

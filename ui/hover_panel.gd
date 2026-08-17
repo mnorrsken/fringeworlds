@@ -48,7 +48,12 @@ func show_tile(terrain: String, reading: String, report: Dictionary) -> void:
 
 	var running: bool = report.active and str(report.idle_reason) == ""
 	_title.text = str(report.name)
-	_title.add_theme_color_override("font_color", GREEN if running else RED)
+	var title_col := RED
+	if not report.get("enabled", true):
+		title_col = DIM   # off on purpose isn't a problem to flag
+	elif running:
+		title_col = GREEN
+	_title.add_theme_color_override("font_color", title_col)
 	_body.text = "\n".join(_lines(report, terrain, reading))
 	_body.add_theme_color_override("font_color", SAND)
 
@@ -77,8 +82,12 @@ func place_at(cursor: Vector2) -> void:
 # stands on.
 func _lines(report: Dictionary, terrain: String, reading: String) -> Array:
 	var out := []
+	var enabled: bool = report.get("enabled", true)
 	var running: bool = report.active and str(report.idle_reason) == ""
-	if running:
+	if not enabled:
+		# Its own line, not an idle reason: the colony isn't failing, you did this.
+		out.append("◌ switched off")
+	elif running:
 		out.append("● running")
 	else:
 		var why := str(report.idle_reason)
@@ -126,6 +135,11 @@ func _lines(report: Dictionary, terrain: String, reading: String) -> Array:
 		else:
 			out.append("reserve %d left across %d tile%s" % [
 				left, tiles, "" if tiles == 1 else "s"])
+
+	# The only place the switch is advertised — there's no click-to-select panel
+	# to hang a button on, so the hint lives where you're already looking.
+	if report.get("can_toggle", false):
+		out.append("[T] switch " + ("on" if not enabled else "off"))
 
 	out.append("")
 	out.append(terrain + ("  ·  " + reading if reading != "" else ""))
