@@ -30,6 +30,16 @@
     "power_factor": 0.35
   },
 
+  "asteroids": {
+    "enabled": true,
+    "grace_ticks": 900,
+    "interval_ticks": 1800,
+    "interval_jitter": 600,
+    "fall_ticks": 14,
+    "crash_ticks": 8,
+    "max_on_ground": 6
+  },
+
   "sim": {
     "ticks_per_second": 4.0,
     "autosave_seconds": 180.0,

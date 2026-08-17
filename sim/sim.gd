@@ -185,6 +185,15 @@ func building_at(cell: Vector2i) -> Dictionary:
 func building_report(id: int) -> Dictionary:
 	return colony.building_report(id)
 
+## How far the clock has run past the last tick, 0..1. The sim itself is
+## discrete, but anything the eye follows across the screen — a rock falling on a
+## 3-second arc over a dozen ticks — has to be drawn between them, and this is
+## the only honest source of that fraction.
+func tick_fraction() -> float:
+	if speed <= 0.0 or ticks_per_second <= 0.0:
+		return 0.0
+	return clampf(_accumulator * ticks_per_second, 0.0, 1.0)
+
 func _process(delta: float) -> void:
 	if not active or colony == null:
 		return
@@ -213,6 +222,9 @@ func _advance_tick() -> void:
 		Events.reserves_changed.emit(colony.reserve_changes)
 	if colony.weather_event != Weather.NONE:
 		Events.weather_changed.emit(colony.weather.phase)
+	for e in colony.asteroid_events:
+		if str(e.get("type", "")) == "impact":
+			Events.object_landed.emit(e.cell, str(e.kind))
 	for a in _alerts.check(colony):
 		Events.alert.emit(a.text, a.level)
 	Events.stockpile_changed.emit(colony.stockpile)

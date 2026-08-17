@@ -34,6 +34,12 @@ func check(col: Colony) -> Array:
 		Weather.CLEAR:
 			out.append({"text": "☀ The dust settles", "level": Level.INFO})
 
+	# Skyfall. Only the landing is worth saying — the descent is on screen.
+	for e in col.asteroid_events:
+		if str(e.get("type", "")) == "impact":
+			out.append({"text": "✦ Ice asteroid down at (%d, %d)"
+				% [e.cell.x, e.cell.y], "level": Level.INFO})
+
 	# Power: consumers get shed when demand outstrips supply.
 	var deficit := col.power_consumed > col.power_produced
 	if deficit and not _power_deficit:

@@ -59,6 +59,11 @@ var _amount: PackedFloat32Array = PackedFloat32Array()    # extractable units le
 var _scan: PackedByteArray = PackedByteArray()        # Scan state (revealed by play)
 var _reading_noise: PackedFloat32Array = PackedFloat32Array()  # -1..1 per cell, for coarse jitter
 
+# Loose objects sitting on the ground — a landed asteroid, and whatever else
+# later falls out of the sky. Sparse (a Dictionary, not a layer): there are a
+# handful of these on a 64x64 map, not four thousand. Vector2i -> { kind, ... }.
+var _objects: Dictionary = {}
+
 func _init(w: int = 64, h: int = 64) -> void:
 	width = w
 	height = h
@@ -146,15 +151,48 @@ func reading_text(cell: Vector2i) -> String:
 			return "%s · %d units left" % [DEPOSIT_NAMES[dep], int(round(left))]
 	return ""
 
+## --- Loose objects on the ground ---------------------------------------------
+
+## The object lying on `cell`, or {} if the tile is clear.
+func get_object(cell: Vector2i) -> Dictionary:
+	return _objects.get(cell, {})
+
+func has_object(cell: Vector2i) -> bool:
+	return _objects.has(cell)
+
+## Drops an object on a tile. `obj` is a plain dict; `kind` names its entry in
+## data/objects.json, and the sim only ever reads that id — what an ice asteroid
+## is worth is content, not engine code.
+func set_object(cell: Vector2i, obj: Dictionary) -> void:
+	_objects[cell] = obj
+
+## Picks an object up, returning it ({} if there was nothing there). This is what
+## a colonist collecting one will call.
+func take_object(cell: Vector2i) -> Dictionary:
+	var obj: Dictionary = _objects.get(cell, {})
+	_objects.erase(cell)
+	return obj
+
+## Every object on the map, cell -> object. The view iterates this to place its
+## sprites; treat it as read-only.
+func objects() -> Dictionary:
+	return _objects
+
 ## --- Serialization ---------------------------------------------------------
 ## A JSON-safe snapshot of the whole map. The four byte layers and two float
 ## layers are base64-encoded (compact and exact) rather than expanded to int
 ## arrays. ColonyMap.from_dict() is the inverse.
 func to_dict() -> Dictionary:
+	# Objects are sparse, so they serialize as a list of [x, y, obj] rather than
+	# a layer the size of the map.
+	var objs := []
+	for cell in _objects:
+		objs.append({"x": cell.x, "y": cell.y, "obj": _objects[cell]})
 	return {
 		"width": width,
 		"height": height,
 		"seed": seed,
+		"objects": objs,
 		"cells": Marshalls.raw_to_base64(_cells),
 		"deposit": Marshalls.raw_to_base64(_deposit),
 		"scan": Marshalls.raw_to_base64(_scan),
@@ -172,6 +210,8 @@ static func from_dict(d: Dictionary) -> ColonyMap:
 	m._scan = Marshalls.base64_to_raw(str(d.scan))
 	m._richness = Marshalls.base64_to_raw(str(d.richness)).to_float32_array()
 	m._reading_noise = Marshalls.base64_to_raw(str(d.reading_noise)).to_float32_array()
+	for e in d.get("objects", []):
+		m._objects[Vector2i(int(e.x), int(e.y))] = e.get("obj", {})
 	# Saves from before deposits were finite carry no reserves; refill them from
 	# richness so an old save loads as an untouched map rather than a dead one.
 	if d.has("amount"):

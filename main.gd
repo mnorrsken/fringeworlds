@@ -13,6 +13,7 @@ enum Mode { NONE, PLACE, DEMOLISH }
 @onready var _status: Node2D = $StatusOverlay
 @onready var _buildings: BuildingsView = $Buildings
 @onready var _colonists: ColonistsView = $Colonists
+@onready var _objects: ObjectsView = $Objects
 @onready var _camera: IsoCamera = $Camera
 @onready var _cursor: TileCursor = $TileCursor
 @onready var _ghost: BuildingSprite = $Ghost
@@ -86,6 +87,9 @@ func _ready() -> void:
 	# Walkers sort among the buildings, so their sprites live in that same
 	# y-sorted layer rather than under this node.
 	_colonists.bind(_buildings)
+	# Same for anything lying on the ground; only rocks still in the air are
+	# drawn over the base.
+	_objects.bind(_buildings)
 	_camera.position = IsoGrid.grid_to_screen(Vector2i(_map.width / 2, _map.height / 2))
 	_ghost.visible = false
 	_sidebar.build_requested.connect(_on_build_requested)
@@ -266,7 +270,11 @@ func _update_hover_panel(terrain: String, reading: String) -> void:
 		return
 	var b := Sim.building_at(_hover)
 	var report := Sim.building_report(int(b.id)) if not b.is_empty() else {}
-	_hover_panel.show_tile(terrain, reading, report)
+	# A loose object only ever lies on ground nothing is built on, so it can
+	# stand in for the building readout rather than competing with it.
+	var obj: Dictionary = Defs.objects.get(
+		str(_map.get_object(_hover).get("kind", "")), {})
+	_hover_panel.show_tile(terrain, reading, report, obj)
 	_hover_panel.place_at(get_viewport().get_mouse_position())
 
 func _toggle_help() -> void:

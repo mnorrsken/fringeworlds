@@ -1,17 +1,29 @@
 #!/usr/bin/env python3
-"""Turn per-direction animated GIFs into one colonist sprite sheet.
+"""Turn animated GIFs into sprite sheets Godot can read.
 
-Godot can't read animated GIFs, and the crowd renderer wants a single PNG laid
-out as one row per facing (S, SE, E, NE, N, NW, W, SW) and one column per walk
-frame — see data/colonists.json for that contract. This walks a folder of GIFs
-named per direction, decodes them (no third-party libraries: pure GIF89a LZW
-plus a hand-rolled PNG writer), and writes the sheet.
+Godot can't read animated GIFs, so authored art lands here as GIFs and this
+converts it (no third-party libraries: pure GIF89a LZW plus a hand-rolled PNG
+writer). Two layouts, because the two things that animate want different ones:
 
-    python3 tools/gif_to_sheet.py assets/characters assets/colonist.png
+  sheet (default) — one row per facing (S, SE, E, NE, N, NW, W, SW), one column
+  per walk frame, built from a folder of per-direction GIFs. See
+  data/colonists.json for that contract.
 
-Frames are trimmed to a common bounding box across every direction, so the
-figure keeps its footing between facings, and the anchor (the pixel the
-colonist stands on) is printed for pasting into data/colonists.json.
+      python3 tools/gif_to_sheet.py assets/characters assets/colonist.png
+
+  Frames are trimmed to a common bounding box across every direction, so the
+  figure keeps its footing between facings, and the anchor (the pixel the
+  colonist stands on) is printed for pasting into data/colonists.json.
+
+  strip — one GIF to one horizontal row of frames. For map objects (see
+  data/objects.json), where several separate animations of the same thing have
+  to line up with each other.
+
+      python3 tools/gif_to_sheet.py --strip in.gif out.png
+
+  Deliberately *not* trimmed: an asteroid's fall, crash and at-rest art are
+  three files that must share one frame box and one anchor, and trimming each
+  to its own contents is exactly what would make the rock jump between them.
 """
 
 import os
@@ -220,7 +232,29 @@ def bounds(frames, w, h):
     return x0, y0, x1, y1
 
 
+def write_strip(src, dst):
+    """One GIF -> one horizontal row of full-canvas frames."""
+    w, h, frames = decode_gif(src)
+    sheet_w = w * len(frames)
+    sheet = [(0, 0, 0, 0)] * (sheet_w * h)
+    for col, frame in enumerate(frames):
+        for y in range(h):
+            for x in range(w):
+                sheet[y * sheet_w + col * w + x] = frame[y * w + x]
+    write_png(dst, sheet_w, h, sheet)
+    print("wrote %s  (%dx%d, %d frames of %dx%d)"
+          % (dst, sheet_w, h, len(frames), w, h))
+    return len(frames), w, h
+
+
 def main():
+    if "--strip" in sys.argv:
+        args = [a for a in sys.argv[1:] if a != "--strip"]
+        if len(args) != 2:
+            raise SystemExit("usage: gif_to_sheet.py --strip <in.gif> <out.png>")
+        write_strip(args[0], args[1])
+        return
+
     folder = sys.argv[1] if len(sys.argv) > 1 else "assets/characters"
     out = sys.argv[2] if len(sys.argv) > 2 else "assets/colonist.png"
     gifs = find_gifs(folder)

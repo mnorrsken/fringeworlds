@@ -27,6 +27,10 @@ var audio: Dictionary = {}
 ## rule reads it — so a missing file just means no crowd tuning, not a broken game.
 var colonists: Dictionary = {}
 
+## object id (String) -> definition (Dictionary), from data/objects.json. Things
+## that come to rest on a tile (falling asteroids) rather than being built there.
+var objects: Dictionary = {}
+
 func _ready() -> void:
 	resources = _load_json(DATA_DIR + "resources.json")
 	print("[Defs] loaded %d resource definitions" % resources.size())
@@ -36,6 +40,8 @@ func _ready() -> void:
 	print("[Defs] loaded %d sound definitions" % audio.size())
 	balance = _load_balance(DATA_DIR + "balance.json")
 	colonists = _load_object(DATA_DIR + "colonists.json")
+	objects = _load_json(DATA_DIR + "objects.json")
+	print("[Defs] loaded %d object definitions" % objects.size())
 
 ## Loads the tuning file. Unlike the other data files this is a single object,
 ## not a list of id'd entries, and a missing/broken file falls back to the

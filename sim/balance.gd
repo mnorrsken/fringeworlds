@@ -79,6 +79,22 @@ var storm_duration_jitter := 60
 ## Not zero: a blacked-out grid would shed life support with no counterplay.
 var storm_power_factor := 0.35
 
+## Skyfall (see sim/asteroids.gd). Ticks again, so 4 = one second at 1x.
+var asteroids_enabled := true
+## Quiet ticks before the first rock is released.
+var asteroid_grace_ticks := 900
+## Between one drop and the next, ± jitter.
+var asteroid_interval_ticks := 1800
+var asteroid_interval_jitter := 600
+## How long the descent and the impact take on screen. Both are animations the
+## player is meant to catch out of the corner of their eye, so they are seconds,
+## not instants.
+var asteroid_fall_ticks := 14
+var asteroid_crash_ticks := 8
+## Rocks allowed on the ground (plus in the air) at once. Nothing collects them
+## yet, so without a cap a long session ends up paved with ice.
+var asteroid_max_on_ground := 6
+
 ## Builds a Balance from parsed JSON. Unknown sections and keys are ignored;
 ## anything absent keeps its default above.
 static func from_dict(d: Dictionary) -> Balance:
@@ -110,6 +126,15 @@ static func from_dict(d: Dictionary) -> Balance:
 	b.storm_duration_jitter = int(weather.get("duration_jitter", b.storm_duration_jitter))
 	b.storm_power_factor = clampf(
 		float(weather.get("power_factor", b.storm_power_factor)), 0.0, 1.0)
+
+	var sky: Dictionary = d.get("asteroids", {})
+	b.asteroids_enabled = bool(sky.get("enabled", b.asteroids_enabled))
+	b.asteroid_grace_ticks = int(sky.get("grace_ticks", b.asteroid_grace_ticks))
+	b.asteroid_interval_ticks = int(sky.get("interval_ticks", b.asteroid_interval_ticks))
+	b.asteroid_interval_jitter = int(sky.get("interval_jitter", b.asteroid_interval_jitter))
+	b.asteroid_fall_ticks = int(sky.get("fall_ticks", b.asteroid_fall_ticks))
+	b.asteroid_crash_ticks = int(sky.get("crash_ticks", b.asteroid_crash_ticks))
+	b.asteroid_max_on_ground = int(sky.get("max_on_ground", b.asteroid_max_on_ground))
 
 	var sim: Dictionary = d.get("sim", {})
 	b.ticks_per_second = float(sim.get("ticks_per_second", b.ticks_per_second))

@@ -13,6 +13,8 @@ const RED := Color("d65a4a")
 const AMBER := Color("d9a441")
 const SAND := Color("c9b892")
 const DIM := Color("7a6f5f")
+## Loose objects off the sky read cold against the warm ground palette.
+const ICE := Color("8ebcc4")
 
 ## Gap between the cursor and the panel's corner.
 const CURSOR_OFFSET := Vector2(18, 18)
@@ -37,8 +39,17 @@ func _ready() -> void:
 ## Shows the readout for a tile. `report` is Colony.building_report() for the
 ## building there, or {} for bare ground. Passing an out-of-bounds tile (or
 ## hovering the UI) should call hide_info() instead.
-func show_tile(terrain: String, reading: String, report: Dictionary) -> void:
+func show_tile(terrain: String, reading: String, report: Dictionary,
+		obj: Dictionary = {}) -> void:
 	visible = true
+	if report.is_empty() and not obj.is_empty():
+		# Something lying on the tile — a landed asteroid. It can't share a tile
+		# with a building, so it takes the readout to itself.
+		_title.text = str(obj.get("name", "Object"))
+		_title.add_theme_color_override("font_color", ICE)
+		_body.text = "\n".join(_object_lines(obj, terrain, reading))
+		_body.add_theme_color_override("font_color", SAND)
+		return
 	if report.is_empty():
 		_title.text = terrain
 		_title.add_theme_color_override("font_color", AMBER)
@@ -147,6 +158,20 @@ func _lines(report: Dictionary, terrain: String, reading: String) -> Array:
 	if report.get("can_toggle", false):
 		out.append("[T] switch " + ("on" if not enabled else "off"))
 
+	out.append("")
+	out.append(terrain + ("  ·  " + reading if reading != "" else ""))
+	return out
+
+# What a landed object is and what is in it. Short: it's a rock on the ground,
+# not a machine with a state to explain.
+func _object_lines(obj: Dictionary, terrain: String, reading: String) -> Array:
+	var out := []
+	var desc := str(obj.get("desc", ""))
+	if desc != "":
+		out.append(desc)
+	var payload: Dictionary = obj.get("yield", {})
+	if not payload.is_empty():
+		out.append("holds " + _flow(payload))
 	out.append("")
 	out.append(terrain + ("  ·  " + reading if reading != "" else ""))
 	return out

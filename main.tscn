@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://b0regolithmain0"]
+[gd_scene load_steps=17 format=3 uid="uid://b0regolithmain0"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://render/terrain_view.gd" id="2_terrain"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://ui/hover_panel.gd" id="13_hover"]
 [ext_resource type="Script" path="res://render/colonists_view.gd" id="14_colonists"]
 [ext_resource type="Script" path="res://render/dust_storm.gd" id="15_dust"]
+[ext_resource type="Script" path="res://render/objects_view.gd" id="16_objects"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_main")
@@ -34,6 +35,9 @@ script = ExtResource("3_buildings")
 
 [node name="Colonists" type="Node2D" parent="."]
 script = ExtResource("14_colonists")
+
+[node name="Objects" type="Node2D" parent="."]
+script = ExtResource("16_objects")
 
 [node name="StatusOverlay" type="Node2D" parent="."]
 visible = false

@@ -15,6 +15,8 @@ var balance: Balance
 ## Dust-storm schedule. Owned here rather than by Sim so the pacing harness and
 ## the headless tests get the same weather the real game does.
 var weather: Weather
+## Skyfall schedule — rocks coming down and the objects they leave behind.
+var asteroids: Asteroids
 var stockpile: Dictionary = {}        # resource id -> amount
 
 var population := 0
@@ -58,6 +60,10 @@ var scan_changes: Array = []
 # Weather. AlertMonitor turns it into the announcement.
 var weather_event := Weather.NONE
 
+# Skyfall events from the most recent tick (launches and impacts) — see
+# Asteroids. The view spawns sprites from these; AlertMonitor announces impacts.
+var asteroid_events: Array = []
+
 # Cells an extractor drew ore out of during the most recent tick. The overlay
 # shades confirmed tiles by what's left, so it has to repaint as they deplete —
 # not just when a scan lands.
@@ -69,6 +75,7 @@ func _init(p_map: ColonyMap, p_defs: Dictionary, p_stockpile: Dictionary = {},
 	defs = p_defs
 	balance = p_balance if p_balance != null else Balance.new()
 	weather = Weather.new(balance, map.seed)
+	asteroids = Asteroids.new(balance, map.seed)
 	for id in defs:
 		if defs[id].get("colony_controller", false):
 			_needs_controller = true
@@ -241,6 +248,10 @@ func place(type_id: String, origin: Vector2i) -> Variant:
 	buildings[id] = inst
 	for c in cells:
 		_occupancy[c] = id
+		# Anything lying on the site is cleared by the construction, the same way
+		# building over an unsurveyed deposit buries it. Skyfall aims at open
+		# ground, but the ground can stop being open while a rock is on its way.
+		map.take_object(c)
 	built_types[type_id] = true
 	# A prospecting building that "guarantees" a deposit (the hub) ensures a
 	# reachable node of that type exists in its survey range, so the player can
@@ -318,6 +329,17 @@ func toggle_at(cell: Vector2i) -> Variant:
 	set_enabled(id, on)
 	return on
 
+## Whether a loose object could sit on this tile: open, walkable ground with
+## nothing already on it and nothing built over it. Skyfall aims by this, and a
+## colonist collecting one will have to be able to reach it — so canyons and the
+## impassable crystal formations are out, and so is the colony's own footprint.
+func can_hold_object(cell: Vector2i) -> bool:
+	if not map.in_bounds(cell) or _occupancy.has(cell) or map.has_object(cell):
+		return false
+	var t := map.get_terrain(cell)
+	return t == ColonyMap.Terrain.REGOLITH or t == ColonyMap.Terrain.HIGHLANDS \
+		or t == ColonyMap.Terrain.ICE
+
 ## What a building type contributes to the grid right now: its def figure, dimmed
 ## by the weather if it is `exposed` to the sky (solar panels). Only generation
 ## is dimmed — a storm doesn't make a smelter draw less.
@@ -366,6 +388,7 @@ func tick() -> void:
 	reserve_changes = []
 	# Weather first: a storm dims the panels on the same tick it is announced.
 	weather_event = weather.advance()
+	asteroid_events = asteroids.advance(map, can_hold_object)
 	_balance_power()
 	_require_hub()
 	_balance_workforce()
@@ -853,6 +876,7 @@ func to_dict() -> Dictionary:
 		"life_accum": _life_accum.duplicate(),
 		"built_types": built_types.duplicate(),
 		"weather": weather.to_dict(),
+		"asteroids": asteroids.to_dict(),
 		"buildings": blds,
 	}
 
@@ -906,6 +930,7 @@ static func from_dict(p_map: ColonyMap, p_defs: Dictionary, d: Dictionary,
 	# Saves from before dust storms existed resume with clear skies and a fresh
 	# grace period, which is what a Weather starts with anyway.
 	c.weather.from_dict(d.get("weather", {}))
+	c.asteroids.from_dict(d.get("asteroids", {}))
 	for bd in d.get("buildings", []):
 		var inst := _inst_from_dict(bd)
 		var id: int = inst.id

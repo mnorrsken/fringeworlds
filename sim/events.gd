@@ -33,6 +33,10 @@ signal reserves_changed(cells: Array)
 ## overlay and the sidebar countdown read the live Weather off Sim.colony.
 signal weather_changed(phase: int)
 
+## Emitted when a falling object comes to rest on `cell` — the tile now holds it
+## (ColonyMap.get_object). The view swaps the crash animation for the still.
+signal object_landed(cell: Vector2i, kind: String)
+
 ## Emitted once when the colony reaches a terminal state (won == true means the
 ## xenite beacon was launched; false means the population died out).
 signal game_over(won: bool)

@@ -34,8 +34,12 @@ test: ## Run headless sim tests (non-zero exit on failure)
 audio: ## Regenerate the synthesized sound assets (assets/audio/*.wav)
 	python3 tools/gen_audio.py
 
-sprites: ## Rebuild assets/colonist.png from the per-direction GIFs in assets/characters/
+sprites: ## Rebuild the sprite sheets from the authored GIFs (colonists, map objects)
 	python3 tools/gif_to_sheet.py assets/characters assets/colonist.png
+	python3 tools/gif_to_sheet.py --strip assets/objects/ice_asteroid_falling.gif \
+		assets/objects/ice_asteroid_falling.png
+	python3 tools/gif_to_sheet.py --strip assets/objects/ice_asteroid_crashing.gif \
+		assets/objects/ice_asteroid_crashing.png
 
 playtest: ## Headless pacing run: bot-plays several seeds and reports timings
 	$(GODOT) --headless --script res://tools/playtest.gd

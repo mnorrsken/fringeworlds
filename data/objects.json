@@ -1,0 +1,44 @@
+[
+  {
+    "_comment": [
+      "Things that end up sitting ON a tile rather than being built on it —",
+      "see sim/asteroids.gd for the fall and ColonyMap's object layer for where",
+      "they come to rest. Adding another kind of falling object is an entry here.",
+      "",
+      "ART CONTRACT. All three sprites share one `frame_size` and one `anchor`,",
+      "so the rock doesn't jump between animations: `anchor` is the pixel inside",
+      "a frame that sits on the tile's centre. The two animated ones are",
+      "horizontal strips of `frames` frames, built from the GIFs next to them by",
+      "`make sprites` (Godot can't read animated GIFs).",
+      "  falling  — loops at `fps` for the whole descent",
+      "  crashing — played once, stretched across the crash, so the last frame",
+      "             lands exactly as the object comes to rest",
+      "  resting  — a single still frame, drawn until something collects it",
+      "",
+      "`fall_angle_deg` is measured from the horizontal, travelling down and to",
+      "the LEFT; `fall_px` is how far back up that line the object starts. Both",
+      "describe a straight line across the picture rather than a path through",
+      "the grid — skyfall happens in front of the projection, not inside it.",
+      "The distance is in world pixels (a tile is 64 wide), so zoomed in the",
+      "rock enters from off-screen and only the last of its descent is seen.",
+      "",
+      "`yield` is what collecting one puts in the colony store. Nothing reads it",
+      "yet — colonists don't fetch these — but it is what the fetch will pay."
+    ],
+
+    "id": "ice_asteroid",
+    "name": "Ice Asteroid",
+    "desc": "A shard of dirty ice off the belt.",
+
+    "frame_size": [48, 48],
+    "anchor": [24, 43],
+    "falling": { "sprite": "res://assets/objects/ice_asteroid_falling.png", "frames": 9, "fps": 14.0 },
+    "crashing": { "sprite": "res://assets/objects/ice_asteroid_crashing.png", "frames": 9 },
+    "resting": { "sprite": "res://assets/objects/ice_asteroid_on_ground.png" },
+
+    "fall_angle_deg": 70.0,
+    "fall_px": 640.0,
+
+    "yield": { "water": 40, "oxygen": 15, "food": 6 }
+  }
+]
