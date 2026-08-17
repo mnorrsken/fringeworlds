@@ -3,9 +3,9 @@
 Milestone 9 asks for the next round of features to be *written down* rather than
 built. This is that list: five candidates from the plan (§ Milestone 9), each
 sketched far enough to be costed and argued about, with the parts of the current
-architecture they would disturb named explicitly. One (deposit depletion) has
-since shipped — its entry below is kept as a record of what was planned vs.
-what was built, rather than deleted.
+architecture they would disturb named explicitly. Two (deposit depletion,
+hostile events) have since shipped — their entries below are kept as a record
+of what was planned vs. what was built, rather than deleted.
 
 Nothing here is committed to. The point is that when v2 starts, the arguments
 have already happened.
@@ -77,32 +77,26 @@ logistics than this game wants.
 **Size.** Large, and it is a one-way door. If v2 does this, do it first, alone,
 and re-run the pacing harness before adding anything else.
 
-## 3. Hostile events (dust storms)
+## 3. Hostile events (dust storms) — shipped
 
-**Sketch.** Periodic weather that degrades the colony for a while: a dust storm
-cuts solar output, buries prospecting readings, or halts surface extraction.
-Announced in advance so the player can bank power or pause a factory.
-
-**Sim.** A pure `EventScheduler` (RefCounted, injected like `Balance` and
-`AlertMonitor`) that `Sim` ticks. It emits typed modifiers the Colony applies
-during `_balance_power()` and `_run_production()`. Frequency, duration and
-severity are balance keys. `Events.alert` already exists for the warning, and the
-alert tiers already have sounds.
-
-**View/UI.** A screen-space particle/tint pass — the `BuildingFX` work already
-established how to layer effects without touching the sim. An alert ticker entry
-and a countdown in the sidebar.
-
-**Risks.** With no way to switch a building off, a storm that cuts power just
-sheds the newest buildings — which the M9 findings show can silently stop the
-smelter. **The on/off toggle has since shipped** (`Colony.set_enabled`/
-`toggle_at`, key `T`), so a storm's power-shedding is now something the
-player can pre-empt rather than a purely arbitrary shed order. Pure downside
-mechanics still need a counterplay (batteries? storm shutters?) or they read
-as punishment.
-
-**Size.** Small-to-medium, well isolated, and the highest drama-per-line in this
-list. Best candidate to ship first if v2 wants a visible headline.
+**Shipped, not a candidate anymore.** New `Weather` (`sim/weather.gd`), a pure
+scheduler owned by `Colony` (not `Sim`, so `ColonyBot` and headless tests see
+the same weather a real game does), cycling CLEAR → WARNING → STORM → CLEAR.
+The schedule is a hash of a storm counter and the map seed rather than an RNG
+object, so it's deterministic per seed and resumes correctly from a save with
+nothing extra to serialize. Deliberately narrow scope, matching the risk noted
+below: a storm dims `exposed` power production (Solar Panel, to 35% via
+`Colony.power_of()`) and halts prospecting (survey stations idle "Dust storm",
+holding sweep progress) — mining and life support are untouched, so the damage
+always arrives through the power balance, where **the on/off toggle that
+shipped first** (`Colony.set_enabled`/`toggle_at`, key `T`) is the actual
+counterplay: the `WARNING` phase's lead time is when the player banks
+resources and switches off whatever they'd rather lose. View: a screen-space
+ochre veil with wind-blown streaks (`render/dust_storm.gd`), a sidebar
+countdown, and three `AlertMonitor` announcements. `ColonyBot` needed no
+changes — it plans against nominal power and eats the full storm cost, making
+it a lower bound as intended (`make playtest`: 5/5 seeds win, avg 32.2 min, up
+from 29.1). See `docs/architecture.md`'s "Weather / dust storms".
 
 ## 4. Terrain elevation
 
@@ -152,8 +146,7 @@ strategic depth without new subsystems.
 ## Suggested order
 
 1. ~~**Deposit depletion**~~ — shipped; see § 1 above.
-2. **Hostile events** — isolated, visible, exercises the existing alert and FX
-   layers. Its prerequisite, an on/off toggle for buildings, has shipped.
+2. ~~**Hostile events**~~ — shipped; see § 3 above.
 3. **Second colonist tier** — depth on top of a stable economy.
 4. **Depot / logistics radius** — only with intent to re-derive pacing; treat as
    the start of a v2 branch rather than an increment.

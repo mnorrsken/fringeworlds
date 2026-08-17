@@ -56,8 +56,9 @@ good reason.
    `building_removed(instance: Dictionary)`, (Milestone 4)
    `scan_changed(cells: Array)`, (Milestone 5) `game_over(won: bool)`,
    (Milestone 6) `alert(text: String, level: int)`, (reserve-shading
-   overlay) `reserves_changed(cells: Array)`, and (building-toggle feature)
-   `building_toggled(instance: Dictionary)`. The sim emits; UI/render
+   overlay) `reserves_changed(cells: Array)`, (building-toggle feature)
+   `building_toggled(instance: Dictionary)`, and (dust-storms feature)
+   `weather_changed(phase: int)`. The sim emits; UI/render
    layers connect. UI is meant to never poke `Sim` internals directly — it
    calls `Sim` methods and listens on `Events` signals instead. The
    `building_placed`/`building_removed` payload is the same instance
@@ -77,7 +78,10 @@ good reason.
    `alert`'s `level` is an `AlertMonitor.Level` value (`INFO`/`WARN`/`CRIT`,
    0/1/2); `Sim` emits one per entry `AlertMonitor.check()` returns each
    tick (see "Alerts" below), and `ui/alert_ticker.gd` is the only
-   listener.
+   listener. `weather_changed`'s `phase` is the `Weather` phase that just
+   started (`WARNING`/`STORM`/`CLEAR`); `Sim` emits it once per tick that
+   `Colony.weather_event` is non-`Weather.NONE` (see "Weather" below), and
+   `render/dust_storm.gd`/`ui/sidebar.gd` listen.
 2. **`Defs`** (`sim/defs.gd`) — loads read-only content definitions from
    `data/*.json` at startup into three dictionaries: `resources` (id →
    definition, unchanged since Milestone 0), `buildings` (id →
@@ -318,8 +322,10 @@ patch-mining rework, up from `600/260/30`), read by `ColonyMap.set_deposit()`
 to size a tile's reserve, and (the depletion-taper rework) `mining.min_rate`/
 `mining.full_rate_above` (`Balance.mine_min_rate`/`mine_full_rate_above`,
 defaults `0.2`/`0.5`) — how far and how soon extraction rate tapers as a
-patch empties, see "Deposits and prospecting" below. Tuning the game means
-editing that file, not engine code.
+patch empties, and (dust-storms feature) a `weather` section (`enabled`,
+`grace_ticks`, `interval_ticks`/`interval_jitter`, `warning_ticks`,
+`duration_ticks`/`duration_jitter`, `power_factor`) — see "Weather" below.
+Tuning the game means editing that file, not engine code.
 
 `sim/balance.gd` (`Balance`, `class_name`, `RefCounted`) holds every one of
 those numbers as a field with the shipped value as its default, plus
@@ -526,6 +532,7 @@ once per simulation tick from `Sim._advance_tick()`. As of Milestone 5,
 ```gdscript
 func tick() -> void:
     scan_changes = []
+    weather_event = weather.advance()  # dust-storms feature — see "Weather" below
     _balance_power()
     _balance_workforce()
     _run_prospecting()
@@ -572,7 +579,9 @@ total would exceed `power_produced`, the practical effect is that the
 **newest** consumers are the ones left `active = false` on a deficit —
 older buildings keep priority. `power_produced`/`power_consumed` are
 recomputed from scratch every tick and exposed as `Colony` members for the
-HUD.
+HUD. Every place that reads a building's power reads it through
+`power_of(type_id)` rather than `def.power` directly, since a storm dims
+`exposed` generators — see "Weather" below.
 
 **Workforce balance (`_balance_workforce`, Milestone 5)**: the same
 oldest-first/newest-shed pattern as power, applied to labor. Iterates
@@ -615,6 +624,40 @@ per-resource rate is the true net figure, not just what buildings are doing.
 Callers that want a per-second figure for display multiply by
 `Sim.ticks_per_second` themselves (see `main.gd` below); `Colony` has no
 concept of real time, only ticks.
+
+## Weather / dust storms (`Weather`, `sim/weather.gd`, dust-storms feature)
+
+A pure, injectable scheduler — no autoload/`Events`/rendering dependency —
+constructed and owned by `Colony` (not `Sim`), so `ColonyBot`'s pacing
+harness and headless tests see the same weather a real game does. Cycles
+`enum Phase { CLEAR, WARNING, STORM }` in that order; `advance()` is called
+once per tick from the top of `Colony.tick()` and returns the phase that
+just started (`Phase` value) or `Weather.NONE` if nothing changed this tick.
+
+The schedule is derived by hashing a storm counter together with the map
+seed (`data/balance.json`'s `weather.interval_ticks` ± `interval_jitter`
+between storms, `warning_ticks` lead time, `duration_ticks` ±
+`duration_jitter` per storm) rather than drawn from an `RandomNumberGenerator`
+— deterministic per seed and resumable from a save without serializing RNG
+state. `weather.enabled` (default on) can turn storms off wholesale for a
+calm game; `weather.grace_ticks` delays the first storm so a fresh colony
+isn't hit immediately.
+
+**What a storm does, deliberately narrow**: `is_storming()`/`power_factor()`
+dim `exposed` generators (currently only the solar panel) to 35% via
+`Colony.power_of(type_id)`, and `blocks_prospecting()` halts survey stations
+— `_run_prospecting()` skips them with `idle_reason = "Dust storm"`,
+holding sweep/resample progress rather than losing it. Mining and life
+support are untouched: the damage arrives through the power balance, where
+the existing on/off toggle (`T`) is the counterplay the `WARNING` phase
+gives the player time to use.
+
+Serialized on `Colony` (`to_dict`/`from_dict`); a save from before storms
+existed loads with weather clear. View layer: `render/dust_storm.gd` (an
+ochre screen veil plus wind-blown streaks, fading in/out) reads
+`Sim.colony.weather` directly and lives in a `WeatherLayer` between the map
+and the HUD; `ui/sidebar.gd` shows a countdown during `WARNING`/`STORM`;
+`AlertMonitor` (`sim/alerts.gd`) announces all three phase transitions.
 
 ## Storage limits (`Colony`, storage/warehouse feature)
 
@@ -1120,6 +1163,10 @@ calls:
   a negative rate when something is actually consuming it.
 - **Deposit confirmed** — any deposit kind newly `CONFIRMED` in
   `col.scan_changes` this tick — `INFO`, one entry per kind (not per cell).
+- **Weather phase change** (dust-storms feature) — `col.weather_event`
+  non-`Weather.NONE` this tick: "Dust storm approaching" (`WARN`), "Dust
+  storm — solar output down" (`CRIT`), "The dust settles" (`INFO`). Driven
+  directly by `Weather`'s own edge-triggering, not `AlertMonitor`'s.
 
 `Sim` owns one `AlertMonitor`, resets it in `new_game()`, and calls
 `check(colony)` at the end of `_advance_tick()`, emitting `Events.alert`

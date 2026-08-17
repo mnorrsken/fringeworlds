@@ -3,7 +3,7 @@
 Milestone-by-milestone status. See [`colony-game-plan.md`](../colony-game-plan.md)
 for the plan and acceptance criteria this tracks.
 
-Current test count: **1360 assertions across 160 tests, 0 failures** (`make test`).
+Current test count: **1420 assertions across 175 tests, 0 failures** (`make test`).
 
 - **M0 — Project skeleton — done.** Godot project setup, autoloads
   (`Events`/`Defs`/`Sim`), `data/resources.json`, Makefile, headless test
@@ -158,3 +158,11 @@ v2 candidates: [`docs/v2-candidates.md`](v2-candidates.md).
   named for hostile events. `make playtest` unaffected (the bot doesn't use
   it). See `docs/architecture.md`'s "The tick economy" and "Building
   inspector".
+- **Dust storms — done (second v2 item).** New `Weather` scheduler
+  (`sim/weather.gd`), owned by `Colony`, cycles CLEAR → WARNING → STORM on
+  a seed-deterministic schedule; a storm dims solar power to 35% and halts
+  prospecting, leaving mining and life support untouched so the on/off
+  toggle is the counterplay the warning gives time for. `make playtest`:
+  5/5 seeds win, avg 32.2 min (up from 29.1, ColonyBot unmodified — it eats
+  the full storm cost since it doesn't use the switch). See
+  `docs/architecture.md`'s "Weather / dust storms".

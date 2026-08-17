@@ -41,7 +41,10 @@ hold xenite at all, so a full store stalls whatever's feeding it until you
 build Warehouses. Refine ore into metal into parts, extract xenite once
 you've got enough parts to build the extractor, and hit the victory
 threshold to complete "phase 1" (the beacon launches) — or lose everyone
-and see the colony end, either way followed by a one-key restart.
+and see the colony end, either way followed by a one-key restart. Dust
+storms roll through periodically — a warning gives you time to switch off
+(`T`) whatever you'd rather lose before solar output dims and prospecting
+halts for the duration; mining and life support are never touched directly.
 
 The build menu unlocks new buildings as you build their prerequisites —
 🔒 marks what's still out of reach — so a first playthrough naturally
@@ -89,7 +92,7 @@ make test
 
 Runs the headless sim test suite (`godot --headless --script
 res://tests/run_tests.gd`) and exits non-zero on any failure. Currently:
-**1360 assertions across 160 tests, 0 failures.**
+**1420 assertions across 175 tests, 0 failures.**
 
 Other Makefile targets: `make build` / `make import` (headless import, fails
 on script/asset errors — good for CI), `make audio` (regenerates every WAV
@@ -184,7 +187,7 @@ loses, press **Enter** on the game-over screen to start a fresh colony.
 | Building | Footprint | Cost | Power | Workers | Produces | Requires built | Terrain / deposit |
 |---|---|---|---|---|---|---|---|
 | Colony Hub | 2×2 | free | +15 | 0 | sustains 4 colonists free; scans; guarantees nearby iron; holds up to 75 metal, 50 of each ore/parts, no xenite | — | Regolith |
-| Solar Panel | 1×1 | 10 metal | +15 | 0 | — | Hub | Regolith, Highlands |
+| Solar Panel | 1×1 | 10 metal | +15 (35% in a dust storm) | 0 | — | Hub | Regolith, Highlands |
 | Habitat | 2×2 | 30 metal | −2 | 0 | houses +6 colonists | Hub | Regolith |
 | Ice Harvester | 1×1 | 15 metal | −5 | 0 | 1 water / 4 ticks (no inputs) | Hub | Ice |
 | Survey Station | 1×1 | 25 metal | −3 | 0 | scans outward (ring every 3 ticks, radius 7), then slow resample to confirm | Hub, inside existing survey coverage | Regolith, Highlands |
@@ -296,7 +299,10 @@ done, the game now exports to distributable macOS/Windows/Linux builds
 (`make release`/`make export`, see
 [`DISTRIBUTING.md`](DISTRIBUTING.md)). Post-launch, colonists now walk
 around the base — a cosmetic view-layer crowd (`render/colonist_crowd.gd`)
-with no effect on the simulation or its pacing. See
+with no effect on the simulation or its pacing — and v2 work has begun on
+the candidates list: buildings can be switched off by hand (`T`), and dust
+storms (periodic weather that dims solar power and halts prospecting,
+`sim/weather.gd`) are the second item shipped. See
 [`docs/progress.md`](docs/progress.md) for what's implemented, what's
 verified by test vs. eyeballed on screen, and what's next.
 

@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Dust storms.** New `sim/weather.gd` (`Weather`), a pure scheduler owned
+  by `Colony`, cycles CLEAR → WARNING → STORM → CLEAR on a schedule
+  deterministically hashed from a storm counter and the map seed (no RNG
+  object, so it's save-safe). A storm dims `exposed` power production
+  (Solar Panel, to 35%) and halts prospecting (`idle_reason = "Dust storm"`,
+  sweep progress held, not lost) — mining and life support are untouched,
+  so the damage always arrives through the power balance, where the
+  existing on/off toggle (`T`) is the counterplay the warning phase gives
+  time to use. New `data/balance.json` `weather` section (`enabled`,
+  timing, `power_factor`); `data/buildings.json`'s Solar Panel gains
+  `exposed: true`. View: a screen-space ochre veil with wind-blown streaks
+  (`render/dust_storm.gd`), a sidebar countdown, three `AlertMonitor`
+  announcements, and a dimmed-power line in the hover panel. New
+  `tests/test_weather.gd` (15 tests). Second v2 item shipped (see
+  `docs/v2-candidates.md` § 3). `make playtest`: 5/5 seeds win, avg 32.2 min
+  (up from 29.1).
 - **Buildings can be switched off by hand.** New per-instance `enabled` flag
   (`Colony.can_toggle`/`is_enabled`/`set_enabled`/`toggle_at`, key **T** on
   the hovered building) alongside the existing derived `active`: switched off,
